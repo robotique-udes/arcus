@@ -14,7 +14,7 @@ def generate_launch_description():
             name='joy',),
         launch_ros.actions.Node(
             package='drive_controller',
-            executable='drive_controller',
-            name='drive_controller',),
+            executable='controller_node',
+            name='controller_node',),
         
   ])
