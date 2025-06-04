@@ -13,6 +13,7 @@ find_package(ament_cmake REQUIRED)
 find_package(rclcpp REQUIRED)
 find_package(vesc REQUIRED)
 find_package(std_msgs REQUIRED)
+find_package(sensor_msgs REQUIRED)
 
 if(BUILD_TESTING)
   find_package(ament_lint_auto REQUIRED)
@@ -27,7 +28,7 @@ if(BUILD_TESTING)
 endif()
 
 add_executable(controller_node src/drive_controller.cpp)
-ament_target_dependencies(controller_node rclcpp std_msgs vesc)
+ament_target_dependencies(controller_node rclcpp std_msgs vesc sensor_msgs)
 
 install(TARGETS
   controller_node

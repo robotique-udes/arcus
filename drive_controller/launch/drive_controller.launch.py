@@ -3,11 +3,11 @@ import launch_ros.actions
 
 def generate_launch_description():
     return launch.LaunchDescription([
-        launch_ros.actions.DeclareLaunchArgument(
-            'deadzone',
-            default_value='0.1',
-            description='The joystick deadzone'
-        ),
+        # launch_ros.DeclareLaunchArgument(
+        #     'deadzone',
+        #     default_value='0.1',
+        #     description='The joystick deadzone'
+        # ),
         launch_ros.actions.Node(
             package='joy',
             executable='joy_node',

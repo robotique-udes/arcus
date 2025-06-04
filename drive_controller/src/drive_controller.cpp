@@ -5,7 +5,7 @@
 
 #include "rclcpp/rclcpp.hpp"
 #include "std_msgs/msg/float64.hpp"
-#include "sensors/msg/joy.hpp"
+#include "sensor_msgs/msg/joy.hpp"
 
 
 using namespace std::chrono_literals;
@@ -21,18 +21,18 @@ class DriveController : public rclcpp::Node
     {
       speed_publisher_ = this->create_publisher<std_msgs::msg::Float64>("commands/motor/duty_cycle", 10);
       steering_publisher_ = this->create_publisher<std_msgs::msg::Float64>("commands/servo/position", 10);
-      joy_sub_ = create_subscription<sensors::msg::Joy>("/joy", rclcpp::QoS{10}, std::bind(&DriveController::joy_callback, this));
+      joy_sub_ = create_subscription<sensor_msgs::msg::Joy>("/joy", rclcpp::QoS{10}, std::bind(&DriveController::joy_callback, this, std::placeholders::_1));
 
     }
 
   private:
-    void joy_callback(const sensors::msg::Joy::SharedPtr joy_msg)
+    void joy_callback(const sensor_msgs::msg::Joy::SharedPtr joy_msg)
     {
       auto throttle_msg = std_msgs::msg::Float64();
       auto steering_msg = std_msgs::msg::Float64();
 
-      float throttle = joy_msg->axes[5] - joy_msg->axes[4];
-      float steering = (joy_msg->axes[0]+1.0)/2.0;
+      float throttle = joy_msg->axes[5] - joy_msg->axes[2];
+      float steering = (joy_msg->axes[3]+1.0)/2.0;
       throttle_msg.data = throttle;
       steering_msg.data = steering;
       speed_publisher_->publish(throttle_msg);
@@ -42,7 +42,7 @@ class DriveController : public rclcpp::Node
 
     rclcpp::Publisher<std_msgs::msg::Float64>::SharedPtr speed_publisher_;
     rclcpp::Publisher<std_msgs::msg::Float64>::SharedPtr steering_publisher_;
-    rclcpp::Subscription<sensors::msg::Joy>::SharedPtr joy_sub_;
+    rclcpp::Subscription<sensor_msgs::msg::Joy>::SharedPtr joy_sub_;
 
     size_t count_;
 };
