@@ -1,3 +1,8 @@
 .vscode
 *~
-*.bkp
+./slam_ws/build
+./slam_ws/devel
+./slam_ws/install
+./slam_ws/log
+*.pyc
+*.swp
