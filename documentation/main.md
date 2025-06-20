@@ -6,4 +6,4 @@
 - [Configuration de la clé SSH pour github](https://docs.github.com/fr/authentication/connecting-to-github-with-ssh/generating-a-new-ssh-key-and-adding-it-to-the-ssh-agent)
 
 ## Programmation
-- [Normes de programmation](normes-programmation)
+- [Normes de programmation](normes-programmation.md)
