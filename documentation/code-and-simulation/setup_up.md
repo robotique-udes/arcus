@@ -1,7 +1,7 @@
 
 # SETTING UP THE ENVIRONNEMENT 
-Before you start setting_up, it is important that installed and set up **UBUNTU DOC LINK 20.04** and **ROS DOC LINK**. 
- ![architecture_overview](ressources/architecture_overview.png)
+Before you start setting_up, it is important that you installed and set up **UBUNTU DOC LINK 20.04** and **ROS DOC LINK**. 
+![architecture overview](../ressources/architecture_overview.png)
  
 The picture above gives a brief visual overview of the software architecture and different tools we use.
 First of all, it is important to note that we do **virtual AND real-life racing**. Therefore, distinct setup-up are needed for each and you might want to only set-up the environment that you're going to work with.
@@ -37,8 +37,9 @@ git clone https://github.com/f1tenth/f1tenth_gym_ros
 ```
 - Clone the ***ARCUS*** repo. This repo is our codebase and contains all our ROS2 packages:
 ```bash 
-git clone https://github.com/Gabduf/ARCUS_ros_pkg_example.git```
-	<code style="color : red">METTRE LA REPO ARCUS QUAND ON LES SPLIT (exemple en attendant)</code>
+git clone https://github.com/Gabduf/ARCUS_ros_pkg_example.git
+```
+**METTRE LA REPO ARCUS QUAND ON LES SPLIT (exemple en attendant). On va vouloir avoir une repo qui a juste nos package ros et rien d'autre.**
 
 ## 2.3 Building and setting up the simulation
 
