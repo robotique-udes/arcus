@@ -19,7 +19,7 @@ def generate_launch_description():
     
     params_file_arg = DeclareLaunchArgument(
         'params_file',
-        default_value='/home/charles/sim_ws/src/f1tenth_gym_ros/config/mapper_params_online_async.yaml',
+        default_value=os.path.expanduser('~/arcus/slam_ws/src/f1tenth_gym_ros/config/mapper_params_online_async.yaml'),
         description='Path to slam_toolbox parameters file'
     )
 
