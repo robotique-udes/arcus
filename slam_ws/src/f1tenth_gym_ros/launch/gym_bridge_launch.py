@@ -82,6 +82,12 @@ def generate_launch_description():
         parameters=[{'robot_description': Command(['xacro ', os.path.join(get_package_share_directory('f1tenth_gym_ros'), 'launch', 'opp_racecar.xacro')])}],
         remappings=[('/robot_description', 'opp_robot_description')]
     )
+    imu_node = Node(
+        package='fake_imu',
+        executable='fake_imu_publisher',
+        name='fake_imu',
+        parameters=[config]
+    )
 
     # finalize
     ld.add_action(rviz_node)
@@ -89,6 +95,7 @@ def generate_launch_description():
     ld.add_action(nav_lifecycle_node)
     ld.add_action(map_server_node)
     ld.add_action(ego_robot_publisher)
+    ld.add_action(imu_node)
     if has_opp:
         ld.add_action(opp_robot_publisher)
 

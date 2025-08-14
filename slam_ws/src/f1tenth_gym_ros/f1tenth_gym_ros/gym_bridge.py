@@ -1,4 +1,4 @@
-# MIT License
+ # MIT License
 
 # Copyright (c) 2020 Hongrui Zheng
 
@@ -128,6 +128,7 @@ class GymBridge(Node):
         self.drive_timer = self.create_timer(0.01, self.drive_timer_callback)
         # topic publishing timer
         self.timer = self.create_timer(0.004, self.timer_callback)
+        self.odom_timer = self.create_timer(0.02, self.odom_timer_callback)
 
         # transform broadcaster
         self.br = TransformBroadcaster(self)
@@ -136,6 +137,7 @@ class GymBridge(Node):
         self.ego_scan_pub = self.create_publisher(LaserScan, ego_scan_topic, 10)
         self.ego_odom_pub = self.create_publisher(Odometry, ego_odom_topic, 10)
         self.ego_drive_published = False
+        self.init_pose_pub = self.create_publisher(PoseWithCovarianceStamped, '/initialpose', 10)
         if num_agents == 2:
             self.opp_scan_pub = self.create_publisher(LaserScan, opp_scan_topic, 10)
             self.ego_opp_odom_pub = self.create_publisher(Odometry, ego_opp_odom_topic, 10)
@@ -173,6 +175,9 @@ class GymBridge(Node):
                 self.teleop_callback,
                 10)
 
+    def odom_timer_callback(self):
+        ts = self.get_clock().now().to_msg()
+        self._publish_odom(ts)
 
     def drive_callback(self, drive_msg):
         self.ego_requested_speed = drive_msg.drive.speed
@@ -256,7 +261,6 @@ class GymBridge(Node):
             self.opp_scan_pub.publish(opp_scan)
 
         # pub tf
-        self._publish_odom(ts)
         self._publish_transforms(ts)
         self._publish_laser_transforms(ts)
         self._publish_wheel_transforms(ts)
@@ -279,7 +283,24 @@ class GymBridge(Node):
         self.ego_speed[1] = self.obs['linear_vels_y'][0]
         self.ego_speed[2] = self.obs['ang_vels_z'][0]
 
-        
+    def publish_initial_pose(self):
+        msg = PoseWithCovarianceStamped()
+        msg.header.stamp = self.get_clock().now().to_msg()
+        msg.header.frame_id = 'map'
+        msg.pose.pose.position.x = self.ego_pose[0]
+        msg.pose.pose.position.y = self.ego_pose[1]
+        quat = euler.euler2quat(0., 0., self.ego_pose[2], axes='sxyz')
+        msg.pose.pose.orientation.x = quat[1]
+        msg.pose.pose.orientation.y = quat[2]
+        msg.pose.pose.orientation.z = quat[3]
+        msg.pose.pose.orientation.w = quat[0]
+        msg.pose.covariance = [0.01, 0.0, 0.0, 0.0, 0.0, 0.0,
+                               0.0, 0.01, 0.0, 0.0, 0.0, 0.0,
+                               0.0, 0.0, 99999.0, 0.0, 0.0, 0.0,
+                               0.0, 0.0, 0.0, 99999.0, 0.0, 0.0,
+                               0.0, 0.0, 0.0, 0.0, 99999.0, 0.0,
+                               0.0, 0.0, 0.0, 0.0, 0.0, 0.01]
+        self.init_pose_pub.publish(msg)
 
     def _publish_odom(self, ts):
         ego_odom = Odometry()
@@ -296,6 +317,25 @@ class GymBridge(Node):
         ego_odom.twist.twist.linear.x = self.ego_speed[0]
         ego_odom.twist.twist.linear.y = self.ego_speed[1]
         ego_odom.twist.twist.angular.z = self.ego_speed[2]
+
+        # Add pose covariance (6x6 flattened)
+        ego_odom.pose.covariance = [
+            0.01, 0.0, 0.0, 0.0,   0.0,   0.0,
+            0.0, 0.01, 0.0, 0.0,   0.0,   0.0,
+            0.0, 0.0, 1e6, 0.0,   0.0,   0.0,
+            0.0, 0.0, 0.0, 1e6,   0.0,   0.0,
+            0.0, 0.0, 0.0, 0.0,   1e6,   0.0,
+            0.0, 0.0, 0.0, 0.0,   0.0,   0.01
+        ]
+        # Add twist covariance (6x6 flattened)
+        ego_odom.twist.covariance = [
+            0.01, 0.0, 0.0, 0.0,   0.0,   0.0,
+            0.0, 0.01, 0.0, 0.0,   0.0,   0.0,
+            0.0, 0.0, 1e6, 0.0,   0.0,   0.0,
+            0.0, 0.0, 0.0, 1e6,   0.0,   0.0,
+            0.0, 0.0, 0.0, 0.0,   1e6,   0.0,
+            0.0, 0.0, 0.0, 0.0,   0.0,   0.01
+        ]
         self.ego_odom_pub.publish(ego_odom)
 
         if self.has_opp:
@@ -313,9 +353,15 @@ class GymBridge(Node):
             opp_odom.twist.twist.linear.x = self.opp_speed[0]
             opp_odom.twist.twist.linear.y = self.opp_speed[1]
             opp_odom.twist.twist.angular.z = self.opp_speed[2]
+
+            # Add covariance as above
+            opp_odom.pose.covariance = ego_odom.pose.covariance
+            opp_odom.twist.covariance = ego_odom.twist.covariance
+
             self.opp_odom_pub.publish(opp_odom)
             self.opp_ego_odom_pub.publish(ego_odom)
             self.ego_opp_odom_pub.publish(opp_odom)
+
 
     def _publish_transforms(self, ts):
         ego_t = Transform()

@@ -1,26 +1,36 @@
-# ekf.yaml
-ekf_node:
+ekf_filter_node:
   ros__parameters:
-    frequency: 30.0
+    frequency: 35.0
     sensor_timeout: 0.1
-
-    odom_frame: odom
-    base_link_frame: ego_racecar/base_link
-    world_frame: odom
-
     two_d_mode: true
 
-    # Fusing position and velocity from the odometry
-    odometry0: /ego_racecar/odom
-    odometry0_config: [true,  true,  false,   # x, y, z
-                       false, false, false,   # roll, pitch, yaw
-                       true,  true,  false,   # vx, vy, vz
-                       false, false, false,   # vroll, vpitch, vyaw
-                       false, false, false]   # ax, ay, az
+    # Frame definitions
+    map_frame: map
+    odom_frame: odom
+    base_link_frame: ego_racecar/base_link
+    world_frame: map
 
-    odometry0_differential: false
-    odometry0_relative: false
+    # Odometry input
+    odom0: /ego_racecar/odom
+    odom0_config: [true,  true,  false,
+                       false, false, true,
+                       true, false, false,
+                       false, false, true,
+                       false, false, false]
+    odom0_differential: true
+    odom0_relative: false
 
+    # IMU input
+    imu0: /imu/data
+    imu0_config: [false, false, false,
+                  false,  false,  true,
+                  false, false, false,
+                  false, false, true,
+                  true,  false,  false]
+    imu0_differential: true
+    imu0_relative: false
+    imu0_remove_gravitational_acceleration: false
     publish_tf: true
     print_diagnostics: true
-
+    debug: false
+    debug_out_file: /home/charles/arcus/slam_ws/src/f1tenth_gym_ros/config/ekf_debug.txt
