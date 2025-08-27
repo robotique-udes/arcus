@@ -45,4 +45,3 @@ git clone https://github.com/Gabduf/ARCUS_ros_pkg_example.git
 **METTRE LA REPO ARCUS QUAND ON LES SPLIT (exemple en attendant). On va vouloir avoir une repo qui a juste nos package ros et rien d'autre.**
 
 ## 2.3 Building and setting up the simulation
-
