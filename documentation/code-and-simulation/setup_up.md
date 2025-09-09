@@ -42,7 +42,7 @@ cd ~
 ```
 - Clone the **sim_ws** repo:
 ```bash 
-git clone https://github.com/Gabduf/ARCUS_ros_pkg_example.git
+git clone https://github.com/Gabduf/sim_ws.git
 ```
 **!!! Encore une fois, là ça pointe à mon github en attendant, mais dans le futur ça va être dans le github de RobotiqueUdes.**
 
@@ -70,8 +70,8 @@ gedit ~/.bashrc
 - At the top of the file, copy:
 ```
 # Additions
-alias arcus-build='xhost +local:docker && cd ~/sim_ws && docker compose build'
-alias arcus-up='cd ~/sim_ws && docker compose up -d'
+alias arcus-build='xhost +local:docker && cd ~/sim_ws && docker-compose build'
+alias arcus-up='cd ~/sim_ws && docker-compose up -d'
 alias arcus-bash='docker exec -it arcus bash'
 alias arcus-nuke='docker system prune -a --volumes'
 alias arcus-space='docker system df'
@@ -82,7 +82,7 @@ b() {
     CONTAINER_NAME="arcus"
     docker exec -it "$CONTAINER_NAME" bash -c '
         source /opt/ros/humble/setup.bash
-        cd ~/sim_ws || exit
+        cd /sim_ws || exit
         colcon build '"$*"'
         source install/setup.bash
     '
@@ -98,7 +98,9 @@ b() {
 7. b : this function handles the building of all the ROS2 packages using *colcon build*. **IMPORTANT: You can run it from anywhere on your HOST terminal. Meaning you can't use the 'b' command from a docker bash session. The function handles it by going in the docker itself.**
 
 ## 2.3 Building and running the docker
-First, docker needs root-level access.
+ First, you'll need to install docker and related packages: 
+ - Installation: https://docs.docker.com/engine/install/ubuntu/
+ Docker also needs root-level access.
 - Add docker group:
 ```bash
 sudo groupadd docker
@@ -107,15 +109,15 @@ sudo groupadd docker
 ```bash
 sudo usermod -aG docker $USER
 ```
+- Reboot your computer:
+```bash
+reboot
+```
 - Ensure that it worked:
 ```bash
 groups
 ```
 You should see docker in the groups !
-- Reboot your computer:
-```bash
-reboot
-```
 - Give permission to the entrypoint.sh script:
 ```bash
 chmod +x ~/sim_ws/src/scripts/entrypoint.sh
