@@ -173,4 +173,11 @@ ros2 run gap_follow reactive_node
 You should now see the car in the simulation moving around the track, using the *follow the gap* algorithm !
 
 ## 2.4 Developping using VSCode inside the docker
-TODO
+We are going to develop full-time INSIDE the docker container. Therefore, we need a VScode extension : *Dev Containers* by Microsoft. Open VScode and install the extension. Once downloaded :
+- Ctrl + Shift + P
+- In the dialog box, enter *Dev Containers: attach to running container* (make sure the arcus container is running by doing *arcus-up*)
+- Enter
+- A second dialog box should appear letting you select the docker image you want to open. Select *arcus*
+- You should then be asked to select the folder you want to open. Navigate to open */sim_ws/src*/ARCUS  
+
+You should be in ! You can now edit the code and develop, and should see all the ROS2 packages. Keep in mind that because the *sim_ws* and *ARCUS* folder are mounted in the container, any change you make in the docker are going to be mirrored on your host ! Therefore, all actions related to git can still be done outside the docker. However, the building happens inside the docker to containerize all the dependencies.
