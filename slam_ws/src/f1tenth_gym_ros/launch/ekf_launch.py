@@ -19,10 +19,4 @@ def generate_launch_description():
                 ('/odometry/filtered', '/odometry/filtered')
             ]
         ),
-        Node(
-            package='rviz2',
-            executable='rviz2',
-            name='rviz2',
-            parameters=[{'use_sim_time': True}]
-        )
     ])

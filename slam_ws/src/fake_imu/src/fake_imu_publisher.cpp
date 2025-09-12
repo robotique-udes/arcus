@@ -72,27 +72,27 @@ private:
         // Orientation
         imu_msg.orientation = tf2::toMsg(q);
         imu_msg.orientation_covariance = {
-            0.1, 0.0, 0.0,
-            0.0, 0.1, 0.0,
-            0.0, 0.0, 0.1};
+            0.001, 0.0, 0.0,
+            0.0, 0.001, 0.0,
+            0.0, 0.0, 0.001};
 
         // Angular velocity
         imu_msg.angular_velocity.x = 0.0;
         imu_msg.angular_velocity.y = 0.0;
         imu_msg.angular_velocity.z = wz;
         imu_msg.angular_velocity_covariance = {
-            0.1, 0.0, 0.0,
-            0.0, 0.1, 0.0,
-            0.0, 0.0, 0.1};
+            0.001, 0.0, 0.0,
+            0.0, 0.001, 0.0,
+            0.0, 0.0, 0.001};
 
         // Linear acceleration
         imu_msg.linear_acceleration.x = ax;
         imu_msg.linear_acceleration.y = ay;
         imu_msg.linear_acceleration.z = 0.0;
         imu_msg.linear_acceleration_covariance = {
-            0.1, 0.0, 0.0,
-            0.0, 0.1, 0.0,
-            0.0, 0.0, 0.1};
+            0.001, 0.0, 0.0,
+            0.0, 0.001, 0.0,
+            0.0, 0.0, 0.001};
 
         imu_publisher_->publish(imu_msg);
 

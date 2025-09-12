@@ -294,12 +294,12 @@ class GymBridge(Node):
         msg.pose.pose.orientation.y = quat[2]
         msg.pose.pose.orientation.z = quat[3]
         msg.pose.pose.orientation.w = quat[0]
-        msg.pose.covariance = [0.01, 0.0, 0.0, 0.0, 0.0, 0.0,
-                               0.0, 0.01, 0.0, 0.0, 0.0, 0.0,
-                               0.0, 0.0, 99999.0, 0.0, 0.0, 0.0,
-                               0.0, 0.0, 0.0, 99999.0, 0.0, 0.0,
-                               0.0, 0.0, 0.0, 0.0, 99999.0, 0.0,
-                               0.0, 0.0, 0.0, 0.0, 0.0, 0.01]
+        msg.pose.covariance = [0.0001, 0.0, 0.0, 0.0, 0.0, 0.0,
+                               0.0, 0.0001, 0.0, 0.0, 0.0, 0.0,
+                               0.0, 0.0, 0, 0.0, 0.0, 0.0,
+                               0.0, 0.0, 0.0, 0, 0.0, 0.0,
+                               0.0, 0.0, 0.0, 0.0, 0, 0.0,
+                               0.0, 0.0, 0.0, 0.0, 0.0, 0.0001]
         self.init_pose_pub.publish(msg)
 
     def _publish_odom(self, ts):

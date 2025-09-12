@@ -1,6 +1,6 @@
 ekf_filter_node:
   ros__parameters:
-    frequency: 35.0
+    frequency: 30.0
     sensor_timeout: 0.1
     two_d_mode: true
 
@@ -8,7 +8,7 @@ ekf_filter_node:
     map_frame: map
     odom_frame: odom
     base_link_frame: ego_racecar/base_link
-    world_frame: map
+    world_frame: odom
 
     # Odometry input
     odom0: /ego_racecar/odom
@@ -17,7 +17,7 @@ ekf_filter_node:
                        true, false, false,
                        false, false, true,
                        false, false, false]
-    odom0_differential: true
+    odom0_differential: false
     odom0_relative: false
 
     # IMU input
@@ -27,7 +27,7 @@ ekf_filter_node:
                   false, false, false,
                   false, false, true,
                   true,  false,  false]
-    imu0_differential: true
+    imu0_differential: false
     imu0_relative: false
     imu0_remove_gravitational_acceleration: false
     publish_tf: true

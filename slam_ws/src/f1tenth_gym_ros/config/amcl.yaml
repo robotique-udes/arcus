@@ -1,0 +1,53 @@
+amcl:
+  ros__parameters:
+    use_sim_time: true
+
+    # Frames
+    base_frame_id: "ego_racecar/base_link"
+    odom_frame_id: "odom"
+    global_frame_id: "map"
+
+    # Topics
+    scan_topic: "/scan"
+
+    # Particle filter settings
+    min_particles: 500
+    max_particles: 2000
+    kld_err: 0.05
+    kld_z: 0.99
+
+    # Update rates
+    update_min_d: 0.2     # meters
+    update_min_a: 0.2     # radians
+
+    # Sensor model (likelihood field model works well with lidar)
+    laser_model_type: "likelihood_field"
+    laser_max_beams: 60
+    laser_max_range: 12.0
+    laser_z_hit: 0.5
+    laser_z_rand: 0.5
+    laser_sigma_hit: 0.2
+    laser_lambda_short: 0.1
+    laser_likelihood_max_dist: 2.0
+
+    # Odometry model
+    odom_model_type: "diff"   # "diff" or "omni"
+    odom_alpha1: 0.2
+    odom_alpha2: 0.2
+    odom_alpha3: 0.2
+    odom_alpha4: 0.2
+    odom_alpha5: 0.2
+
+    # Initial pose estimate (optional, can also be set via RViz "2D Pose Estimate")
+    set_initial_pose: true
+    initial_pose_x: 0.0
+    initial_pose_y: 0.0
+    initial_pose_a: 0.0
+    initial_cov_xx: 0.5
+    initial_cov_yy: 0.5
+    initial_cov_aa: 0.1
+    initial_cov_xy: 0.0
+    initial_cov_xa: 0.0
+    initial_cov_ya: 0.0
+    
+    save_pose_rate: 0.5   # how often to save pose to parameter server
