@@ -11,7 +11,6 @@ find_package(ament_cmake REQUIRED)
 # further dependencies manually.
 # find_package(<dependency> REQUIRED)
 find_package(rclcpp REQUIRED)
-find_package(vesc REQUIRED)
 find_package(std_msgs REQUIRED)
 
 if(BUILD_TESTING)
@@ -27,7 +26,7 @@ if(BUILD_TESTING)
 endif()
 
 add_executable(motor_sweep_test src/motor_sweep_test.cpp)
-ament_target_dependencies(motor_sweep_test rclcpp std_msgs vesc)
+ament_target_dependencies(motor_sweep_test rclcpp std_msgs)
 
 install(TARGETS
   motor_sweep_test
