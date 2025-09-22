@@ -1,3 +1,5 @@
+#See following link to learn about parameters: https://docs.ros.org/en/melodic/api/robot_localization/html/configuring_robot_localization.html#configuring-robot-localization
+
 ekf_filter_node:
   ros__parameters:
     frequency: 30.0
@@ -12,7 +14,7 @@ ekf_filter_node:
 
     # Odometry input
     odom0: /ego_racecar/odom
-    odom0_config: [true,  true,  false,
+    odom0_config: [true,  true,  false, # X,Y,yaw, X', yaw'
                        false, false, true,
                        true, false, false,
                        false, false, true,
@@ -22,7 +24,7 @@ ekf_filter_node:
 
     # IMU input
     imu0: /imu/data
-    imu0_config: [false, false, false,
+    imu0_config: [false, false, false, #yaw, yaw', X''
                   false,  false,  true,
                   false, false, false,
                   false, false, true,
@@ -33,4 +35,4 @@ ekf_filter_node:
     publish_tf: true
     print_diagnostics: true
     debug: false
-    debug_out_file: /home/charles/arcus/slam_ws/src/f1tenth_gym_ros/config/ekf_debug.txt
+    debug_out_file: /tmp/ekf_debug.txt

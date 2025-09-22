@@ -294,7 +294,7 @@ class GymBridge(Node):
         msg.pose.pose.orientation.y = quat[2]
         msg.pose.pose.orientation.z = quat[3]
         msg.pose.pose.orientation.w = quat[0]
-        msg.pose.covariance = [0.0001, 0.0, 0.0, 0.0, 0.0, 0.0,
+        msg.pose.covariance = [0.0001, 0.0, 0.0, 0.0, 0.0, 0.0, #Added pose covariance to simulate EKF
                                0.0, 0.0001, 0.0, 0.0, 0.0, 0.0,
                                0.0, 0.0, 0, 0.0, 0.0, 0.0,
                                0.0, 0.0, 0.0, 0, 0.0, 0.0,
@@ -318,23 +318,23 @@ class GymBridge(Node):
         ego_odom.twist.twist.linear.y = self.ego_speed[1]
         ego_odom.twist.twist.angular.z = self.ego_speed[2]
 
-        # Add pose covariance (6x6 flattened)
+        # Add pose covariance for EKF, these values can be tuned as needed
         ego_odom.pose.covariance = [
-            0.01, 0.0, 0.0, 0.0,   0.0,   0.0,
-            0.0, 0.01, 0.0, 0.0,   0.0,   0.0,
+            0.001, 0.0, 0.0, 0.0,   0.0,   0.0,
+            0.0, 0.001, 0.0, 0.0,   0.0,   0.0,
             0.0, 0.0, 1e6, 0.0,   0.0,   0.0,
             0.0, 0.0, 0.0, 1e6,   0.0,   0.0,
             0.0, 0.0, 0.0, 0.0,   1e6,   0.0,
-            0.0, 0.0, 0.0, 0.0,   0.0,   0.01
+            0.0, 0.0, 0.0, 0.0,   0.0,   0.001
         ]
-        # Add twist covariance (6x6 flattened)
+        # Add twist covariance for EKF, these values can be tuned as needed
         ego_odom.twist.covariance = [
-            0.01, 0.0, 0.0, 0.0,   0.0,   0.0,
-            0.0, 0.01, 0.0, 0.0,   0.0,   0.0,
+            0.001, 0.0, 0.0, 0.0,   0.0,   0.0,
+            0.0, 0.001, 0.0, 0.0,   0.0,   0.0,
             0.0, 0.0, 1e6, 0.0,   0.0,   0.0,
             0.0, 0.0, 0.0, 1e6,   0.0,   0.0,
             0.0, 0.0, 0.0, 0.0,   1e6,   0.0,
-            0.0, 0.0, 0.0, 0.0,   0.0,   0.01
+            0.0, 0.0, 0.0, 0.0,   0.0,   0.001
         ]
         self.ego_odom_pub.publish(ego_odom)
 

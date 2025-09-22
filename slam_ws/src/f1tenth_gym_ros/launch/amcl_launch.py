@@ -8,7 +8,7 @@ def generate_launch_description():
     map_file = os.path.join(
         get_package_share_directory('f1tenth_gym_ros'),  # replace with your package name
         'maps',
-        'levine.yaml'
+        'levine.yaml' #replace with your map file
     )
 
     # Path to your AMCL config
@@ -28,12 +28,15 @@ def generate_launch_description():
             parameters=[{'yaml_filename': '/home/user/map.yaml'}]
         ),
 
-        # AMCL
         Node(
-            package='nav2_amcl',
-            executable='amcl',
-            name='amcl',
-            output='screen',
-            parameters=[amcl_config]
-        ),
+            package="nav2_amcl",
+            executable="amcl",
+            name="amcl",
+            output="screen",
+            parameters=[amcl_config],
+            remappings=[
+                ("/odom", "/odometry/filtered")   # remap odometry input to use filtered odometry
+            ]
+        )
+
     ])
