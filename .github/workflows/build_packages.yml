@@ -3,10 +3,10 @@ name: Build Workspace
 on:
   pull_request:
     branches:
-      - release/**
+      - main/**
   push:
     branches:
-      - release/**
+      - main/**
   merge_group:
     types: [checks_requested]
 
@@ -16,7 +16,7 @@ jobs:
     runs-on: ubuntu-22.04
 
     container:
-      image: osrf/ros:humble-desktop
+      image: ghcr.io/robotique-udes/arcus-simulation:latest
 
     steps:
       - name: Checkout code
@@ -24,13 +24,6 @@ jobs:
         with:
           submodules: recursive
           
-      - name: Setup environment
-        shell: bash
-        run: |
-          echo -e "\e[0;34m=== Downloading and installing packages dependencies ... ===\e[0m"
-          chmod +x scripts/provision.sh
-          scripts/provision.sh
-          echo -e "\e[0;32m[OK] Dependencies installed successfully\e[0m"
         
       - name: Building arcus packages
         shell: bash  

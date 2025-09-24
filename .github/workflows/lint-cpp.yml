@@ -3,10 +3,10 @@ name: Lint C++ Files
 on:
   pull_request:
     branches:
-      - release/**  # Triggers on pull requests targeting release branches
+      - main/**
   push:
     branches:
-      - release/**  # Triggers on pushes to release branches, including merges
+      - main/**
   merge_group:
     types: [checks_requested]
 
