@@ -1,0 +1,50 @@
+name: Build Workspace
+
+on:
+  pull_request:
+    branches:
+      - release/**
+  push:
+    branches:
+      - release/**
+  merge_group:
+    types: [checks_requested]
+
+jobs:
+  humble-build:
+    name: 'Build on ROS2 Humble (Ubuntu 22.04)'
+    runs-on: ubuntu-22.04
+
+    container:
+      image: osrf/ros:humble-desktop
+
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@v2
+        with:
+          submodules: recursive
+          
+      - name: Setup environment
+        shell: bash
+        run: |
+          echo -e "\e[0;34m=== Downloading and installing packages dependencies ... ===\e[0m"
+          chmod +x scripts/provision.sh
+          scripts/provision.sh
+          echo -e "\e[0;32m[OK] Dependencies installed successfully\e[0m"
+        
+      - name: Building arcus packages
+        shell: bash  
+        run: |
+          echo -e "\e[0;34m=== Sourcing for build ... ===\e[0m"
+          source /opt/ros/humble/setup.bash
+          echo -e "\e[0;32m[OK]\e[0m"
+          
+          export CPR_USE_SYSTEM_CURL=ON
+          export CXXFLAGS="-Werror"
+          echo -e "\e[0;34m=== Building ROS2 Packages ... ===\e[0m"
+          if colcon build; then
+            echo -e "\e[0;32m=== [SUCCESS] ===\e[0m"
+          else
+            echo -e "\e[0;31m[FAILED] Building step triggered warnings or errors\e[0m"
+            exit 1  # Exit with status 1 if build fails
+          fi
