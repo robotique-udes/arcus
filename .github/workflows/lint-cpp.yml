@@ -1,0 +1,58 @@
+name: Lint C++ Files
+
+on:
+  pull_request:
+    branches:
+      - release/**  # Triggers on pull requests targeting release branches
+  push:
+    branches:
+      - release/**  # Triggers on pushes to release branches, including merges
+  merge_group:
+    types: [checks_requested]
+
+jobs:
+  lint-cpp:
+    name: 'Lint C++ Files (Ubuntu 22.04)'
+    runs-on: ubuntu-22.04
+
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v2
+
+      - name: Lint check
+        run: |
+          echo "=== Installing clang-format ... ==="
+          if ! command -v clang-format &> /dev/null; then
+            sudo apt-get update && sudo apt-get install -y clang-format
+            echo -e "\e[0;32m[OK]\e[0m clang-format installed"
+          else
+            echo -e "\e[0;32m[OK]\e[0m clang-format already installed"
+          fi
+
+          echo "=== Finding .clang-format file... ==="
+          if [ -z "$(find . -name '.clang-format' -print -quit)" ]; then
+            echo "[FAILED] .clang-format file not found in the repository!"
+            exit 1
+          else
+            echo -e "\e[0;32m[OK]\e[0m .clang-format file found"
+          fi
+          
+          echo "=== Detecting lint... ==="
+          set -e  # Stop the script if any command fails
+          find . \( -name "*.cpp" -o -name "*.h" -o -name "*.hpp" \) -exec clang-format -style=file -i {} \;
+
+          echo "=== Checking for formatting changes... ==="
+          if git diff --quiet; then
+            echo "Code is properly formatted."
+            exit 0
+          else
+            echo -e "=== \e[0;31m[FAILED]\e[0m Formatting is not conform ==="
+            echo ""
+            echo ""
+            git diff
+            echo ""
+            echo ""
+            echo -e "\e[0;31m=== [FAILED] Run scripts/lint-apply.sh to fix formatting ===\e[0m"
+          fi
+
+          exit 1
