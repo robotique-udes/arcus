@@ -12,39 +12,51 @@ jobs:
   humble-build:
     name: Build on ROS2 Humble (Ubuntu 22.04)
     runs-on: ubuntu-22.04
-    container:
-      image: ghcr.io/robotique-udes/arcus-simulation:latest
-      credentials:
-        username: ${{ github.actor }}
-        password: ${{ secrets.GITHUB_TOKEN }}
     steps:
       - name: Checkout code
         uses: actions/checkout@v4
         with:
           submodules: recursive
+          path: workspace
+          
+      - name: Checkout arcus-simulation repo
+        uses: actions/checkout@v4
+        with:
+          repository: robotique-udes/arcus-simulation
+          path: arcus-simulation
+          token: ${{ secrets.GITHUB_TOKEN }}
+          
+      - name: Build Docker image
+        run: |
+          docker build -f arcus-simulation/sim_ws/Dockerfile -t arcus-simulation:local arcus-simulation/
           
       - name: Cache colcon workspace
         uses: actions/cache@v4
         with:
           path: |
-            sim_ws/build
-            sim_ws/install
-            sim_ws/log
-          key: ${{ runner.os }}-colcon-${{ hashFiles('sim_ws/src/**') }}
+            workspace/sim_ws/build
+            workspace/sim_ws/install
+            workspace/sim_ws/log
+          key: ${{ runner.os }}-colcon-${{ hashFiles('workspace/sim_ws/src/**') }}
           
       - name: Building arcus packages
-        shell: bash
-        working-directory: sim_ws
         run: |
-          echo -e "\e[0;34m=== Sourcing for build ... ===\e[0m"
-          source /opt/ros/humble/setup.bash
-          echo -e "\e[0;32m[OK]\e[0m"
-          export CPR_USE_SYSTEM_CURL=ON
-          export CXXFLAGS="-Werror"
-          echo -e "\e[0;34m=== Building ROS2 Packages ... ===\e[0m"
-          if colcon build; then
-            echo -e "\e[0;32m=== [SUCCESS] ===\e[0m"
-          else
-            echo -e "\e[0;31m[FAILED] Building step triggered warnings or errors\e[0m"
-            exit 1
-          fi
+            docker run --rm \
+              --entrypoint "" \
+              -v ${{ github.workspace }}/workspace:/workspace/sim_ws \
+              -w /workspace/sim_ws \
+              arcus-simulation:local \
+              bash -c "
+              echo -e '\e[0;34m=== Sourcing for build ... ===\e[0m'
+              source /opt/ros/humble/setup.bash
+              echo -e '\e[0;32m[OK]\e[0m'
+              export CPR_USE_SYSTEM_CURL=ON
+              export CXXFLAGS='-Werror'
+              echo -e '\e[0;34m=== Building ROS2 Packages ... ===\e[0m'
+              if colcon build; then
+                echo -e '\e[0;32m=== [SUCCESS] ===\e[0m'
+              else
+                echo -e '\e[0;31m[FAILED] Building step triggered warnings or errors\e[0m'
+                exit 1
+              fi
+            "
