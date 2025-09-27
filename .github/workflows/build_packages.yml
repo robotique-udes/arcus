@@ -1,5 +1,4 @@
 name: Build Workspace
-
 on:
   pull_request:
     branches:
@@ -9,40 +8,37 @@ on:
       - main
   merge_group:
     types: [checks_requested]
-
 jobs:
   humble-build:
     name: Build on ROS2 Humble (Ubuntu 22.04)
     runs-on: ubuntu-22.04
-
     container:
       image: ghcr.io/robotique-udes/arcus-simulation:latest
       credentials:
         username: ${{ github.actor }}
-        password: ${{ secrets.GHCR_PAT }}
-
+        password: ${{ secrets.GITHUB_TOKEN }}
     steps:
       - name: Checkout code
-        uses: actions/checkout@v3
+        uses: actions/checkout@v4
         with:
           submodules: recursive
-
+          
       - name: Cache colcon workspace
-        uses: actions/cache@v3
+        uses: actions/cache@v4
         with:
           path: |
             sim_ws/build
             sim_ws/install
             sim_ws/log
           key: ${{ runner.os }}-colcon-${{ hashFiles('sim_ws/src/**') }}
-
+          
       - name: Building arcus packages
         shell: bash
+        working-directory: sim_ws
         run: |
           echo -e "\e[0;34m=== Sourcing for build ... ===\e[0m"
           source /opt/ros/humble/setup.bash
           echo -e "\e[0;32m[OK]\e[0m"
-
           export CPR_USE_SYSTEM_CURL=ON
           export CXXFLAGS="-Werror"
           echo -e "\e[0;34m=== Building ROS2 Packages ... ===\e[0m"
@@ -51,4 +47,4 @@ jobs:
           else
             echo -e "\e[0;31m[FAILED] Building step triggered warnings or errors\e[0m"
             exit 1
-
+          fi
