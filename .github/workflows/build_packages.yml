@@ -17,6 +17,9 @@ jobs:
 
     container:
       image: ghcr.io/robotique-udes/arcus-simulation:latest
+      credentials:
+        username: ${{ github.actor }}
+        password: ${{ secrets.GHCR_PAT }}
 
     steps:
       - name: Checkout code
