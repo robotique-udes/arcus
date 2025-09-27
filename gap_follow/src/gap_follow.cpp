@@ -5,7 +5,6 @@
 #include "nav_msgs/msg/odometry.hpp"
 #include "ackermann_msgs/msg/ackermann_drive_stamped.hpp"
 #include <algorithm>
-/// CHECK: include needed ROS msg type headers and libraries
 
 class ReactiveFollowGap : public rclcpp::Node
 {
