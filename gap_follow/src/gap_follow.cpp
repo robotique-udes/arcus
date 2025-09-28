@@ -23,7 +23,7 @@ class ReactiveFollowGap : public rclcpp::Node
     }
 
   private:
-    int overshootFactor = 1
+    int overshootFactor = 1;
 
     bool STRAIGHT = false;
 
