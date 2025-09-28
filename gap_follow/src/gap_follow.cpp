@@ -23,7 +23,7 @@ class ReactiveFollowGap : public rclcpp::Node
     }
 
   private:
-    int overshootFactor = 1;
+    int overshootFactor = 1
 
     bool STRAIGHT = false;
 
@@ -60,9 +60,7 @@ class ReactiveFollowGap : public rclcpp::Node
     void lidar_callback(sensor_msgs::msg::LaserScan::SharedPtr scan_msg)
     {
         preprocess_lidar(scan_msg->ranges);
-        // Process each LiDAR scan as per the Follow Gap algorithm & publish an AckermannDriveStamped Message
-        /// TODO:
-        // Find closest point to LiDAR
+
         std::vector<float> ranges = scan_msg->ranges;
         uint32_t rangesSize = ranges.size();
 
