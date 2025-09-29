@@ -42,8 +42,9 @@ bridge:
     scan_beams: 1079
 
     # map parameters
-    map_path: '/home/charles/sim_ws/src/f1tenth_gym_ros/maps/levine'
-    map_img_ext: '.png'
+    map_path: '/home/charles/arcus/slam_ws/src/f1tenth_gym_ros/maps/levine'
+    slam_maps_dir: '/home/charles/arcus/slam_ws/src/slam_map_saver/slam_maps'
+    map_img_ext: '.pgm'
 
     # opponent parameters
     num_agent: 1
@@ -60,3 +61,8 @@ bridge:
 
     # teleop
     kb_teleop: True
+
+    #Use simulated localization (EKF + AMCL)
+    use_sim_localization: True
+    #Run slam
+    run_slam: False

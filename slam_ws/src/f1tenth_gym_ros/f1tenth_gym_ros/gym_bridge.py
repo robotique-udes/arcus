@@ -37,34 +37,39 @@ from tf2_ros import TransformBroadcaster
 import gym
 import numpy as np
 from transforms3d import euler
+import glob
+import os
 
 class GymBridge(Node):
     def __init__(self):
         super().__init__('gym_bridge')
 
-        self.declare_parameter('ego_namespace')
-        self.declare_parameter('ego_odom_topic')
-        self.declare_parameter('ego_opp_odom_topic')
-        self.declare_parameter('ego_scan_topic')
-        self.declare_parameter('ego_drive_topic')
-        self.declare_parameter('opp_namespace')
-        self.declare_parameter('opp_odom_topic')
-        self.declare_parameter('opp_ego_odom_topic')
-        self.declare_parameter('opp_scan_topic')
-        self.declare_parameter('opp_drive_topic')
-        self.declare_parameter('scan_distance_to_base_link')
-        self.declare_parameter('scan_fov')
-        self.declare_parameter('scan_beams')
-        self.declare_parameter('map_path')
-        self.declare_parameter('map_img_ext')
-        self.declare_parameter('num_agent')
-        self.declare_parameter('sx')
-        self.declare_parameter('sy')
-        self.declare_parameter('stheta')
-        self.declare_parameter('sx1')
-        self.declare_parameter('sy1')
-        self.declare_parameter('stheta1')
-        self.declare_parameter('kb_teleop')
+        self.declare_parameter('ego_namespace', '')
+        self.declare_parameter('ego_odom_topic', '')
+        self.declare_parameter('ego_opp_odom_topic', '')
+        self.declare_parameter('ego_scan_topic','')
+        self.declare_parameter('ego_drive_topic','')
+        self.declare_parameter('opp_namespace','')
+        self.declare_parameter('opp_odom_topic','')
+        self.declare_parameter('opp_ego_odom_topic','')
+        self.declare_parameter('opp_scan_topic','')
+        self.declare_parameter('opp_drive_topic','')
+        self.declare_parameter('scan_distance_to_base_link', 0.0)
+        self.declare_parameter('scan_fov', 0.0)
+        self.declare_parameter('scan_beams', 0)
+        self.declare_parameter('map_path', '')
+        self.declare_parameter('map_img_ext', '')
+        self.declare_parameter('num_agent', 1)
+        self.declare_parameter('sx', 0.0)
+        self.declare_parameter('sy', 0.0)
+        self.declare_parameter('stheta', 0.0)
+        self.declare_parameter('sx1',0.0)
+        self.declare_parameter('sy1',0.0)
+        self.declare_parameter('stheta1',0.0)
+        self.declare_parameter('kb_teleop', True)
+        self.declare_parameter('use_sim_localization', False)
+        self.declare_parameter('run_slam', False)
+        self.declare_parameter('slam_maps_dir', '')
 
         # check num_agents
         num_agents = self.get_parameter('num_agent').value
@@ -73,10 +78,25 @@ class GymBridge(Node):
         elif type(num_agents) != int:
             raise ValueError('num_agents should be an int.')
 
+        # load latest map
+        if self.get_parameter('use_sim_localization').value and not self.get_parameter('run_slam').value:
+            yaml_files = glob.glob(os.path.join(self.get_parameter('slam_maps_dir').value, "*.yaml"))
+            if not yaml_files:
+                latest_map = self.get_parameter('maps_dir').value
+                self.get_logger().warn(f"No map found in {self.get_parameter('slam_maps_dir').value}, using default map path instead")
+            latest_map = max(yaml_files, key=os.path.getmtime)
+            latest_map, x = os.path.splitext(latest_map)
+            map_path = latest_map
+            map_ext = self.get_parameter('map_img_ext').value
+        else:
+            map_path = self.get_parameter('map_path').value
+            map_ext = '.png'
+
+        self.get_logger().info(f"Loading map from {map_path + map_ext}")
         # env backend
         self.env = gym.make('f110_gym:f110-v0',
-                            map=self.get_parameter('map_path').value,
-                            map_ext=self.get_parameter('map_img_ext').value,
+                            map=map_path,
+                            map_ext=map_ext,
                             num_agents=num_agents)
 
         sx = self.get_parameter('sx').value
@@ -377,7 +397,10 @@ class GymBridge(Node):
         ego_ts = TransformStamped()
         ego_ts.transform = ego_t
         ego_ts.header.stamp = ts
-        ego_ts.header.frame_id = 'odom'
+        if self.get_parameter('use_sim_localization').value:
+            ego_ts.header.frame_id = 'odom'
+        else:   
+            ego_ts.header.frame_id = 'map' # If not using localization, publish directly in map frame
         ego_ts.child_frame_id = self.ego_namespace + '/base_link'
         self.br.sendTransform(ego_ts)
 
