@@ -20,6 +20,9 @@ class ReactiveGapFollow : public rclcpp::Node
     static constexpr float BUBBLE_RADIUS = 1.f;
     static constexpr float SPEED_DISTANCE_FACTOR = 1.f;
 
+    static constexpr char* LIDAR_SCAN_TOPIC = "/scan";
+    static constexpr char* DRIVE_TOPIC = "/drive";
+
     static constexpr uint16_t DEFAULT_QOS = 1U;
 
   public:
@@ -37,9 +40,6 @@ class ReactiveGapFollow : public rclcpp::Node
     uint32_t _targetIndex = 0;
     uint32_t _maxGapStartingIndex = 0;
     uint32_t _maxGapEndingIndex = 0;
-
-    std::string _lidarScanTopic = "/scan";
-    std::string _driveTopic = "/drive";
 
     rclcpp::Publisher<ackermann_msgs::msg::AckermannDriveStamped>::SharedPtr _directionPublisher;
     rclcpp::Subscription<sensor_msgs::msg::LaserScan>::SharedPtr _laserScanSubscriber;

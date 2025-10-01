@@ -11,10 +11,10 @@ int main(int argc, char** argv)
 ReactiveGapFollow::ReactiveGapFollow():
     Node("reactive_node")
 {
-    _directionPublisher = this->create_publisher<ackermann_msgs::msg::AckermannDriveStamped>(_driveTopic, DEFAULT_QOS);
+    _directionPublisher = this->create_publisher<ackermann_msgs::msg::AckermannDriveStamped>(DRIVE_TOPIC, DEFAULT_QOS);
 
     _laserScanSubscriber
-        = this->create_subscription<sensor_msgs::msg::LaserScan>(_lidarScanTopic,
+        = this->create_subscription<sensor_msgs::msg::LaserScan>(LIDAR_SCAN_TOPIC,
                                                                  DEFAULT_QOS,
                                                                  [this](const sensor_msgs::msg::LaserScan::SharedPtr msg)
                                                                  {
@@ -26,7 +26,7 @@ void ReactiveGapFollow::preprocessLidar(std::vector<float>& ranges_)
 {
     size_t rangesSize = ranges_.size();
 
-    for (size_t i = ELIMINATE_EXTREMES_POSITION; i < rangesSize - ELIMINATE_EXTREMES_POSITION; ++i)
+    for (size_t i = ELIMINATE_EXTREMES_POSITION; i < rangesSize - ELIMINATE_EXTREMES_POSITION; i++)
     {
         ranges_[i]
             = (ranges_[i] + ranges_[i - 1] + ranges_[i - 2] + ranges_[i - 3] + ranges_[i + 1] + ranges_[i + 2] + ranges_[i + 3])
