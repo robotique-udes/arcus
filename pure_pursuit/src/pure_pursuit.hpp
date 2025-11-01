@@ -31,7 +31,7 @@ class PurePursuit : public rclcpp::Node
     static constexpr const char* DRIVE_CMD_TOPIC = "/drive";
     static constexpr const char* TARGET_WAYPOINT_TOPIC = "/target_waypoint";
     static constexpr const char* CURRENT_POSITION_TOPIC = "/ego_racecar/odom";
-    static constexpr const char* WAYPOINTS_CSV_FILE_NAME = "/sim_ws/src/arcus/resources/waypoints/Spielberg_center.csv";
+    static constexpr const char* WAYPOINTS_CSV_FILE_NAME = "/sim_ws/src/arcus/resources/waypoints/waypoints.csv";
 
     // Mathematical constants
     static constexpr const double PI = 3.14159;
