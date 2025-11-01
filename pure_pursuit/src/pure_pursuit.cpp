@@ -13,44 +13,41 @@ PurePursuit::PurePursuit():
 {
     this->initRosElements();
     this->loadWaypointsFromCSV();
-    // Reverse waypoints if they are in the wrong order
-    // We will need to implement a more robust method of checking this in the future
-    std::reverse(_waypoints.begin(), _waypoints.end());
 }
 
 void PurePursuit::CB_publishDriveCmd(void)
 {
-    _lookAheadDistance = LOOKAHEAD_DISTANCE_GAIN * _currentSpeed;
-    this->clipLookaheadDistance(_lookAheadDistance);
+    double lookAheadDistance = LOOKAHEAD_DISTANCE_GAIN * _currentSpeed;
+    double clippedLookAheadDistance = this->clipLookaheadDistance(lookAheadDistance);
 
-    geometry_msgs::msg::PoseStamped lookaheadPoint = this->getLookaheadPoint(_currentX, _currentY, _lookAheadDistance);
+    geometry_msgs::msg::PoseStamped lookaheadPoint = this->getLookaheadPoint(clippedLookAheadDistance);
     this->CB_publishTargetWaypoint(lookaheadPoint);  // For visualization purposes only
 
-    RCLCPP_INFO(this->get_logger(),
+    RCLCPP_DEBUG(this->get_logger(),
                 "Lookahead Point: (%.2f, %.2f), Current Position: (%.2f, %.2f), Lookahead Distance: %.2f",
                 lookaheadPoint.pose.position.x,
                 lookaheadPoint.pose.position.y,
                 _currentX,
                 _currentY,
-                _lookAheadDistance);
+                clippedLookAheadDistance);
+
+    // Find the actual lookahead distance based on the selected lookahead point
     double dx = lookaheadPoint.pose.position.x - _currentX;
     double dy = lookaheadPoint.pose.position.y - _currentY;
-
     double lookaheadDistanceActual = std::sqrt(dx * dx + dy * dy);
 
     // Transform (dx, dy) from world to vehicle local frame
     double localX = std::cos(-_currentYaw) * dx - std::sin(-_currentYaw) * dy;
     double localY = std::sin(-_currentYaw) * dx + std::cos(-_currentYaw) * dy;
 
-    _alpha = std::atan2(localY, localX);
-
-    double steeringAngle = std::atan2(2.0 * WHEELBASE_M * std::sin(_alpha), lookaheadDistanceActual);
+    double alpha = std::atan2(localY, localX);
+    double steeringAngle = std::atan2(2.0 * WHEELBASE_M * std::sin(alpha), lookaheadDistanceActual);
 
     ackermann_msgs::msg::AckermannDriveStamped driveCmd;
     driveCmd.header.stamp = this->now();
     driveCmd.header.frame_id = "base_link";
     driveCmd.drive.steering_angle = steeringAngle;
-    driveCmd.drive.speed = this->speedFromWheelAngle(steeringAngle);
+    driveCmd.drive.speed = CONSTANT_SPEED_MS;
 
     _driveCmdPublisher->publish(driveCmd);
 }
@@ -61,7 +58,7 @@ void PurePursuit::CB_positionSubscriber(const nav_msgs::msg::Odometry& msg)
     _currentY = msg.pose.pose.position.y;
     _currentSpeed = msg.twist.twist.linear.x;
 
-    // converting quaternion to euler angles (yaw)
+    // converting quaternion to euler angle (yaw)
     double qw = msg.pose.pose.orientation.w;
     double qx = msg.pose.pose.orientation.x;
     double qy = msg.pose.pose.orientation.y;
@@ -87,7 +84,7 @@ void PurePursuit::loadWaypointsFromCSV()
     std::ifstream inputFile(WAYPOINTS_CSV_FILE_NAME);
     if (!inputFile.is_open())
     {
-        RCLCPP_ERROR(this->get_logger(), "Could not open the file - '%s'", WAYPOINTS_CSV_FILE_NAME);
+        RCLCPP_ERROR(this->get_logger(), "Could not open file containing waypoints : '%s'", WAYPOINTS_CSV_FILE_NAME);
         return;
     }
 
@@ -130,44 +127,47 @@ void PurePursuit::initRosElements(void)
                                                                              {
                                                                                  this->CB_positionSubscriber(msg);
                                                                              });
-    _driveCmdPublisher = this->create_publisher<ackermann_msgs::msg::AckermannDriveStamped>(DRIVE_CMD_TOPIC, DEFAULT_QOS);
 
+    _driveCmdPublisher = this->create_publisher<ackermann_msgs::msg::AckermannDriveStamped>(DRIVE_CMD_TOPIC, DEFAULT_QOS);
     _targetWaypointPublisher = this->create_publisher<geometry_msgs::msg::PointStamped>(TARGET_WAYPOINT_TOPIC, DEFAULT_QOS);
 }
 
-void PurePursuit::clipLookaheadDistance(double& _lookaheadDistance)
+double PurePursuit::clipLookaheadDistance(double lookAheadDistance_) const
 {
-    if (_lookaheadDistance < MIN_LOOKAHEAD_DISTANCE_M)
+    double clippedLookaheadDistance = lookAheadDistance_;
+    if (lookAheadDistance_ < MIN_LOOKAHEAD_DISTANCE_M)
     {
-        _lookaheadDistance = MIN_LOOKAHEAD_DISTANCE_M;
+        clippedLookaheadDistance = MIN_LOOKAHEAD_DISTANCE_M;
     }
-    else if (_lookaheadDistance > MAX_LOOKAHEAD_DISTANCE_M)
+    else if (lookAheadDistance_ > MAX_LOOKAHEAD_DISTANCE_M)
     {
-        _lookaheadDistance = MAX_LOOKAHEAD_DISTANCE_M;
+        clippedLookaheadDistance = MAX_LOOKAHEAD_DISTANCE_M;
     }
+
+    return clippedLookaheadDistance;
 }
 
-geometry_msgs::msg::PoseStamped PurePursuit::getLookaheadPoint(double currentX, double currentY, double lookAheadDistance)
+geometry_msgs::msg::PoseStamped PurePursuit::getLookaheadPoint(const double lookAheadDistance_)
 {
     double minDistanceDifference = std::numeric_limits<double>::max();
     size_t bestIndex = 0;
 
-    size_t maxIterationCount = static_cast<size_t>(_waypoints.size() * MAX_LOOKAHEAD_FRACTION_OF_TRACK);
+    size_t maxIterationCount = static_cast<size_t>(_waypoints.size() * MAX_LOOKAHEAD_FRACTION_OF_PATH);
 
-    if (!_firstTargetLocked)
+    if (!_firstTargetWaypointLocked)
     {
         maxIterationCount = _waypoints.size();
-        _firstTargetLocked = true;
+        _firstTargetWaypointLocked = true;
     }
 
     for (size_t i = 0; i < maxIterationCount; i++)
     {
-        size_t wrappingIndex = (i + _previousBestIndex) % _waypoints.size();
+        size_t wrappingIndex = (i + _previousWaypointIndex) % _waypoints.size();
 
-        double dx = _waypoints[wrappingIndex].pose.position.x - currentX;
-        double dy = _waypoints[wrappingIndex].pose.position.y - currentY;
+        double dx = _waypoints[wrappingIndex].pose.position.x - _currentX;
+        double dy = _waypoints[wrappingIndex].pose.position.y - _currentY;
         double distance = std::sqrt(dx * dx + dy * dy);
-        double distanceDifference = std::abs(distance - lookAheadDistance);
+        double distanceDifference = std::abs(distance - lookAheadDistance_);
 
         if (distanceDifference <= minDistanceDifference)
         {
@@ -175,20 +175,7 @@ geometry_msgs::msg::PoseStamped PurePursuit::getLookaheadPoint(double currentX, 
             bestIndex = wrappingIndex;
         }
     }
-#warning nullopt return to catch error
-    _previousBestIndex = bestIndex;
-    return _waypoints[bestIndex];
-}
 
-double PurePursuit::speedFromWheelAngle(double& wheelAngle)
-{
-    RCLCPP_INFO(this->get_logger(), "%f", wheelAngle);
-    /* Mapping angles where 1 represents straight ahead and a 90 degree turn represents 0.
-    This transform will allow us to easily get a higher speed for smaller angles. An exponential
-    is also added to increase breaking in tight turns   */
-
-    // a*e^(b*(c-x/(pi/2)))
-
-    double speed = EXPONENTIAL_A_CTE * pow(e, EXPONENTIAL_B_CTE * (EXPONENTIAL_C_CTE - abs(wheelAngle) / (PI / 2)));
-    return speed;
+    _previousWaypointIndex = bestIndex;
+    return _waypoints.at(bestIndex);
 }
