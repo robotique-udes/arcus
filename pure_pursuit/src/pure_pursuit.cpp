@@ -24,12 +24,12 @@ void PurePursuit::CB_publishDriveCmd(void)
     this->CB_publishTargetWaypoint(lookaheadPoint);  // For visualization purposes only
 
     RCLCPP_DEBUG(this->get_logger(),
-                "Lookahead Point: (%.2f, %.2f), Current Position: (%.2f, %.2f), Lookahead Distance: %.2f",
-                lookaheadPoint.pose.position.x,
-                lookaheadPoint.pose.position.y,
-                _currentX,
-                _currentY,
-                clippedLookAheadDistance);
+                 "Lookahead Point: (%.2f, %.2f), Current Position: (%.2f, %.2f), Lookahead Distance: %.2f",
+                 lookaheadPoint.pose.position.x,
+                 lookaheadPoint.pose.position.y,
+                 _currentX,
+                 _currentY,
+                 clippedLookAheadDistance);
 
     // Find the actual lookahead distance based on the selected lookahead point
     double dx = lookaheadPoint.pose.position.x - _currentX;
