@@ -47,7 +47,6 @@ class PurePursuit : public rclcpp::Node
     void handleRosParam(void);
     void loadWaypointsFromCSV(void);
     void initRosElements(void);
-    
 
     double clipLookaheadDistance(double lookAheadDistance_) const;
     geometry_msgs::msg::PoseStamped getLookaheadPoint(const double lookAheadDistance);
