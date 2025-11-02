@@ -11,6 +11,7 @@ int main(int argc, char** argv)
 PurePursuit::PurePursuit():
     Node("pure_pursuit")
 {
+    this->handleRosParam();
     this->initRosElements();
     this->loadWaypointsFromCSV();
 }
@@ -79,12 +80,34 @@ void PurePursuit::CB_publishTargetWaypoint(const geometry_msgs::msg::PoseStamped
     _targetWaypointPublisher->publish(newMsg);
 }
 
-void PurePursuit::loadWaypointsFromCSV()
+void PurePursuit::handleRosParam(void)
 {
-    std::ifstream inputFile(WAYPOINTS_CSV_FILE_NAME);
+    this->declare_parameter<std::string>("waypoints_file_path", DEFAULT_WAYPOINTS_CSV_FILE_NAME);
+    this->declare_parameter<std::string>("position_topic", DEFAULT_POSITION_TOPIC);
+    this->declare_parameter<std::string>("drive_command_topic", DEFAULT_DRIVE_CMD_TOPIC);
+
+    _waypointsFilePath = this->get_parameter("waypoints_file_path").as_string();
+    _positionTopic = this->get_parameter("position_topic").as_string();
+    _driveCmdTopic = this->get_parameter("drive_command_topic").as_string();
+
+    RCLCPP_INFO(this->get_logger(), "Waypoints file path: %s", _waypointsFilePath.c_str());
+    RCLCPP_INFO(this->get_logger(), "Position topic: %s", _positionTopic.c_str());
+    RCLCPP_INFO(this->get_logger(), "Drive command topic: %s", _driveCmdTopic.c_str());
+}
+
+void PurePursuit::loadWaypointsFromCSV(void)
+{
+    std::ifstream inputFile(_waypointsFilePath);
+
     if (!inputFile.is_open())
     {
-        RCLCPP_ERROR(this->get_logger(), "Could not open file containing waypoints : '%s'", WAYPOINTS_CSV_FILE_NAME);
+        RCLCPP_ERROR(this->get_logger(), "Could not open specified file for waypoints : '%s'", _waypointsFilePath.c_str());
+        return;
+    }
+
+    if (inputFile.peek() == std::ifstream::traits_type::eof())
+    {
+        RCLCPP_ERROR(this->get_logger(), "Specified file containing waypoints is empty : '%s'", _waypointsFilePath.c_str());
         return;
     }
 
@@ -121,14 +144,14 @@ void PurePursuit::initRosElements(void)
                                              this->CB_publishDriveCmd();
                                          });
 
-    _positionSubscriber = this->create_subscription<nav_msgs::msg::Odometry>(CURRENT_POSITION_TOPIC,
+    _positionSubscriber = this->create_subscription<nav_msgs::msg::Odometry>(_positionTopic,
                                                                              DEFAULT_QOS,
                                                                              [this](const nav_msgs::msg::Odometry& msg)
                                                                              {
                                                                                  this->CB_positionSubscriber(msg);
                                                                              });
 
-    _driveCmdPublisher = this->create_publisher<ackermann_msgs::msg::AckermannDriveStamped>(DRIVE_CMD_TOPIC, DEFAULT_QOS);
+    _driveCmdPublisher = this->create_publisher<ackermann_msgs::msg::AckermannDriveStamped>(_driveCmdTopic, DEFAULT_QOS);
     _targetWaypointPublisher = this->create_publisher<geometry_msgs::msg::PointStamped>(TARGET_WAYPOINT_TOPIC, DEFAULT_QOS);
 }
 

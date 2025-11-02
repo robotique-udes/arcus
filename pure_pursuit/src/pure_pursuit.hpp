@@ -11,7 +11,6 @@
 #include <fstream>
 #include <string>
 #include <sstream>
-#include <string>
 #include <vector>
 #include <algorithm>
 
@@ -28,10 +27,10 @@ class PurePursuit : public rclcpp::Node
 
     // Topic, input file names and QoS
     static constexpr const uint8_t DEFAULT_QOS = 1;
-    static constexpr const char* DRIVE_CMD_TOPIC = "/drive";
+    static constexpr const char* DEFAULT_DRIVE_CMD_TOPIC = "/drive";
     static constexpr const char* TARGET_WAYPOINT_TOPIC = "/target_waypoint";
-    static constexpr const char* CURRENT_POSITION_TOPIC = "/ego_racecar/odom";
-    static constexpr const char* WAYPOINTS_CSV_FILE_NAME = "/sim_ws/src/arcus/resources/waypoints/waypoints.csv";
+    static constexpr const char* DEFAULT_POSITION_TOPIC = "/ego_racecar/odom";
+    static constexpr const char* DEFAULT_WAYPOINTS_CSV_FILE_NAME = "/sim_ws/src/arcus/resources/waypoints/waypoints.csv";
 
     // Mathematical constants
     static constexpr const double PI = 3.14159;
@@ -45,18 +44,24 @@ class PurePursuit : public rclcpp::Node
     void CB_publishTargetWaypoint(const geometry_msgs::msg::PoseStamped& msg_);
     void CB_positionSubscriber(const nav_msgs::msg::Odometry& msg_);
 
+    void handleRosParam(void);
     void loadWaypointsFromCSV(void);
     void initRosElements(void);
+    
 
     double clipLookaheadDistance(double lookAheadDistance_) const;
     geometry_msgs::msg::PoseStamped getLookaheadPoint(const double lookAheadDistance);
+
+    std::string _waypointsFilePath = DEFAULT_WAYPOINTS_CSV_FILE_NAME;
+    std::string _positionTopic = DEFAULT_POSITION_TOPIC;
+    std::string _driveCmdTopic = DEFAULT_DRIVE_CMD_TOPIC;
 
     double _currentSpeed = 0.0;
     double _currentX = 0.0;
     double _currentY = 0.0;
     double _currentYaw = 0.0;
 
-    size_t _previousWaypointIndex = 0.0;
+    size_t _previousWaypointIndex = 0;
     bool _firstTargetWaypointLocked = false;
 
     std::vector<geometry_msgs::msg::PoseStamped> _waypoints;
