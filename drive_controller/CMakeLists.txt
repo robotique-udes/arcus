@@ -11,7 +11,6 @@ find_package(ament_cmake REQUIRED)
 # further dependencies manually.
 # find_package(<dependency> REQUIRED)
 find_package(rclcpp REQUIRED)
-find_package(vesc REQUIRED)
 find_package(std_msgs REQUIRED)
 find_package(sensor_msgs REQUIRED)
 
@@ -28,7 +27,7 @@ if(BUILD_TESTING)
 endif()
 
 add_executable(controller_node src/drive_controller.cpp)
-ament_target_dependencies(controller_node rclcpp std_msgs vesc sensor_msgs)
+ament_target_dependencies(controller_node rclcpp std_msgs sensor_msgs)
 
 install(TARGETS
   controller_node
