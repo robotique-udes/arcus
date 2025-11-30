@@ -6,6 +6,7 @@
 #include "rclcpp/rclcpp.hpp"
 #include "std_msgs/msg/float64.hpp"
 #include "sensor_msgs/msg/joy.hpp"
+#include "ackermann_msgs/msg/ackermann_drive_stamped.hpp"
 
 using namespace std::chrono_literals;
 
@@ -19,9 +20,8 @@ class DriveController : public rclcpp::Node
         Node("motor_sweep_test"),
         count_(0)
     {
-        speed_publisher_ = this->create_publisher<std_msgs::msg::Float64>("commands/motor/duty_cycle", 10);
-        steering_publisher_ = this->create_publisher<std_msgs::msg::Float64>("commands/servo/position", 10);
-        joy_sub_
+        _drive_publisher = this->create_publisher<ackermann_msgs::msg::AckermannDriveStamped>("/drive", 10);
+        _joy_sub
             = create_subscription<sensor_msgs::msg::Joy>("/joy",
                                                          rclcpp::QoS{10},
                                                          std::bind(&DriveController::joy_callback, this, std::placeholders::_1));
@@ -31,20 +31,18 @@ class DriveController : public rclcpp::Node
   private:
     void joy_callback(const sensor_msgs::msg::Joy::SharedPtr joy_msg)
     {
-        auto throttle_msg = std_msgs::msg::Float64();
-        auto steering_msg = std_msgs::msg::Float64();
-        // Binding for ps4 controller
+        auto drive_msg = ackermann_msgs::msg::AckermannDriveStamped();
+        // Binding for ps4 controller, temporary comment to say axe 5 is right trigger and axe 2 is left trigger, axe 3 is left
+        // stick horizontal
         float throttle = (joy_msg->axes[5] - joy_msg->axes[2]) / 2.0;  // Assuming axes[5] is throttle and axes[2] is brake
         float steering = (-joy_msg->axes[3] + 1.0) / 2.0;
-        throttle_msg.data = throttle;
-        steering_msg.data = steering;
-        speed_publisher_->publish(throttle_msg);
-        steering_publisher_->publish(steering_msg);
+        drive_msg.drive.speed = throttle;
+        drive_msg.drive.steering_angle = steering;
+        _drive_publisher->publish(drive_msg);
     }
 
-    rclcpp::Publisher<std_msgs::msg::Float64>::SharedPtr speed_publisher_;
-    rclcpp::Publisher<std_msgs::msg::Float64>::SharedPtr steering_publisher_;
-    rclcpp::Subscription<sensor_msgs::msg::Joy>::SharedPtr joy_sub_;
+    rclcpp::Publisher<ackermann_msgs::msg::AckermannDriveStamped>::SharedPtr _drive_publisher;
+    rclcpp::Subscription<sensor_msgs::msg::Joy>::SharedPtr _joy_sub;
 
     size_t count_;
 };
