@@ -1,5 +1,32 @@
-cmake_minimum_required(VERSION 3.5)
-project(pure_pursuit)
+# ============== BEGIN USER CONFIGURATION ==============
+set(PROJECT_NAME "pure_pursuit")
+set(EXECUTABLE_NAME "pure_pursuit")
+set(CPP_FILE_PATH "src/pure_pursuit.cpp")
+set(IS_PACKAGE_EXECUTABLE TRUE)
+set(IS_PACKAGE_INTERFACE FALSE)
+
+# If dependencies need to be built before this package, add them in the package.xml file in the <build_depend> tags.
+set(DEPENDENCY_LIST 
+  "ament_cmake"
+  "rclcpp"
+  "rclpy"
+  "geometry_msgs" 
+  "ackermann_msgs"
+  "nav_msgs" 
+  "sensor_msgs" 
+  "std_msgs"
+  )
+
+  set(MSGS
+    "msg/DemoMsg.msg"
+    )
+  set(SRVS
+    "srv/DemoSrv.srv"
+    )
+
+# =============== END USER CONFIGURATION ===============
+cmake_minimum_required(VERSION 3.8)
+project(${PROJECT_NAME})
 
 # Default to C++14
 if(NOT CMAKE_CXX_STANDARD)
@@ -11,45 +38,34 @@ if(CMAKE_COMPILER_IS_GNUCXX OR CMAKE_CXX_COMPILER_ID MATCHES "Clang")
 endif()
 
 # Find dependencies
-foreach(PACKAGE 
-  ament_cmake 
-  rclcpp
-  rclpy 
-  geometry_msgs
-  nav_msgs
-  ackermann_msgs
-  sensor_msgs
-  std_msgs)
-
+foreach(PACKAGE ${DEPENDENCY_LIST})
   find_package(${PACKAGE} REQUIRED)
-
 endforeach()
+
+IF (IS_PACKAGE_INTERFACE)
+  find_package(rosidl_default_generators REQUIRED)
+  # Generate interfaces here
+  rosidl_generate_interfaces(${PROJECT_NAME}
+  ${MSGS}
+  ${SRVS}
+  DEPENDENCIES ${DEPENDENCY_LIST}
+ )
+ENDIF()
 
 # Include Cpp "include" directory
 include_directories(include)
 
-# Create Cpp executable
-add_executable(pure_pursuit src/pure_pursuit.cpp)
-ament_target_dependencies(pure_pursuit 
-  rclcpp geometry_msgs ackermann_msgs nav_msgs sensor_msgs std_msgs
-)
+IF (IS_PACKAGE_EXECUTABLE)
+  # Create Cpp executable
+  add_executable(${EXECUTABLE_NAME} ${CPP_FILE_PATH})
+  ament_target_dependencies(${EXECUTABLE_NAME} 
+    ${DEPENDENCY_LIST}
+  )
 
-# Install Cpp executables
-install(TARGETS
-  pure_pursuit
-  DESTINATION lib/${PROJECT_NAME})
-
-if(BUILD_TESTING)
-  find_package(ament_lint_auto REQUIRED)
-  # the following line skips the linter which checks for copyrights
-  # uncomment the line when a copyright and license is not present in all source files
-  #set(ament_cmake_copyright_FOUND TRUE)
-  # the following line skips cpplint (only works in a git repo)
-  # uncomment the line when this package is not in a git repo
-  #set(ament_cmake_cpplint_FOUND TRUE)
-  ament_lint_auto_find_test_dependencies()
-endif()
-
-
+  # Install Cpp executables
+  install(TARGETS
+    ${EXECUTABLE_NAME}
+    DESTINATION lib/${PROJECT_NAME})
+ENDIF()
 
 ament_package()

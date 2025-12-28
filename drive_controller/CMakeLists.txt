@@ -1,44 +1,69 @@
+# ============== BEGIN USER CONFIGURATION ==============
+set(PROJECT_NAME "drive_controller")
+set(EXECUTABLE_NAME "controller_node")
+set(CPP_FILE_PATH "src/drive_controller.cpp")
+set(IS_PACKAGE_EXECUTABLE TRUE)
+set(IS_PACKAGE_INTERFACE FALSE)
+
+# If dependencies need to be built before this package, add them in the package.xml file in the <build_depend> tags.
+set(DEPENDENCY_LIST 
+  "ament_cmake"
+  "rclcpp"
+  "ackermann_msgs"
+  "arcus_msgs" 
+  "sensor_msgs" 
+  "std_msgs"
+  )
+
+  set(MSGS
+    "msg/DemoMsg.msg"
+    )
+  set(SRVS
+    "srv/DemoSrv.srv"
+    )
+
+# =============== END USER CONFIGURATION ===============
 cmake_minimum_required(VERSION 3.8)
-project(drive_controller)
+project(${PROJECT_NAME})
+
+# Default to C++14
+if(NOT CMAKE_CXX_STANDARD)
+  set(CMAKE_CXX_STANDARD 14)
+endif()
 
 if(CMAKE_COMPILER_IS_GNUCXX OR CMAKE_CXX_COMPILER_ID MATCHES "Clang")
   add_compile_options(-Wall -Wextra -Wpedantic)
 endif()
 
-# find dependencies
-find_package(ament_cmake REQUIRED)
-# uncomment the following section in order to fill in
-# further dependencies manually.
-# find_package(<dependency> REQUIRED)
-find_package(rclcpp REQUIRED)
-find_package(std_msgs REQUIRED)
-find_package(sensor_msgs REQUIRED)
-find_package(ackermann_msgs REQUIRED)
-find_package(arcus_msgs REQUIRED)
+# Find dependencies
+foreach(PACKAGE ${DEPENDENCY_LIST})
+  find_package(${PACKAGE} REQUIRED)
+endforeach()
 
-if(BUILD_TESTING)
-  find_package(ament_lint_auto REQUIRED)
-  # the following line skips the linter which checks for copyrights
-  # comment the line when a copyright and license is added to all source files
-  set(ament_cmake_copyright_FOUND TRUE)
-  # the following line skips cpplint (only works in a git repo)
-  # comment the line when this package is in a git repo and when
-  # a copyright and license is added to all source files
-  set(ament_cmake_cpplint_FOUND TRUE)
-  ament_lint_auto_find_test_dependencies()
-endif()
+IF (IS_PACKAGE_INTERFACE)
+  find_package(rosidl_default_generators REQUIRED)
+  # Generate interfaces here
+  rosidl_generate_interfaces(${PROJECT_NAME}
+  ${MSGS}
+  ${SRVS}
+  DEPENDENCIES ${DEPENDENCY_LIST}
+ )
+ENDIF()
 
-add_executable(controller_node src/drive_controller.cpp)
-ament_target_dependencies(controller_node rclcpp std_msgs sensor_msgs ackermann_msgs arcus_msgs)
+# Include Cpp "include" directory
+include_directories(include)
 
-install(TARGETS
-  controller_node
-  DESTINATION lib/${PROJECT_NAME})
+IF (IS_PACKAGE_EXECUTABLE)
+  # Create Cpp executable
+  add_executable(${EXECUTABLE_NAME} ${CPP_FILE_PATH})
+  ament_target_dependencies(${EXECUTABLE_NAME} 
+    ${DEPENDENCY_LIST}
+  )
 
-# Install launch files.
-install(DIRECTORY
-  launch
-  DESTINATION share/${PROJECT_NAME}/
-)
+  # Install Cpp executables
+  install(TARGETS
+    ${EXECUTABLE_NAME}
+    DESTINATION lib/${PROJECT_NAME})
+ENDIF()
 
 ament_package()
