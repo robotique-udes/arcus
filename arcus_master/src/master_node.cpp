@@ -43,7 +43,7 @@ void MasterNode::watchdog()
 
 void MasterNode::errorCodeCallback(const arcus_msgs::msg::ErrorCode::SharedPtr msg)
 {
-    if (msg->source < 0 || msg->source >= 7)
+    if (msg->source >= 7)
     {
         RCLCPP_ERROR(this->get_logger(), "Received error code from invalid source: %d", msg->source);
         return;
