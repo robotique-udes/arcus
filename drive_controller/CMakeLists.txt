@@ -14,6 +14,7 @@ find_package(rclcpp REQUIRED)
 find_package(std_msgs REQUIRED)
 find_package(sensor_msgs REQUIRED)
 find_package(ackermann_msgs REQUIRED)
+find_package(arcus_msgs REQUIRED)
 
 if(BUILD_TESTING)
   find_package(ament_lint_auto REQUIRED)
@@ -28,7 +29,7 @@ if(BUILD_TESTING)
 endif()
 
 add_executable(controller_node src/drive_controller.cpp)
-ament_target_dependencies(controller_node rclcpp std_msgs sensor_msgs ackermann_msgs)
+ament_target_dependencies(controller_node rclcpp std_msgs sensor_msgs ackermann_msgs arcus_msgs)
 
 install(TARGETS
   controller_node
