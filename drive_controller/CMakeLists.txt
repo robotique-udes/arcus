@@ -1,5 +1,5 @@
 cmake_minimum_required(VERSION 3.8)
-project(motor_sweep_test)
+project(drive_controller)
 
 if(CMAKE_COMPILER_IS_GNUCXX OR CMAKE_CXX_COMPILER_ID MATCHES "Clang")
   add_compile_options(-Wall -Wextra -Wpedantic)
@@ -12,6 +12,8 @@ find_package(ament_cmake REQUIRED)
 # find_package(<dependency> REQUIRED)
 find_package(rclcpp REQUIRED)
 find_package(std_msgs REQUIRED)
+find_package(sensor_msgs REQUIRED)
+find_package(ackermann_msgs REQUIRED)
 
 if(BUILD_TESTING)
   find_package(ament_lint_auto REQUIRED)
@@ -25,11 +27,17 @@ if(BUILD_TESTING)
   ament_lint_auto_find_test_dependencies()
 endif()
 
-add_executable(motor_sweep_test src/motor_sweep_test.cpp)
-ament_target_dependencies(motor_sweep_test rclcpp std_msgs)
+add_executable(controller_node src/drive_controller.cpp)
+ament_target_dependencies(controller_node rclcpp std_msgs sensor_msgs ackermann_msgs)
 
 install(TARGETS
-  motor_sweep_test
+  controller_node
   DESTINATION lib/${PROJECT_NAME})
+
+# Install launch files.
+install(DIRECTORY
+  launch
+  DESTINATION share/${PROJECT_NAME}/
+)
 
 ament_package()
