@@ -1,4 +1,5 @@
 #include "gap_follow.hpp"
+#include "arcus_msgs/msg/error_code.hpp"
 
 int main(int argc, char** argv)
 {
@@ -13,6 +14,9 @@ ReactiveGapFollow::ReactiveGapFollow():
 {
     _directionPublisher = this->create_publisher<ackermann_msgs::msg::AckermannDriveStamped>(DRIVE_TOPIC, DEFAULT_QOS);
 
+    _error_publisher = this->create_publisher<arcus_msgs::msg::ErrorCode>("/node_error_code", 10);
+    _timer = this->create_wall_timer(std::chrono::milliseconds(50), std::bind(&ReactiveGapFollow::heartbeat, this));
+
     _laserScanSubscriber
         = this->create_subscription<sensor_msgs::msg::LaserScan>(LIDAR_SCAN_TOPIC,
                                                                  DEFAULT_QOS,
@@ -20,6 +24,15 @@ ReactiveGapFollow::ReactiveGapFollow():
                                                                  {
                                                                      this->lidar_CB(msg);
                                                                  });
+}
+
+void ReactiveGapFollow::heartbeat()
+{
+    arcus_msgs::msg::ErrorCode error_msg;
+    error_msg.source = arcus_msgs::msg::ErrorCode::GAP_FOLLOW;
+    error_msg.header.stamp = rclcpp::Clock().now();
+    error_msg.error_code = arcus_msgs::msg::ErrorCode::OK;
+    this->_error_publisher->publish(error_msg);
 }
 
 void ReactiveGapFollow::preprocessLidar(std::vector<float>& ranges_)

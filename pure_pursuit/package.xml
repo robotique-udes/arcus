@@ -16,6 +16,8 @@
   <depend>sensor_msgs</depend>
   <depend>ackermann_msgs</depend>
   <depend>geometry_msgs</depend>
+  <build_depend>arcus_msgs</build_depend>
+  <exec_depend>arcus_msgs</exec_depend>
 
   <test_depend>ament_lint_auto</test_depend>
   <test_depend>ament_lint_common</test_depend>

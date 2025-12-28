@@ -1,8 +1,9 @@
 class MasterNode : public rclcpp::Node
 {
-public:
+  public:
     MasterNode();
-private:
+
+  private:
     void watchdog();
     void errorCodeCallback(const arcus_msgs::msg::ErrorCode::SharedPtr msg);
     rclcpp::TimerBase::SharedPtr timer_;

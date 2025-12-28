@@ -7,6 +7,7 @@
 #include "geometry_msgs/msg/point_stamped.hpp"
 #include "ackermann_msgs/msg/ackermann_drive_stamped.hpp"
 #include "nav_msgs/msg/path.hpp"
+#include "arcus_msgs/msg/error_code.hpp"
 
 #include <fstream>
 #include <string>
@@ -47,6 +48,7 @@ class PurePursuit : public rclcpp::Node
     void handleRosParam(void);
     void loadWaypointsFromCSV(void);
     void initRosElements(void);
+    void heartbeat();
 
     double clipLookaheadDistance(double lookAheadDistance_) const;
     geometry_msgs::msg::PoseStamped getLookaheadPoint(const double lookAheadDistance);
@@ -69,6 +71,8 @@ class PurePursuit : public rclcpp::Node
     rclcpp::TimerBase::SharedPtr _loopTimer;
     rclcpp::Publisher<ackermann_msgs::msg::AckermannDriveStamped>::SharedPtr _driveCmdPublisher;
     rclcpp::Publisher<geometry_msgs::msg::PointStamped>::SharedPtr _targetWaypointPublisher;
+    rclcpp::TimerBase::SharedPtr _heartbeatTimer;
+    rclcpp::Publisher<arcus_msgs::msg::ErrorCode>::SharedPtr _errorPublisher;
 };
 
 #endif  // PURE_PURSUIT_HPP
