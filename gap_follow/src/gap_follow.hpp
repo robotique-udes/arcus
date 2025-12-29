@@ -5,6 +5,7 @@
 #include "sensor_msgs/msg/laser_scan.hpp"
 #include "nav_msgs/msg/odometry.hpp"
 #include "ackermann_msgs/msg/ackermann_drive_stamped.hpp"
+#include "arcus_msgs/msg/error_code.hpp"
 
 #include <string>
 #include <vector>
@@ -31,6 +32,7 @@ class ReactiveGapFollow : public rclcpp::Node
   private:
     void preprocessLidar(std::vector<float>& ranges_);
     void lidar_CB(sensor_msgs::msg::LaserScan::SharedPtr scanMsg_);
+    void heartbeat();
     float setSpeedFromDistance(float distance_);
 
     bool _straight = false;
@@ -41,6 +43,8 @@ class ReactiveGapFollow : public rclcpp::Node
     uint32_t _maxGapStartingIndex = 0;
     uint32_t _maxGapEndingIndex = 0;
 
+    rclcpp::TimerBase::SharedPtr _timer;
+    rclcpp::Publisher<arcus_msgs::msg::ErrorCode>::SharedPtr _error_publisher;
     rclcpp::Publisher<ackermann_msgs::msg::AckermannDriveStamped>::SharedPtr _directionPublisher;
     rclcpp::Subscription<sensor_msgs::msg::LaserScan>::SharedPtr _laserScanSubscriber;
 };

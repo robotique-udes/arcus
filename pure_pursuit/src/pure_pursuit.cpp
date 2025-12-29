@@ -153,6 +153,19 @@ void PurePursuit::initRosElements(void)
 
     _driveCmdPublisher = this->create_publisher<ackermann_msgs::msg::AckermannDriveStamped>(_driveCmdTopic, DEFAULT_QOS);
     _targetWaypointPublisher = this->create_publisher<geometry_msgs::msg::PointStamped>(TARGET_WAYPOINT_TOPIC, DEFAULT_QOS);
+
+    _errorPublisher = this->create_publisher<arcus_msgs::msg::ErrorCode>("/node_error_code", 10);
+
+    _heartbeatTimer = this->create_wall_timer(std::chrono::milliseconds(50), std::bind(&PurePursuit::heartbeat, this));
+}
+
+void PurePursuit::heartbeat()
+{
+    arcus_msgs::msg::ErrorCode error_msg;
+    error_msg.source = arcus_msgs::msg::ErrorCode::PURE_PURSUIT;
+    error_msg.header.stamp = rclcpp::Clock().now();
+    error_msg.error_code = arcus_msgs::msg::ErrorCode::OK;
+    this->_errorPublisher->publish(error_msg);
 }
 
 double PurePursuit::clipLookaheadDistance(double lookAheadDistance_) const

@@ -1,7 +1,7 @@
 # ============== BEGIN USER CONFIGURATION ==============
-set(PROJECT_NAME "gap_follow")
-set(EXECUTABLE_NAME "gap_follow")
-set(CPP_FILE_PATH "src/gap_follow.cpp")
+set(PROJECT_NAME "arcus_master")
+set(EXECUTABLE_NAME "master_node")
+set(CPP_FILE_PATH "src/master_node.cpp")
 set(IS_PACKAGE_EXECUTABLE TRUE)
 set(IS_PACKAGE_INTERFACE FALSE)
 
@@ -9,12 +9,6 @@ set(IS_PACKAGE_INTERFACE FALSE)
 set(DEPENDENCY_LIST 
   "ament_cmake"
   "rclcpp"
-  "rclpy"
-  "geometry_msgs" 
-  "ackermann_msgs"
-  "nav_msgs" 
-  "sensor_msgs" 
-  "std_msgs"
   "arcus_msgs"
   )
 
@@ -67,12 +61,6 @@ IF (IS_PACKAGE_EXECUTABLE)
   install(TARGETS
     ${EXECUTABLE_NAME}
     DESTINATION lib/${PROJECT_NAME})
-
-  # Install launch dir
-  install(
-    DIRECTORY launch
-    DESTINATION share/${PROJECT_NAME}
-  )
 ENDIF()
 
 ament_package()
