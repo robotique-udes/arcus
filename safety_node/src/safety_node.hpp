@@ -15,10 +15,10 @@ class Safety : public rclcpp::Node
     static constexpr const char* DEFAULT_LIDAR_SCAN_TOPIC = "/scan";
     static constexpr const char* DEFAULT_POSITION_TOPIC = "/ego_racecar/odom";
 
-public:
+  public:
     Safety();
 
-private:
+  private:
     void CB_positionSubscriber(const nav_msgs::msg::Odometry& msg_);
     void CB_scan(const sensor_msgs::msg::LaserScan& scanMsg_);
 
