@@ -1,0 +1,39 @@
+#See following link to learn about parameters: https://docs.ros.org/en/melodic/api/robot_localization/html/configuring_robot_localization.html#configuring-robot-localization
+#Parameters for EKF from robot_localization
+
+ekf_filter_node:
+  ros__parameters:
+    frequency: 30.0
+    sensor_timeout: 0.1
+    two_d_mode: true
+
+    # Frame definitions
+    map_frame: map
+    odom_frame: odom
+    base_link_frame: ego_racecar/base_link
+    world_frame: odom
+
+    # Odometry input
+    odom0: /ego_racecar/odom
+    odom0_config: [true,  true,  false, # X,Y,yaw, X', yaw'
+                       false, false, true,
+                       true, false, false,
+                       false, false, true,
+                       false, false, false]
+    odom0_differential: false
+    odom0_relative: false
+
+    # IMU input
+    imu0: /imu/data
+    imu0_config: [false, false, false, #yaw, yaw', X''
+                  false,  false,  true,
+                  false, false, false,
+                  false, false, true,
+                  true,  false,  false]
+    imu0_differential: false
+    imu0_relative: false
+    imu0_remove_gravitational_acceleration: false
+    publish_tf: true
+    print_diagnostics: true
+    debug: false
+    debug_out_file: /tmp/ekf_debug.txt
