@@ -38,8 +38,8 @@ class DriveController : public rclcpp::Node
     void joy_callback(const sensor_msgs::msg::Joy::SharedPtr joy_msg)
     {
         auto drive_msg = ackermann_msgs::msg::AckermannDriveStamped();
-        float throttle = (joy_msg->axes[this->right_trigger] - joy_msg->axes[this->left_trigger]) / 2.0;
-        float steering = (-joy_msg->axes[this->left_axis_x] + 1.0) / 2.0;
+        float throttle = (joy_msg->axes[this->right_trigger] - joy_msg->axes[this->left_trigger]);
+        float steering = (-joy_msg->axes[this->left_axis_x]);
         drive_msg.drive.speed = throttle;
         drive_msg.drive.steering_angle = steering;
         _drive_publisher->publish(drive_msg);
