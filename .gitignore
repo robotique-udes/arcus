@@ -1,3 +1,58 @@
-.vscode
-*~
-*.bkp
+# OS
+.DS_Store
+Thumbs.db
+
+# Editor/IDE
+.vscode/
+.idea/
+*.swp
+*.swo
+
+# Python
+**/__pycache__/**
+*.py[cod]
+*.egg-info/
+.env
+.venv/
+venv/
+.envrc
+.pytest_cache/
+.mypy_cache/
+.coverage
+
+# C/C++ / build artifacts
+build/
+install/
+log/
+devel/
+CMakeFiles/
+CMakeCache.txt
+cmake_install.cmake
+Makefile
+*.o
+*.obj
+*.so
+*.a
+*.dll
+*.exe
+
+# ROS / ROS2
+.ros/
+.rosinstall
+*.bag
+*.bag.active
+# Ignore workspace-specific build/install/log folders (also catches nested ones)
+**/build/
+**/install/
+**/log/
+
+# Colcon packages and generated files
+*.pyc
+*.pyo
+
+# Misc
+*.orig
+*.log
+
+# UI
+sim_ws/src/arcus_gui/ui/include/UI_*

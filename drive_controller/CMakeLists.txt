@@ -66,4 +66,9 @@ IF (IS_PACKAGE_EXECUTABLE)
     DESTINATION lib/${PROJECT_NAME})
 ENDIF()
 
+install(
+  DIRECTORY launch
+  DESTINATION share/${PROJECT_NAME}
+)
+
 ament_package()

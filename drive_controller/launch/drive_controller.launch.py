@@ -9,12 +9,12 @@ def generate_launch_description():
     joy_node = launch_ros.actions.Node(
             package='joy',
             executable='joy_node',
-            name='joy',)
+            name='joy')
     
     controller_node = launch_ros.actions.Node(
             package='drive_controller',
             executable='controller_node',
-            name='controller_node',)
+            name='controller_node')
     
 
     return launch.LaunchDescription([
