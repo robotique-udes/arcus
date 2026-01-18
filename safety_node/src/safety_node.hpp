@@ -8,12 +8,13 @@
 
 class Safety : public rclcpp::Node
 {
-    static constexpr double TTC_THRESHOLD = 1.0;
+    static constexpr double TTC_THRESHOLD_S = 1.0;
+    static constexpr double MIN_RANGE_RATE_MS = 0.0; // Minimum range rate in m/s
 
-    static constexpr const uint8_t DEFAULT_QOS = 1;
-    static constexpr const char* DEFAULT_DRIVE_CMD_TOPIC = "/drive";
-    static constexpr const char* DEFAULT_LIDAR_SCAN_TOPIC = "/scan";
-    static constexpr const char* DEFAULT_POSITION_TOPIC = "/ego_racecar/odom";
+    static constexpr const uint8_t QOS = 1;
+    static constexpr const char* DRIVE_CMD_TOPIC = "/drive";
+    static constexpr const char* LIDAR_SCAN_TOPIC = "/scan";
+    static constexpr const char* POSITION_TOPIC = "/ego_racecar/odom";
 
   public:
     Safety();
@@ -24,10 +25,6 @@ class Safety : public rclcpp::Node
 
     void initRosElements(void);
     void publishBrakeMessage(void);
-
-    std::string _driveCmdTopic = DEFAULT_DRIVE_CMD_TOPIC;
-    std::string _lidarScanTopic = DEFAULT_LIDAR_SCAN_TOPIC;
-    std::string _positionTopic = DEFAULT_POSITION_TOPIC;
 
     double _currentSpeed = 0.0;
 

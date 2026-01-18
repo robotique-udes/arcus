@@ -30,9 +30,16 @@ void Safety::CB_scan(const sensor_msgs::msg::LaserScan& scanMsg_)
             continue;
         }
 
-        double iTTC = ranges[i] / std::max(_currentSpeed * std::cos(scanMsg_.angle_min + i * scanMsg_.angle_increment), 0.001);
+        double rangeRate = _currentSpeed * std::cos(scanMsg_.angle_min + i * scanMsg_.angle_increment);
 
-        if (iTTC < TTC_THRESHOLD)
+        if (rangeRate <= MIN_RANGE_RATE_MS)
+        {
+            continue;
+        }
+
+        double iTTC = ranges[i] / rangeRate;
+
+        if (iTTC < TTC_THRESHOLD_S)
         {
             this->publishBrakeMessage();
             break;
@@ -42,17 +49,17 @@ void Safety::CB_scan(const sensor_msgs::msg::LaserScan& scanMsg_)
 
 void Safety::initRosElements(void)
 {
-    _driveCmdPublisher = this->create_publisher<ackermann_msgs::msg::AckermannDriveStamped>(_driveCmdTopic, DEFAULT_QOS);
+    _driveCmdPublisher = this->create_publisher<ackermann_msgs::msg::AckermannDriveStamped>(DRIVE_CMD_TOPIC, QOS);
 
-    _laserScanSubscriber = this->create_subscription<sensor_msgs::msg::LaserScan>(_lidarScanTopic,
-                                                                                  DEFAULT_QOS,
+    _laserScanSubscriber = this->create_subscription<sensor_msgs::msg::LaserScan>(LIDAR_SCAN_TOPIC,
+                                                                                  QOS,
                                                                                   [this](const sensor_msgs::msg::LaserScan& msg)
                                                                                   {
                                                                                       this->CB_scan(msg);
                                                                                   });
 
-    _positionSubscriber = this->create_subscription<nav_msgs::msg::Odometry>(_positionTopic,
-                                                                             DEFAULT_QOS,
+    _positionSubscriber = this->create_subscription<nav_msgs::msg::Odometry>(POSITION_TOPIC,
+                                                                             QOS,
                                                                              [this](const nav_msgs::msg::Odometry& msg)
                                                                              {
                                                                                  this->CB_positionSubscriber(msg);

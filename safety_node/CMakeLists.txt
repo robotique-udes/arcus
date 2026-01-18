@@ -9,20 +9,11 @@ set(IS_PACKAGE_INTERFACE FALSE)
 set(DEPENDENCY_LIST 
   "ament_cmake"
   "rclcpp"
-  "rclpy"
-  "geometry_msgs" 
   "ackermann_msgs"
   "nav_msgs" 
   "sensor_msgs" 
   "std_msgs"
   )
-
-  set(MSGS
-    "msg/DemoMsg.msg"
-    )
-  set(SRVS
-    "srv/DemoSrv.srv"
-    )
 
 # =============== END USER CONFIGURATION ===============
 cmake_minimum_required(VERSION 3.8)
