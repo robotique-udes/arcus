@@ -124,5 +124,9 @@ void ReactiveGapFollow::lidar_CB(sensor_msgs::msg::LaserScan::SharedPtr scanMsg_
 float ReactiveGapFollow::setSpeedFromDistance(float distance_)
 {
     float speed = distance_ * SPEED_DISTANCE_FACTOR;
+    if (speed > MAX_SPEED)
+    {
+        speed = MAX_SPEED;
+    }
     return speed;
 }
