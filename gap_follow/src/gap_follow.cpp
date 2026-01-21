@@ -48,68 +48,65 @@ void ReactiveGapFollow::lidar_CB(sensor_msgs::msg::LaserScan::SharedPtr scanMsg_
     std::vector<float> ranges = scanMsg_->ranges;
     size_t rangesSize = ranges.size();
 
-    if (!_straight)
+    float min_value = 0.f;
+
+    if (!ranges.empty())
     {
-        float min_value = 0.f;
-
-        if (!ranges.empty())
-        {
-            min_value = *std::min_element(ranges.begin(), ranges.end());
-        }
-
-        for (size_t i = 0; i < rangesSize; i++)
-        {
-            if (ranges[i] <= (min_value + BUBBLE_RADIUS))
-            {
-                ranges[i] = 0.0;
-            }
-        }
-
-        for (uint32_t i = 0; i < ELIMINATE_EXTREMES_POSITION; i++)
-        {
-            ranges[i] = 0.0;
-        }
-
-        for (uint32_t i = rangesSize - ELIMINATE_EXTREMES_POSITION; i < rangesSize; i++)
-        {
-            ranges[i] = 0.0;
-        }
-
-        uint32_t maxGap = 0;
-        uint32_t gap = 0;
-        uint32_t startingGapIndex = 0;
-        uint32_t endingGapIndex = 0;
-
-        for (uint32_t i = 0; i < rangesSize; i++)
-        {
-            if (ranges[i] != 0.0)  // Non-zero value: part of a gap
-            {
-                if (gap == 0)
-                {
-                    // Start of a new gap
-                    startingGapIndex = i;
-                }
-                gap++;
-                endingGapIndex = i;
-            }
-            else
-            {
-                if (gap > maxGap)
-                {
-                    maxGap = gap;
-                    _maxGapStartingIndex = startingGapIndex;
-                    _maxGapEndingIndex = endingGapIndex;
-                }
-                gap = 0;
-            }
-        }
-
-        _targetIndex = (_maxGapEndingIndex - _maxGapStartingIndex) / 2. + _maxGapStartingIndex;
-
-        _targetAngle = scanMsg_->angle_min + _targetIndex * scanMsg_->angle_increment;
+        min_value = *std::min_element(ranges.begin(), ranges.end());
     }
 
-    _straight = false;
+    for (size_t i = 0; i < rangesSize; i++)
+    {
+        if (ranges[i] <= (min_value + BUBBLE_RADIUS))
+        {
+            ranges[i] = 0.0;
+        }
+    }
+
+    for (uint32_t i = 0; i < ELIMINATE_EXTREMES_POSITION; i++)
+    {
+        ranges[i] = 0.0;
+    }
+
+    for (uint32_t i = rangesSize - ELIMINATE_EXTREMES_POSITION; i < rangesSize; i++)
+    {
+        ranges[i] = 0.0;
+    }
+
+    uint32_t maxGap = 0;
+    uint32_t gap = 0;
+    uint32_t startingGapIndex = 0;
+    uint32_t endingGapIndex = 0;
+
+    for (uint32_t i = 0; i < rangesSize; i++)
+    {
+        if (ranges[i] != 0.0)  // Non-zero value: part of a gap
+        {
+            if (gap == 0)
+            {
+                // Start of a new gap
+                startingGapIndex = i;
+            }
+            gap++;
+            endingGapIndex = i;
+        }
+        else
+        {
+            if (gap > maxGap)
+            {
+                maxGap = gap;
+                _maxGapStartingIndex = startingGapIndex;
+                _maxGapEndingIndex = endingGapIndex;
+            }
+            gap = 0;
+        }
+    }
+
+    _targetIndex = (_maxGapEndingIndex - _maxGapStartingIndex) / 2. + _maxGapStartingIndex;
+
+    _targetAngle = scanMsg_->angle_min + _targetIndex * scanMsg_->angle_increment;
+    RCLCPP_INFO(this->get_logger(), "Target Angle: %.2f", _targetAngle);
+
 
     ackermann_msgs::msg::AckermannDriveStamped newMsg = ackermann_msgs::msg::AckermannDriveStamped();
 
