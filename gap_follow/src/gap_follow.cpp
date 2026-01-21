@@ -43,7 +43,8 @@ void ReactiveGapFollow::preprocessLidar(std::vector<float>& ranges_)
 
 void ReactiveGapFollow::lidar_CB(sensor_msgs::msg::LaserScan::SharedPtr scanMsg_)
 {
-    preprocessLidar(scanMsg_->ranges);
+    // preprocessing will messup the disparity detection
+    //preprocessLidar(scanMsg_->ranges);
 
     std::vector<float> ranges = scanMsg_->ranges;
     size_t rangesSize = ranges.size();
@@ -66,10 +67,11 @@ void ReactiveGapFollow::lidar_CB(sensor_msgs::msg::LaserScan::SharedPtr scanMsg_
                 int32_t index = static_cast<int32_t>(i) + j;
                 if (index >= 0 && index < static_cast<int32_t>(rangesSize))
                 {
-                    ranges[index] = 0.0;
+                    ranges[index] = std::min(ranges[index], old_distance);
                 }
             }
         }
+        old_distance = ranges[i];
 
     }
 
@@ -83,37 +85,37 @@ void ReactiveGapFollow::lidar_CB(sensor_msgs::msg::LaserScan::SharedPtr scanMsg_
         ranges[i] = 0.0;
     }
 
-    uint32_t maxGap = 0;
-    uint32_t gap = 0;
-    uint32_t startingGapIndex = 0;
-    uint32_t endingGapIndex = 0;
+    // uint32_t maxGap = 0;
+    // uint32_t gap = 0;
+    // uint32_t startingGapIndex = 0;
+    // uint32_t endingGapIndex = 0;
 
-    for (uint32_t i = 0; i < rangesSize; i++)
-    {
-        if (ranges[i] != 0.0)  // Non-zero value: part of a gap
-        {
-            if (gap == 0)
-            {
-                // Start of a new gap
-                startingGapIndex = i;
-            }
-            gap++;
-            endingGapIndex = i;
-        }
-        else
-        {
-            if (gap > maxGap)
-            {
-                maxGap = gap;
-                _maxGapStartingIndex = startingGapIndex;
-                _maxGapEndingIndex = endingGapIndex;
-            }
-            gap = 0;
-        }
-    }
+    // for (uint32_t i = 0; i < rangesSize; i++)
+    // {
+    //     if (ranges[i] != 0.0)  // Non-zero value: part of a gap
+    //     {
+    //         if (gap == 0)
+    //         {
+    //             // Start of a new gap
+    //             startingGapIndex = i;
+    //         }
+    //         gap++;
+    //         endingGapIndex = i;
+    //     }
+    //     else
+    //     {
+    //         if (gap > maxGap)
+    //         {
+    //             maxGap = gap;
+    //             _maxGapStartingIndex = startingGapIndex;
+    //             _maxGapEndingIndex = endingGapIndex;
+    //         }
+    //         gap = 0;
+    //     }
+    // }
 
     uint32_t maxDistanceIndex = 0;
-    for (uint32_t i = _maxGapStartingIndex; i <= _maxGapEndingIndex; i++)
+    for (uint32_t i = 0; i <= rangesSize; i++)
     {
         // get max distance index
         if (ranges[i] > ranges[maxDistanceIndex])
@@ -125,10 +127,6 @@ void ReactiveGapFollow::lidar_CB(sensor_msgs::msg::LaserScan::SharedPtr scanMsg_
     _targetIndex = maxDistanceIndex;
 
     _targetAngle = scanMsg_->angle_min + _targetIndex * scanMsg_->angle_increment;
-    RCLCPP_INFO(this->get_logger(), "Max Gap Start angle: %f", _maxGapStartingIndex*scanMsg_->angle_increment + scanMsg_->angle_min);
-    RCLCPP_INFO(this->get_logger(), "Max Gap End angle: %f", _maxGapEndingIndex*scanMsg_->angle_increment + scanMsg_->angle_min);
-
-
 
     ackermann_msgs::msg::AckermannDriveStamped newMsg = ackermann_msgs::msg::AckermannDriveStamped();
 
