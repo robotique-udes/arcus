@@ -103,10 +103,7 @@ void ReactiveGapFollow::lidar_CB(sensor_msgs::msg::LaserScan::SharedPtr scanMsg_
     }
 
     _targetIndex = (_maxGapEndingIndex - _maxGapStartingIndex) / 2. + _maxGapStartingIndex;
-
     _targetAngle = scanMsg_->angle_min + _targetIndex * scanMsg_->angle_increment;
-    RCLCPP_INFO(this->get_logger(), "Target Angle: %.2f", _targetAngle);
-
 
     ackermann_msgs::msg::AckermannDriveStamped newMsg = ackermann_msgs::msg::AckermannDriveStamped();
 
