@@ -48,7 +48,7 @@ void ReactiveGapFollow::lidar_CB(sensor_msgs::msg::LaserScan::SharedPtr scanMsg_
     std::vector<float> ranges = scanMsg_->ranges;
     size_t rangesSize = ranges.size();
 
-    float min_value = 0.5f;
+    float old_distance = 0.f;
 
     // if (!ranges.empty())
     // {
@@ -57,7 +57,8 @@ void ReactiveGapFollow::lidar_CB(sensor_msgs::msg::LaserScan::SharedPtr scanMsg_
 
     for (size_t i = 0; i < rangesSize; i++)
     {   
-        if (ranges[i] <= min_value && ranges[i] > 0)
+
+        if (std::abs(ranges[i] - old_distance) > 0.5)
         {
             uint32_t bubble_distance = static_cast<uint32_t>(2*std::asin(BUBBLE_RADIUS/2*ranges[i])/scanMsg_->angle_increment);
             for (int32_t j = -static_cast<int32_t>(bubble_distance); j <= static_cast<int32_t>(bubble_distance); j++)
@@ -111,7 +112,17 @@ void ReactiveGapFollow::lidar_CB(sensor_msgs::msg::LaserScan::SharedPtr scanMsg_
         }
     }
 
-    _targetIndex = (_maxGapEndingIndex - _maxGapStartingIndex) / 2. + _maxGapStartingIndex;
+    uint32_t maxDistanceIndex = 0;
+    for (uint32_t i = _maxGapStartingIndex; i <= _maxGapEndingIndex; i++)
+    {
+        // get max distance index
+        if (ranges[i] > ranges[maxDistanceIndex])
+        {
+            maxDistanceIndex = i;
+        }
+    }
+
+    _targetIndex = maxDistanceIndex;
 
     _targetAngle = scanMsg_->angle_min + _targetIndex * scanMsg_->angle_increment;
     RCLCPP_INFO(this->get_logger(), "Max Gap Start angle: %f", _maxGapStartingIndex*scanMsg_->angle_increment + scanMsg_->angle_min);
