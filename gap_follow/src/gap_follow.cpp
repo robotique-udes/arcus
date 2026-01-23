@@ -13,6 +13,8 @@ ReactiveGapFollow::ReactiveGapFollow():
 {
     _directionPublisher = this->create_publisher<ackermann_msgs::msg::AckermannDriveStamped>(DRIVE_TOPIC, DEFAULT_QOS);
 
+    _laserPublisher = this->create_publisher<sensor_msgs::msg::LaserScan>("processed_scan", DEFAULT_QOS);
+
     _laserScanSubscriber
         = this->create_subscription<sensor_msgs::msg::LaserScan>(LIDAR_SCAN_TOPIC,
                                                                  DEFAULT_QOS,
@@ -27,50 +29,85 @@ void ReactiveGapFollow::lidar_CB(sensor_msgs::msg::LaserScan::SharedPtr scanMsg_
 
     std::vector<float> ranges = scanMsg_->ranges;
     size_t rangesSize = ranges.size();
+    std::vector<float> preprocessedRanges = ranges;
 
-    float old_distance = 0.f;
+    float old_distance = std::numeric_limits<float>::infinity();
 
-    // if (!ranges.empty())
-    // {
-    //     min_value = *std::min_element(ranges.begin(), ranges.end());
-    // }
+    for (size_t i = 0; i < rangesSize; i++)
+    {
+        if (ranges[i] > scanMsg_->range_max || std::isnan(ranges[i]))
+        {
+            preprocessedRanges[i] = scanMsg_->range_max;
+        } else if (ranges[i] < scanMsg_->range_min)
+        {
+            preprocessedRanges[i] = scanMsg_->range_min; 
+        } else {
+            preprocessedRanges[i] = ranges[i];
+        }
+    }
 
     for (size_t i = 0; i < rangesSize; i++)
     {   
-        if (std::abs(ranges[i] - old_distance) > 0.5)
+        if (std::abs(ranges[i] - old_distance) > DISPARITY_THRESHOLD)
         {
-            uint32_t bubble_distance = static_cast<uint32_t>(2*std::asin(BUBBLE_RADIUS/2*ranges[i])/scanMsg_->angle_increment);
-            for (int32_t j = -static_cast<int32_t>(bubble_distance); j <= static_cast<int32_t>(bubble_distance); j++)
+            uint32_t bubble_distance = static_cast<uint32_t>(std::asin(BUBBLE_RADIUS/ranges[i])/scanMsg_->angle_increment);
+            for (int32_t j = 0; j <= static_cast<int32_t>(bubble_distance); j++)
             {
-                int32_t index = static_cast<int32_t>(i) + j;
+                int32_t index;
+                // Extend bubble only on the side of the sudden drop
+                if ((ranges[i] < old_distance))
+                {
+                    index = static_cast<int32_t>(i) - j;
+                } else {
+                    index = static_cast<int32_t>(i) + j;
+                }
+                
                 if (index >= 0 && index < static_cast<int32_t>(rangesSize))
                 {
-                    ranges[index] = std::min(ranges[index], old_distance);
+                    preprocessedRanges[index] = std::min(preprocessedRanges[index], old_distance);
                 }
             }
         }
         old_distance = ranges[i];
     }
 
-    for (uint32_t i = 0; i < ELIMINATE_EXTREMES_POSITION; i++)
-    {
-        ranges[i] = 0.0;
-    }
-
-    for (uint32_t i = rangesSize - ELIMINATE_EXTREMES_POSITION; i < rangesSize; i++)
-    {
-        ranges[i] = 0.0;
-    }
-
-    uint32_t maxDistanceIndex = std::distance(ranges.begin(), std::max_element(ranges.begin(), ranges.end()));
+    uint32_t maxDistanceIndex = std::distance(preprocessedRanges.begin(), std::max_element(preprocessedRanges.begin(), preprocessedRanges.end()));
 
     _targetAngle = scanMsg_->angle_min + maxDistanceIndex * scanMsg_->angle_increment;
+
+    // Check for obstacles on the side in the turning direction
+    // Check left side (angles > 90 degrees)
+    if (_targetAngle > 0) {
+        for (size_t i = round(rangesSize/2); i < rangesSize; i++) {
+            float angle = scanMsg_->angle_min + i * scanMsg_->angle_increment;
+            if (angle > M_PI / 2 && preprocessedRanges[i] < SAFE_TURNING_DISTANCE) {
+                _targetAngle = 0.0f; // Go straight
+                break;
+            }
+        }
+    }
+    // Check right side (angles < -90 degrees)
+    else {
+        for (size_t i = 0; i < round(rangesSize/2); i++) {
+            float angle = scanMsg_->angle_min + i * scanMsg_->angle_increment;
+            if (angle < -M_PI / 2 && preprocessedRanges[i] < SAFE_TURNING_DISTANCE) {
+                _targetAngle = 0.0f; // Go straight
+                break;
+            }
+        }
+    }
+
+    sensor_msgs::msg::LaserScan processedScan = *scanMsg_;
+    processedScan.ranges = preprocessedRanges;
+    _laserPublisher->publish(processedScan);
+
+    // RCLCPP_INFO(this->get_logger(), "Target angle: %.2f degrees, index: %u, distance: %.2f", _targetAngle * 180.0 / M_PI, maxDistanceIndex, ranges[maxDistanceIndex]);
 
     ackermann_msgs::msg::AckermannDriveStamped newMsg = ackermann_msgs::msg::AckermannDriveStamped();
 
     newMsg.drive.steering_angle = _targetAngle * OVERSHOOT_FACTOR;
 
-    float targetSpeed = setSpeedFromDistance(ranges[maxDistanceIndex]);
+    float targetSpeed = setSpeedFromDistance(preprocessedRanges[maxDistanceIndex]);
     newMsg.drive.speed = targetSpeed;
 
     _directionPublisher->publish(newMsg);
