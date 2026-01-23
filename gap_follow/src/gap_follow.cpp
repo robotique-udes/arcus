@@ -26,7 +26,6 @@ ReactiveGapFollow::ReactiveGapFollow():
 
 void ReactiveGapFollow::lidar_CB(sensor_msgs::msg::LaserScan::SharedPtr scanMsg_)
 {
-
     std::vector<float> ranges = scanMsg_->ranges;
     size_t rangesSize = ranges.size();
     std::vector<float> preprocessedRanges = ranges;
@@ -38,19 +37,22 @@ void ReactiveGapFollow::lidar_CB(sensor_msgs::msg::LaserScan::SharedPtr scanMsg_
         if (ranges[i] > scanMsg_->range_max || std::isinf(ranges[i]))
         {
             preprocessedRanges[i] = scanMsg_->range_max;
-        } else if (ranges[i] < scanMsg_->range_min || std::isnan(ranges[i]))
+        }
+        else if (ranges[i] < scanMsg_->range_min || std::isnan(ranges[i]))
         {
-            preprocessedRanges[i] = scanMsg_->range_min; 
-        } else {
+            preprocessedRanges[i] = scanMsg_->range_min;
+        }
+        else
+        {
             preprocessedRanges[i] = ranges[i];
         }
     }
 
     for (size_t i = 0; i < rangesSize; i++)
-    {   
+    {
         if (std::abs(ranges[i] - old_distance) > DISPARITY_THRESHOLD)
         {
-            uint32_t bubble_distance = static_cast<uint32_t>(std::asin(BUBBLE_RADIUS/ranges[i])/scanMsg_->angle_increment);
+            uint32_t bubble_distance = static_cast<uint32_t>(std::asin(BUBBLE_RADIUS / ranges[i]) / scanMsg_->angle_increment);
             for (int32_t j = 0; j <= static_cast<int32_t>(bubble_distance); j++)
             {
                 int32_t index;
@@ -58,10 +60,12 @@ void ReactiveGapFollow::lidar_CB(sensor_msgs::msg::LaserScan::SharedPtr scanMsg_
                 if ((ranges[i] < old_distance))
                 {
                     index = static_cast<int32_t>(i) - j;
-                } else {
+                }
+                else
+                {
                     index = static_cast<int32_t>(i) + j;
                 }
-                
+
                 if (index >= 0 && index < static_cast<int32_t>(rangesSize))
                 {
                     preprocessedRanges[index] = std::min(preprocessedRanges[index], old_distance);
@@ -71,27 +75,34 @@ void ReactiveGapFollow::lidar_CB(sensor_msgs::msg::LaserScan::SharedPtr scanMsg_
         old_distance = ranges[i];
     }
 
-    uint32_t maxDistanceIndex = std::distance(preprocessedRanges.begin(), std::max_element(preprocessedRanges.begin(), preprocessedRanges.end()));
+    uint32_t maxDistanceIndex
+        = std::distance(preprocessedRanges.begin(), std::max_element(preprocessedRanges.begin(), preprocessedRanges.end()));
 
     _targetAngle = scanMsg_->angle_min + maxDistanceIndex * scanMsg_->angle_increment;
 
     // Check for obstacles on the side in the turning direction
     // Check left side (angles > 90 degrees)
-    if (_targetAngle > 0) {
-        for (size_t i = round(rangesSize/2); i < rangesSize; i++) {
+    if (_targetAngle > 0)
+    {
+        for (size_t i = round(rangesSize / 2); i < rangesSize; i++)
+        {
             float angle = scanMsg_->angle_min + i * scanMsg_->angle_increment;
-            if (angle > M_PI / 2 && preprocessedRanges[i] < SAFE_TURNING_DISTANCE) {
-                _targetAngle = 0.0f; // Go straight
+            if (angle > M_PI / 2 && preprocessedRanges[i] < SAFE_TURNING_DISTANCE)
+            {
+                _targetAngle = 0.0f;  // Go straight
                 break;
             }
         }
     }
     // Check right side (angles < -90 degrees)
-    else {
-        for (size_t i = 0; i < round(rangesSize/2); i++) {
+    else
+    {
+        for (size_t i = 0; i < round(rangesSize / 2); i++)
+        {
             float angle = scanMsg_->angle_min + i * scanMsg_->angle_increment;
-            if (angle < -M_PI / 2 && preprocessedRanges[i] < SAFE_TURNING_DISTANCE) {
-                _targetAngle = 0.0f; // Go straight
+            if (angle < -M_PI / 2 && preprocessedRanges[i] < SAFE_TURNING_DISTANCE)
+            {
+                _targetAngle = 0.0f;  // Go straight
                 break;
             }
         }
@@ -101,7 +112,8 @@ void ReactiveGapFollow::lidar_CB(sensor_msgs::msg::LaserScan::SharedPtr scanMsg_
     processedScan.ranges = preprocessedRanges;
     _laserPublisher->publish(processedScan);
 
-    // RCLCPP_INFO(this->get_logger(), "Target angle: %.2f degrees, index: %u, distance: %.2f", _targetAngle * 180.0 / M_PI, maxDistanceIndex, ranges[maxDistanceIndex]);
+    // RCLCPP_INFO(this->get_logger(), "Target angle: %.2f degrees, index: %u, distance: %.2f", _targetAngle * 180.0 / M_PI,
+    // maxDistanceIndex, ranges[maxDistanceIndex]);
 
     ackermann_msgs::msg::AckermannDriveStamped newMsg = ackermann_msgs::msg::AckermannDriveStamped();
 
