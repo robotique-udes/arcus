@@ -93,7 +93,6 @@ void ReactiveGapFollow::lidar_CB(sensor_msgs::msg::LaserScan::SharedPtr scanMsg_
 
     _targetAngle = scanMsg_->angle_min + maxDistanceIndex * scanMsg_->angle_increment;
 
-    RCLCPP_INFO(this->get_logger(), "Max distance angle: %f, distance: %.2f", _targetAngle, preprocessedRanges[maxDistanceIndex]);
 
     // Check for obstacles on the side in the turning direction
     // Check left side (angles > 90 degrees)
