@@ -59,7 +59,7 @@ void ReactiveGapFollow::lidar_CB(sensor_msgs::msg::LaserScan::SharedPtr scanMsg_
             {
                 bubble_distance = static_cast<uint32_t>((90-std::atan(std::min(ranges[i], old_distance)/BUBBLE_RADIUS)) / scanMsg_->angle_increment);
             }
-            for (int32_t j = 0; j <= static_cast<int32_t>(bubble_distance); j++)
+            for (int32_t j = -1; j <= static_cast<int32_t>(bubble_distance); j++)
             {
                 int32_t index;
                 // Extend bubble only on the side of the sudden drop
