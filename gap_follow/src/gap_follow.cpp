@@ -48,7 +48,10 @@ void ReactiveGapFollow::lidar_CB(sensor_msgs::msg::LaserScan::SharedPtr scanMsg_
         }
     }
 
-    for (size_t i = 0; i < rangesSize; i++)
+    uint32_t pos90deg_index = (M_PI/2 - scanMsg_->angle_min) / scanMsg_->angle_increment;
+    uint32_t neg90deg_index = (-M_PI/2 - scanMsg_->angle_min) / scanMsg_->angle_increment;
+
+    for (size_t i = neg90deg_index; i < pos90deg_index; i++)
     {
         if (std::abs(ranges[i] - old_distance) > DISPARITY_THRESHOLD)
         {
@@ -74,9 +77,6 @@ void ReactiveGapFollow::lidar_CB(sensor_msgs::msg::LaserScan::SharedPtr scanMsg_
         }
         old_distance = ranges[i];
     }
-
-    uint32_t pos90deg_index = (M_PI/2 - scanMsg_->angle_min) / scanMsg_->angle_increment;
-    uint32_t neg90deg_index = (-M_PI/2 - scanMsg_->angle_min) / scanMsg_->angle_increment;
 
     for (size_t i = 0; i < preprocessedRanges.size(); i++)
     {
