@@ -97,31 +97,31 @@ void ReactiveGapFollow::lidar_CB(sensor_msgs::msg::LaserScan::SharedPtr scanMsg_
 
     // Check for obstacles on the side in the turning direction
     // Check left side (angles > 90 degrees)
-    if (_targetAngle > 0)
-    {
-        for (size_t i = round(rangesSize / 2); i < rangesSize; i++)
-        {
-            float angle = scanMsg_->angle_min + i * scanMsg_->angle_increment;
-            if (angle > M_PI / 2 && preprocessedRanges[i] < SAFE_TURNING_DISTANCE)
-            {
-                _targetAngle = 0.0f;  // Go straight
-                break;
-            }
-        }
-    }
-    // Check right side (angles < -90 degrees)
-    else
-    {
-        for (size_t i = 0; i < round(rangesSize / 2); i++)
-        {
-            float angle = scanMsg_->angle_min + i * scanMsg_->angle_increment;
-            if (angle < -M_PI / 2 && preprocessedRanges[i] < SAFE_TURNING_DISTANCE)
-            {
-                _targetAngle = 0.0f;  // Go straight
-                break;
-            }
-        }
-    }
+    // if (_targetAngle > 0)
+    // {
+    //     for (size_t i = round(rangesSize / 2); i < rangesSize; i++)
+    //     {
+    //         float angle = scanMsg_->angle_min + i * scanMsg_->angle_increment;
+    //         if (angle > M_PI / 2 && preprocessedRanges[i] < SAFE_TURNING_DISTANCE)
+    //         {
+    //             _targetAngle = 0.0f;  // Go straight
+    //             break;
+    //         }
+    //     }
+    // }
+    // // Check right side (angles < -90 degrees)
+    // else
+    // {
+    //     for (size_t i = 0; i < round(rangesSize / 2); i++)
+    //     {
+    //         float angle = scanMsg_->angle_min + i * scanMsg_->angle_increment;
+    //         if (angle < -M_PI / 2 && preprocessedRanges[i] < SAFE_TURNING_DISTANCE)
+    //         {
+    //             _targetAngle = 0.0f;  // Go straight
+    //             break;
+    //         }
+    //     }
+    // }
 
     sensor_msgs::msg::LaserScan processedScan = *scanMsg_;
     processedScan.ranges = preprocessedRanges;
