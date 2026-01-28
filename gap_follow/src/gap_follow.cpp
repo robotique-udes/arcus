@@ -84,7 +84,7 @@ void ReactiveGapFollow::lidar_CB(sensor_msgs::msg::LaserScan::SharedPtr scanMsg_
     
     maxDistanceIndex += neg90deg_index;
 
-    RCLCPP_DEBUG(this->get_logger(), "Max distance index: %u, distance: %.2f", maxDistanceIndex, preprocessedRanges[maxDistanceIndex]);
+    RCLCPP_INFO(this->get_logger(), "Max distance index: %u, distance: %.2f", maxDistanceIndex, preprocessedRanges[maxDistanceIndex]);
 
     _targetAngle = scanMsg_->angle_min + maxDistanceIndex * scanMsg_->angle_increment;
 
