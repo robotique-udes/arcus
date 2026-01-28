@@ -78,10 +78,19 @@ void ReactiveGapFollow::lidar_CB(sensor_msgs::msg::LaserScan::SharedPtr scanMsg_
     uint32_t 90deg_index = (M_PI/2 - scanMsg_->angle_min) / scanMsg_->angle_increment;
     uint32_t neg90deg_index = (-M_PI/2 - scanMsg_->angle_min) / scanMsg_->angle_increment;
     
+    uint32_t maxDistanceIndex = neg90deg_index;
+    float maxDistance = preprocessedRanges[neg90deg_index];
 
-    uint32_t maxDistanceIndex
-        = std::distance(preprocessedRanges.begin() + neg90deg_index, std::max_element(preprocessedRanges.begin() + neg90deg_index, preprocessedRanges.begin() + 90deg_index));
-
+    for (uint32_t i = neg90deg_index; i <= 90deg_index; i++)
+    {
+        if (preprocessedRanges[i] > maxDistance)
+        {
+            maxDistance = preprocessedRanges[i];
+            maxDistanceIndex = i;
+        }
+    }
+    
+   
     _targetAngle = scanMsg_->angle_min + maxDistanceIndex * scanMsg_->angle_increment;
 
     // Check for obstacles on the side in the turning direction
