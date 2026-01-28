@@ -19,8 +19,8 @@ class ReactiveGapFollow : public rclcpp::Node
     static constexpr float MAX_LIDAR_DISTANCE_M = 10.f;
     static constexpr float BUBBLE_RADIUS = 0.5f;
     static constexpr float SPEED_DISTANCE_FACTOR = 0.5f;
-    static constexpr float MAX_SPEED = 1.f;
-    static constexpr float DISPARITY_THRESHOLD = 0.1f;
+    static constexpr float MAX_SPEED = 3.f;
+    static constexpr float DISPARITY_THRESHOLD = 0.05f;
     static constexpr float SAFE_TURNING_DISTANCE = 0.1f;
 
     static constexpr const char* LIDAR_SCAN_TOPIC = "/scan";
