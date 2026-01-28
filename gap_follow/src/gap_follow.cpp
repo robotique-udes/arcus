@@ -77,7 +77,14 @@ void ReactiveGapFollow::lidar_CB(sensor_msgs::msg::LaserScan::SharedPtr scanMsg_
 
     uint32_t pos90deg_index = (M_PI/2 - scanMsg_->angle_min) / scanMsg_->angle_increment;
     uint32_t neg90deg_index = (-M_PI/2 - scanMsg_->angle_min) / scanMsg_->angle_increment;
-    
+
+    for (size_t i = 0; i < preprocessedRanges.size(); i++)
+    {
+        if (preprocessedRanges[i] >= scanMsg_->range_max)
+        {
+            preprocessedRanges[i] = 0.0f;
+        }
+    }
 
     uint32_t maxDistanceIndex
         = std::distance(preprocessedRanges.begin() + neg90deg_index, std::max_element(preprocessedRanges.begin() + neg90deg_index, preprocessedRanges.begin() + pos90deg_index));
