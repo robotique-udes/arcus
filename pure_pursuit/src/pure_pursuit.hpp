@@ -7,6 +7,8 @@
 #include "geometry_msgs/msg/point_stamped.hpp"
 #include "ackermann_msgs/msg/ackermann_drive_stamped.hpp"
 #include "nav_msgs/msg/path.hpp"
+#include <tf2_ros/buffer.h>
+#include <tf2_ros/transform_listener.h>
 
 #include <fstream>
 #include <string>
@@ -18,19 +20,19 @@ class PurePursuit : public rclcpp::Node
 {
     // Below are parameters that need to be tweaked for better performance
     static constexpr double MAX_LOOKAHEAD_DISTANCE_M = 3.5;
-    static constexpr double MIN_LOOKAHEAD_DISTANCE_M = 0.4;
+    static constexpr double MIN_LOOKAHEAD_DISTANCE_M = 0.35;
     static constexpr double LOOKAHEAD_DISTANCE_GAIN = 0.25;
     static constexpr double MAX_LOOKAHEAD_FRACTION_OF_PATH = 0.05;
     static constexpr double LOOP_FREQUENCY_HZ = 20.0;
     static constexpr double WHEELBASE_M = 0.325;      // Distance between front and rear axles
-    static constexpr double CONSTANT_SPEED_MS = 5.0;  // Constant speed in m/s
+    static constexpr double CONSTANT_SPEED_MS = 2.0;  // Constant speed in m/s
 
     // Topic, input file names and QoS
     static constexpr const uint8_t DEFAULT_QOS = 1;
     static constexpr const char* DEFAULT_DRIVE_CMD_TOPIC = "/drive";
     static constexpr const char* TARGET_WAYPOINT_TOPIC = "/target_waypoint";
-    static constexpr const char* DEFAULT_POSITION_TOPIC = "/ego_racecar/odom";
-    static constexpr const char* DEFAULT_WAYPOINTS_CSV_FILE_NAME = "/sim_ws/src/arcus/resources/waypoints/waypoints.csv";
+    static constexpr const char* DEFAULT_POSITION_TOPIC = "/odometry/filtered";
+    static constexpr const char* DEFAULT_WAYPOINTS_CSV_FILE_NAME = "/home/arcus/arcus/resources/waypoints/waypoints.csv";
 
     // Mathematical constants
     static constexpr const double PI = 3.14159;
@@ -69,6 +71,9 @@ class PurePursuit : public rclcpp::Node
     rclcpp::TimerBase::SharedPtr _loopTimer;
     rclcpp::Publisher<ackermann_msgs::msg::AckermannDriveStamped>::SharedPtr _driveCmdPublisher;
     rclcpp::Publisher<geometry_msgs::msg::PointStamped>::SharedPtr _targetWaypointPublisher;
+
+    std::shared_ptr<tf2_ros::Buffer> _tfBuffer;
+    std::shared_ptr<tf2_ros::TransformListener> _tfListener;
 };
 
 #endif  // PURE_PURSUIT_HPP

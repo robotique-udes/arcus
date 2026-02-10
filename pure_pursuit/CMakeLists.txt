@@ -15,6 +15,8 @@ set(DEPENDENCY_LIST
   "nav_msgs" 
   "sensor_msgs" 
   "std_msgs"
+  "tf2"
+  "tf2_ros"
   )
 
   set(MSGS

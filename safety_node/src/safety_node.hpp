@@ -14,7 +14,7 @@ class Safety : public rclcpp::Node
     static constexpr const uint8_t QOS = 1;
     static constexpr const char* DRIVE_CMD_TOPIC = "/drive";
     static constexpr const char* LIDAR_SCAN_TOPIC = "/scan";
-    static constexpr const char* POSITION_TOPIC = "/ego_racecar/odom";
+    static constexpr const char* POSITION_TOPIC = "/odometry/filtered";
 
   public:
     Safety();
@@ -22,15 +22,17 @@ class Safety : public rclcpp::Node
   private:
     void CB_positionSubscriber(const nav_msgs::msg::Odometry& msg_);
     void CB_scan(const sensor_msgs::msg::LaserScan& scanMsg_);
+    void CB_spam_stop(void);
 
     void initRosElements(void);
     void publishBrakeMessage(void);
 
     double _currentSpeed = 0.0;
+    bool _stopFlag = false;
 
     rclcpp::Publisher<ackermann_msgs::msg::AckermannDriveStamped>::SharedPtr _driveCmdPublisher;
     rclcpp::Subscription<sensor_msgs::msg::LaserScan>::SharedPtr _laserScanSubscriber;
     rclcpp::Subscription<nav_msgs::msg::Odometry>::SharedPtr _positionSubscriber;
+    rclcpp::TimerBase::SharedPtr _spammingTimer;
 };
-
 #endif  // SAFETY_NODE_HPP

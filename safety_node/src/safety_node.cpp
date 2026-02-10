@@ -41,9 +41,25 @@ void Safety::CB_scan(const sensor_msgs::msg::LaserScan& scanMsg_)
 
         if (iTTC < TTC_THRESHOLD_S)
         {
+            _stopFlag = true;
             this->publishBrakeMessage();
             break;
         }
+
+        if(i == (ranges.size() - 1))
+        {
+            _stopFlag = false;
+        }
+    }
+}
+
+void Safety::CB_spam_stop(void)
+{
+    if (_stopFlag) 
+    {
+        ackermann_msgs::msg::AckermannDriveStamped driveCmd;
+        driveCmd.drive.speed = 0.0;
+        _driveCmdPublisher->publish(driveCmd);
     }
 }
 
@@ -64,6 +80,10 @@ void Safety::initRosElements(void)
                                                                              {
                                                                                  this->CB_positionSubscriber(msg);
                                                                              });
+    _spammingTimer = this->create_wall_timer(
+        std::chrono::milliseconds(5),
+        std::bind(&Safety::CB_spam_stop, this)
+        );
 }
 
 void Safety::publishBrakeMessage(void)
