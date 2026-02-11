@@ -32,7 +32,7 @@ void ReactiveGapFollow::lidar_CB(sensor_msgs::msg::LaserScan::SharedPtr scanMsg_
     size_t rangesSize = ranges.size();
     std::vector<float> preprocessedRanges = ranges;
 
-    float old_distance = std::numeric_limits<float>::infinity();
+    float old_distance = scanMsg_->range_max;
 
     for (size_t i = 0; i < rangesSize; i++)
     {
@@ -61,18 +61,19 @@ void ReactiveGapFollow::lidar_CB(sensor_msgs::msg::LaserScan::SharedPtr scanMsg_
             {
                 bubble_distance = static_cast<uint32_t>((M_PI/2-std::atan(std::min(ranges[i], old_distance)/BUBBLE_RADIUS)) / scanMsg_->angle_increment);
             }
-            for (int32_t j = -1; j <= static_cast<int32_t>(bubble_distance); j++)
+            for (int32_t j = -static_cast<int32_t>(bubble_distance); j <= static_cast<int32_t>(bubble_distance); j++)
             {
                 int32_t index;
                 // Extend bubble only on the side of the sudden drop
-                if ((ranges[i] < old_distance))
-                {
-                    index = static_cast<int32_t>(i) - j;
-                }
-                else
-                {
-                    index = static_cast<int32_t>(i) + j;
-                }
+                // if ((ranges[i] < old_distance))
+                // {
+                //     index = static_cast<int32_t>(i) - j;
+                // }
+                // else
+                // {
+                //     index = static_cast<int32_t>(i) + j;
+                // }
+                index = static_cast<int32_t>(i) + j;
 
                 if (index >= 0 && index < static_cast<int32_t>(rangesSize))
                 {
