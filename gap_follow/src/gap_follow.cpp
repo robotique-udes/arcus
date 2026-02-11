@@ -15,6 +15,8 @@ ReactiveGapFollow::ReactiveGapFollow():
 
     _laserPublisher = this->create_publisher<sensor_msgs::msg::LaserScan>("processed_scan", DEFAULT_QOS);
 
+    _targetWaypointPublisher = this->create_publisher<geometry_msgs::msg::PointStamped>("target_waypoint", DEFAULT_QOS);
+
     _laserScanSubscriber
         = this->create_subscription<sensor_msgs::msg::LaserScan>(LIDAR_SCAN_TOPIC,
                                                                  DEFAULT_QOS,
@@ -124,6 +126,12 @@ void ReactiveGapFollow::lidar_CB(sensor_msgs::msg::LaserScan::SharedPtr scanMsg_
     //         }
     //     }
     // }
+
+    geometry_msgs::msg::PointStamped targetWaypointMsg;
+    targetWaypointMsg.header = scanMsg_->header;
+    targetWaypointMsg.point.x = preprocessedRanges[maxDistanceIndex] * std::cos(_targetAngle);
+    targetWaypointMsg.point.y = preprocessedRanges[maxDistanceIndex] * std::sin(_targetAngle);
+    _targetWaypointPublisher->publish(targetWaypointMsg);
 
     sensor_msgs::msg::LaserScan processedScan = *scanMsg_;
     processedScan.ranges = preprocessedRanges;

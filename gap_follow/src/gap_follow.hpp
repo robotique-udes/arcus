@@ -5,6 +5,7 @@
 #include "sensor_msgs/msg/laser_scan.hpp"
 #include "nav_msgs/msg/odometry.hpp"
 #include "ackermann_msgs/msg/ackermann_drive_stamped.hpp"
+#include "geometry_msgs/msg/point_stamped.hpp"
 
 #include <string>
 #include <vector>
@@ -45,6 +46,7 @@ class ReactiveGapFollow : public rclcpp::Node
     rclcpp::Publisher<ackermann_msgs::msg::AckermannDriveStamped>::SharedPtr _directionPublisher;
     rclcpp::Publisher<sensor_msgs::msg::LaserScan>::SharedPtr _laserPublisher;
     rclcpp::Subscription<sensor_msgs::msg::LaserScan>::SharedPtr _laserScanSubscriber;
+    rclcpp::Publisher<geometry_msgs::msg::PointStamped>::SharedPtr _targetWaypointPublisher;
 };
 
 #endif  // GAP_FOLLOW_HPP
