@@ -56,11 +56,11 @@ void ReactiveGapFollow::lidar_CB(sensor_msgs::msg::LaserScan::SharedPtr scanMsg_
     {
         if (std::abs(ranges[i] - old_distance) > DISPARITY_THRESHOLD)
         {
-            uint32_t bubble_distance = static_cast<uint32_t>(std::atan(BUBBLE_RADIUS / std::min(ranges[i], old_distance)) / scanMsg_->angle_increment);
-            if (std::isnan(bubble_distance))
-            {
-                bubble_distance = static_cast<uint32_t>((M_PI/2-std::atan(std::min(ranges[i], old_distance)/BUBBLE_RADIUS)) / scanMsg_->angle_increment);
-            }
+            uint32_t bubble_distance = 100;//static_cast<uint32_t>(std::atan(BUBBLE_RADIUS / std::min(ranges[i], old_distance)) / scanMsg_->angle_increment);
+            // if (std::isnan(bubble_distance))
+            // {
+            //     bubble_distance = static_cast<uint32_t>((M_PI/2-std::atan(std::min(ranges[i], old_distance)/BUBBLE_RADIUS)) / scanMsg_->angle_increment);
+            // }
             for (int32_t j = -1; j <= static_cast<int32_t>(bubble_distance); j++)
             {
                 int32_t index;
