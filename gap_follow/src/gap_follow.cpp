@@ -56,10 +56,11 @@ void ReactiveGapFollow::lidar_CB(sensor_msgs::msg::LaserScan::SharedPtr scanMsg_
     {
         if (std::abs(ranges[i] - old_distance) > DISPARITY_THRESHOLD)
         {
-            uint32_t bubble_distance = static_cast<uint32_t>(std::atan(BUBBLE_RADIUS / std::min(ranges[i], old_distance)) / scanMsg_->angle_increment);
+            float closer_distance = std::min(ranges[i], old_distance);
+            uint32_t bubble_distance = static_cast<uint32_t>(std::atan(BUBBLE_RADIUS / closer_distance) / scanMsg_->angle_increment);
             if (std::isnan(bubble_distance))
             {
-                bubble_distance = static_cast<uint32_t>((M_PI/2-std::atan(std::min(ranges[i], old_distance)/BUBBLE_RADIUS)) / scanMsg_->angle_increment);
+                bubble_distance = static_cast<uint32_t>((M_PI / 2 - std::atan(closer_distance / BUBBLE_RADIUS)) / scanMsg_->angle_increment);
             }
             for (int32_t j = -static_cast<int32_t>(bubble_distance); j <= static_cast<int32_t>(bubble_distance); j++)
             {
@@ -77,7 +78,7 @@ void ReactiveGapFollow::lidar_CB(sensor_msgs::msg::LaserScan::SharedPtr scanMsg_
 
                 if (index >= 0 && index < static_cast<int32_t>(rangesSize))
                 {
-                    preprocessedRanges[index] = std::min(preprocessedRanges[index], old_distance);
+                    preprocessedRanges[index] = std::min(preprocessedRanges[index], closer_distance);
                 }
             }
         }
