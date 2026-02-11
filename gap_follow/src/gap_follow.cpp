@@ -76,7 +76,7 @@ void ReactiveGapFollow::lidar_CB(sensor_msgs::msg::LaserScan::SharedPtr scanMsg_
 
                 if (index >= 0 && index < static_cast<int32_t>(rangesSize))
                 {
-                    preprocessedRanges[index] = std::min(ranges[index], old_distance);
+                    preprocessedRanges[index] = std::min(preprocessedRanges[index], old_distance);
                 }
             }
         }
