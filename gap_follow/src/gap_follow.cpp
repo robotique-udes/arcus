@@ -146,15 +146,15 @@ void ReactiveGapFollow::lidar_CB(sensor_msgs::msg::LaserScan::SharedPtr scanMsg_
 
     newMsg.drive.steering_angle = _targetAngle * OVERSHOOT_FACTOR;
 
-    float targetSpeed = setSpeedFromDistance(preprocessedRanges[maxDistanceIndex]);
+    float targetSpeed = setSpeedFromDistance(ranges[rangesSize / 2], _targetAngle);  // Use the distance directly in front of the robot to set the speed
     newMsg.drive.speed = targetSpeed;
 
     _directionPublisher->publish(newMsg);
 };
 
-float ReactiveGapFollow::setSpeedFromDistance(float distance_)
+float ReactiveGapFollow::setSpeedFromDistance(float distance_, float steeringAngle_)
 {
-    float speed = distance_ * SPEED_DISTANCE_FACTOR;
+    float speed = distance_ * SPEED_DISTANCE_FACTOR / (1.0f + std::abs(steeringAngle_));  // Reduce speed when steering angle is large
     if (speed > MAX_SPEED)
     {
         speed = MAX_SPEED;

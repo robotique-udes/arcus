@@ -16,9 +16,7 @@ class ReactiveGapFollow : public rclcpp::Node
     static constexpr uint16_t OVERSHOOT_FACTOR = 1U;
     static constexpr uint16_t ELIMINATE_EXTREMES_POSITION = 4U;
 
-    static constexpr float PREPROCESSING_AVG_SAMPLES = 7.f;
-    static constexpr float MAX_LIDAR_DISTANCE_M = 10.f;
-    static constexpr float BUBBLE_RADIUS = 0.6f;
+    static constexpr float BUBBLE_RADIUS = 0.25f;
     static constexpr float SPEED_DISTANCE_FACTOR = 0.1f;
     static constexpr float MAX_SPEED = 3.0f;
     static constexpr float DISPARITY_THRESHOLD = 0.1f;
