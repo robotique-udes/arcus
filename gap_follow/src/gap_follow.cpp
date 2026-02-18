@@ -102,7 +102,11 @@ void ReactiveGapFollow::lidar_CB(sensor_msgs::msg::LaserScan::SharedPtr scanMsg_
     
     //maxDistanceIndex += neg90deg_index;
 
-    _targetAngle = scanMsg_->angle_min + maxDistanceIndex * scanMsg_->angle_increment;
+    float rawTargetAngle = scanMsg_->angle_min + maxDistanceIndex * scanMsg_->angle_increment;
+    _smoothedTargetAngle = computeRollingAverage(rawTargetAngle);
+    _targetAngle = _smoothedTargetAngle;
+
+
 
 
     // Check for obstacles on the side in the turning direction
@@ -176,4 +180,20 @@ float ReactiveGapFollow::setSpeedFromDistance(float distance_, float steeringAng
         speed = MAX_SPEED;
     }
     return speed;
+}
+
+float ReactiveGapFollow::computeRollingAverage(float newValue_)
+{
+    _targetAngleWindow.push_back(newValue_);
+    if (_targetAngleWindow.size() > ROLLING_AVERAGE_WINDOW)
+    {
+        _targetAngleWindow.pop_front();
+    }
+    
+    float sum = 0.0f;
+    for (float angle : _targetAngleWindow)
+    {
+        sum += angle;
+    }
+    return sum / _targetAngleWindow.size();
 }

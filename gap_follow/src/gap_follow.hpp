@@ -11,6 +11,7 @@
 #include <string>
 #include <vector>
 #include <algorithm>
+#include <deque>
 
 class ReactiveGapFollow : public rclcpp::Node
 {
@@ -35,12 +36,17 @@ class ReactiveGapFollow : public rclcpp::Node
     void preprocessLidar(std::vector<float>& ranges_);
     void lidar_CB(sensor_msgs::msg::LaserScan::SharedPtr scanMsg_);
     float setSpeedFromDistance(float distance_, float steeringAngle_);
+    float computeRollingAverage(float newValue_);
 
     float _targetAngle = 0.0f;
 
     uint32_t _targetIndex = 0;
     uint32_t _maxGapStartingIndex = 0;
     uint32_t _maxGapEndingIndex = 0;
+
+    static constexpr uint16_t ROLLING_AVERAGE_WINDOW = 5U;
+    std::deque<float> _targetAngleWindow;
+    float _smoothedTargetAngle = 0.0f;
 
     rclcpp::Publisher<ackermann_msgs::msg::AckermannDriveStamped>::SharedPtr _directionPublisher;
     rclcpp::Publisher<sensor_msgs::msg::LaserScan>::SharedPtr _laserPublisher;
