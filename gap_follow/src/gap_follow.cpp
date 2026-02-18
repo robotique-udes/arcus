@@ -85,6 +85,8 @@ void ReactiveGapFollow::lidar_CB(sensor_msgs::msg::LaserScan::SharedPtr scanMsg_
         old_distance = ranges[i];
     }
 
+    std::vector<float> extendedRanges = preprocessedRanges;
+
     for (size_t i = 0; i < preprocessedRanges.size(); i++)
     {
         if (preprocessedRanges[i] > scanMsg_->range_max)
@@ -146,7 +148,7 @@ void ReactiveGapFollow::lidar_CB(sensor_msgs::msg::LaserScan::SharedPtr scanMsg_
 
     newMsg.drive.steering_angle = _targetAngle * OVERSHOOT_FACTOR;
 
-    float targetSpeed = setSpeedFromDistance(preprocessedRanges[rangesSize / 2], _targetAngle);  // Use the distance directly in front of the robot to set the speed
+    float targetSpeed = setSpeedFromDistance(extendedRanges[rangesSize / 2], _targetAngle);  // Use the distance directly in front of the robot to set the speed
     newMsg.drive.speed = targetSpeed;
 
     _directionPublisher->publish(newMsg);
