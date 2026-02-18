@@ -24,6 +24,8 @@ ReactiveGapFollow::ReactiveGapFollow():
                                                                  {
                                                                      this->lidar_CB(msg);
                                                                  });
+
+    _vectorPublisher = this->create_publisher<geometry_msgs::msg::Vector2>("target_vector", DEFAULT_QOS);
 }
 
 void ReactiveGapFollow::lidar_CB(sensor_msgs::msg::LaserScan::SharedPtr scanMsg_)
@@ -152,6 +154,12 @@ void ReactiveGapFollow::lidar_CB(sensor_msgs::msg::LaserScan::SharedPtr scanMsg_
     newMsg.drive.speed = targetSpeed;
 
     _directionPublisher->publish(newMsg);
+
+    geometry_msgs::msg::Vector2 vectorMsg;
+    vectorMsg.x = extendedRanges[rangesSize / 2] * std::cos(_targetAngle);
+    vectorMsg.y = extendedRanges[rangesSize / 2] * std::sin(_targetAngle);
+    _vectorPublisher->publish(vectorMsg);
+    
 };
 
 float ReactiveGapFollow::setSpeedFromDistance(float distance_, float steeringAngle_)

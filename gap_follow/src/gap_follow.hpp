@@ -45,6 +45,7 @@ class ReactiveGapFollow : public rclcpp::Node
     rclcpp::Publisher<sensor_msgs::msg::LaserScan>::SharedPtr _laserPublisher;
     rclcpp::Subscription<sensor_msgs::msg::LaserScan>::SharedPtr _laserScanSubscriber;
     rclcpp::Publisher<geometry_msgs::msg::PointStamped>::SharedPtr _targetWaypointPublisher;
+    rclcpp::Publisher<geometry_msgs::msg::Vector2>::SharedPtr _vectorPublisher;
 };
 
 #endif  // GAP_FOLLOW_HPP
