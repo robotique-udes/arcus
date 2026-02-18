@@ -156,6 +156,7 @@ void ReactiveGapFollow::lidar_CB(sensor_msgs::msg::LaserScan::SharedPtr scanMsg_
     _directionPublisher->publish(newMsg);
 
     geometry_msgs::msg::Pose vectorMsg;
+    vectorMsg.header = scanMsg_->header;
     vectorMsg.position.x = extendedRanges[rangesSize / 2] * std::cos(_targetAngle);
     vectorMsg.position.y = extendedRanges[rangesSize / 2] * std::sin(_targetAngle);
     vectorMsg.position.z = 0.0f;
