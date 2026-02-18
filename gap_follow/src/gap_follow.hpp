@@ -33,7 +33,7 @@ class ReactiveGapFollow : public rclcpp::Node
   private:
     void preprocessLidar(std::vector<float>& ranges_);
     void lidar_CB(sensor_msgs::msg::LaserScan::SharedPtr scanMsg_);
-    float setSpeedFromDistance(float distance_);
+    float setSpeedFromDistance(float distance_, float steeringAngle_);
 
     float _targetAngle = 0.0f;
 
