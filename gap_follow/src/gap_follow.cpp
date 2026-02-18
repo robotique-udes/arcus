@@ -146,7 +146,7 @@ void ReactiveGapFollow::lidar_CB(sensor_msgs::msg::LaserScan::SharedPtr scanMsg_
 
     newMsg.drive.steering_angle = _targetAngle * OVERSHOOT_FACTOR;
 
-    float targetSpeed = setSpeedFromDistance(ranges[rangesSize / 2], _targetAngle);  // Use the distance directly in front of the robot to set the speed
+    float targetSpeed = setSpeedFromDistance(preprocessedRanges[rangesSize / 2], _targetAngle);  // Use the distance directly in front of the robot to set the speed
     newMsg.drive.speed = targetSpeed;
 
     _directionPublisher->publish(newMsg);
