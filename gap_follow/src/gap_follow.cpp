@@ -38,7 +38,7 @@ void ReactiveGapFollow::lidar_CB(sensor_msgs::msg::LaserScan::SharedPtr scanMsg_
     {
         if (ranges[i] > scanMsg_->range_max || std::isinf(ranges[i]) || std::isnan(ranges[i]))
         {
-            ranges[i] = scanMsg_->range_max;
+            ranges[i] = scanMsg_->range_max+1.0f;  // Set to a value greater than range_max to indicate invalid reading
         }
         else if (ranges[i] < scanMsg_->range_min )
         {
@@ -87,7 +87,7 @@ void ReactiveGapFollow::lidar_CB(sensor_msgs::msg::LaserScan::SharedPtr scanMsg_
 
     for (size_t i = 0; i < preprocessedRanges.size(); i++)
     {
-        if (preprocessedRanges[i] >= scanMsg_->range_max)
+        if (preprocessedRanges[i] > scanMsg_->range_max)
         {
             preprocessedRanges[i] = 0.0f;
         }
