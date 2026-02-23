@@ -36,6 +36,9 @@ void ReactiveGapFollow::lidar_CB(sensor_msgs::msg::LaserScan::SharedPtr scanMsg_
 
     float old_distance = scanMsg_->range_max;
 
+    //uint32_t pos90deg_index = (M_PI/2 - scanMsg_->angle_min) / scanMsg_->angle_increment;
+    //uint32_t neg90deg_index = (-M_PI/2 - scanMsg_->angle_min) / scanMsg_->angle_increment;
+
     for (size_t i = 0; i < rangesSize; i++)
     {
         if (ranges[i] > scanMsg_->range_max || std::isinf(ranges[i]) || std::isnan(ranges[i]))
@@ -46,16 +49,7 @@ void ReactiveGapFollow::lidar_CB(sensor_msgs::msg::LaserScan::SharedPtr scanMsg_
         {
             ranges[i] = scanMsg_->range_min;
         }
-        
-        preprocessedRanges[i] = ranges[i];
-        
-    }
 
-    //uint32_t pos90deg_index = (M_PI/2 - scanMsg_->angle_min) / scanMsg_->angle_increment;
-    //uint32_t neg90deg_index = (-M_PI/2 - scanMsg_->angle_min) / scanMsg_->angle_increment;
-
-    for (size_t i = 0; i < rangesSize; i++)
-    {
         if (std::abs(ranges[i] - old_distance) > DISPARITY_THRESHOLD)
         {
             float closer_distance = std::min(ranges[i], old_distance);
@@ -67,15 +61,6 @@ void ReactiveGapFollow::lidar_CB(sensor_msgs::msg::LaserScan::SharedPtr scanMsg_
             for (int32_t j = -static_cast<int32_t>(bubble_distance); j <= static_cast<int32_t>(bubble_distance); j++)
             {
                 int32_t index;
-                // Extend bubble only on the side of the sudden drop
-                // if ((ranges[i] < old_distance))
-                // {
-                //     index = static_cast<int32_t>(i) - j;
-                // }
-                // else
-                // {
-                //     index = static_cast<int32_t>(i) + j;
-                // }
                 index = static_cast<int32_t>(i) + j;
 
                 if (index >= 0 && index < static_cast<int32_t>(rangesSize))
@@ -83,6 +68,9 @@ void ReactiveGapFollow::lidar_CB(sensor_msgs::msg::LaserScan::SharedPtr scanMsg_
                     preprocessedRanges[index] = std::min(preprocessedRanges[index], closer_distance);
                 }
             }
+        } else
+        {
+            preprocessedRanges[i] = ranges[i];
         }
         old_distance = ranges[i];
     }
@@ -105,8 +93,6 @@ void ReactiveGapFollow::lidar_CB(sensor_msgs::msg::LaserScan::SharedPtr scanMsg_
     float rawTargetAngle = scanMsg_->angle_min + maxDistanceIndex * scanMsg_->angle_increment;
     _smoothedTargetAngle = computeRollingAverage(rawTargetAngle);
     _targetAngle = _smoothedTargetAngle;
-
-
 
 
     // Check for obstacles on the side in the turning direction
