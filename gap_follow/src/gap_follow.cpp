@@ -40,6 +40,11 @@ void ReactiveGapFollow::lidar_CB(sensor_msgs::msg::LaserScan::SharedPtr scanMsg_
 
     const float inv_angle_inc = 1.0f / angle_inc;
 
+    if (_processedRanges.size() != size)
+    {
+        _processedRanges.resize(size, range_max + 1.0f);  // Initialize with invalid readings
+    }
+
     // uint32_t pos90deg_index = (M_PI/2 - scanMsg_->angle_min) / scanMsg_->angle_increment;
     // uint32_t neg90deg_index = (-M_PI/2 - scanMsg_->angle_min) / scanMsg_->angle_increment;
 
