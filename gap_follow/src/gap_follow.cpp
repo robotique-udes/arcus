@@ -33,6 +33,7 @@ void ReactiveGapFollow::lidar_CB(sensor_msgs::msg::LaserScan::SharedPtr scanMsg_
     std::vector<float> ranges = scanMsg_->ranges;
     size_t rangesSize = ranges.size();
     std::vector<float> preprocessedRanges = ranges;
+    std::vector<float> extendedRanges = ranges;
 
     float old_distance = scanMsg_->range_max;
 
@@ -73,12 +74,7 @@ void ReactiveGapFollow::lidar_CB(sensor_msgs::msg::LaserScan::SharedPtr scanMsg_
             preprocessedRanges[i] = std::min(preprocessedRanges[i], ranges[i]);
         }
         old_distance = ranges[i];
-    }
-
-    std::vector<float> extendedRanges = preprocessedRanges;
-
-    for (size_t i = 0; i < preprocessedRanges.size(); i++)
-    {
+        extendedRanges[i] = preprocessedRanges[i];
         if (preprocessedRanges[i] > scanMsg_->range_max)
         {
             preprocessedRanges[i] = 0.0f;
