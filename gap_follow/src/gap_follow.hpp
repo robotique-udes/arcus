@@ -46,7 +46,9 @@ class ReactiveGapFollow : public rclcpp::Node
 
     static constexpr uint16_t ROLLING_AVERAGE_WINDOW = 5U;
     std::deque<float> _targetAngleWindow;
+    std::vector<float> _processedRanges;
     float _smoothedTargetAngle = 0.0f;
+    float _rollingSum = 0.0f;
 
     rclcpp::Publisher<ackermann_msgs::msg::AckermannDriveStamped>::SharedPtr _directionPublisher;
     rclcpp::Publisher<sensor_msgs::msg::LaserScan>::SharedPtr _laserPublisher;

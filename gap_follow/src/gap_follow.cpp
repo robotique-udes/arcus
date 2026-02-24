@@ -30,39 +30,47 @@ ReactiveGapFollow::ReactiveGapFollow():
 
 void ReactiveGapFollow::lidar_CB(sensor_msgs::msg::LaserScan::SharedPtr scanMsg_)
 {
-    std::vector<float> ranges = scanMsg_->ranges;
-    size_t rangesSize = ranges.size();
-    std::vector<float> preprocessedRanges = ranges;
+    std::vector<float>& ranges = scanMsg_->ranges;
+    size_t size = ranges.size();
+    const float angle_min = scanMsg_->angle_min;
+    const float angle_inc = scanMsg_->angle_increment;
+    const float range_max = scanMsg_->range_max;
+    const float range_min = scanMsg_->range_min;
 
-    float old_distance = scanMsg_->range_max;
+    const float inv_angle_inc = 1.0f / angle_inc;
 
-    for (size_t i = 0; i < rangesSize; i++)
+    if (_processedRanges.size() != size)
     {
-        if (ranges[i] > scanMsg_->range_max || std::isinf(ranges[i]) || std::isnan(ranges[i]))
-        {
-            ranges[i] = scanMsg_->range_max+1.0f;  // Set to a value greater than range_max to indicate invalid reading
-        }
-        else if (ranges[i] < scanMsg_->range_min )
-        {
-            ranges[i] = scanMsg_->range_min;
-        }
-        
-        preprocessedRanges[i] = ranges[i];
-        
+        _processedRanges.resize(size);
     }
 
-    //uint32_t pos90deg_index = (M_PI/2 - scanMsg_->angle_min) / scanMsg_->angle_increment;
-    //uint32_t neg90deg_index = (-M_PI/2 - scanMsg_->angle_min) / scanMsg_->angle_increment;
+    for (size_t i = 0; i < size; i++)
+    {
+        if (ranges[i] > range_max || std::isinf(ranges[i]) || std::isnan(ranges[i]))
+        {
+            ranges[i] = range_max + 1.0f;  // Set to a value greater than range_max to indicate invalid reading
+        }
+        else if (ranges[i] < range_min)
+        {
+            ranges[i] = range_min;
+        }
 
-    for (size_t i = 0; i < rangesSize; i++)
+        _processedRanges[i] = ranges[i];
+    }
+
+    // uint32_t pos90deg_index = (M_PI/2 - scanMsg_->angle_min) / scanMsg_->angle_increment;
+    // uint32_t neg90deg_index = (-M_PI/2 - scanMsg_->angle_min) / scanMsg_->angle_increment;
+
+    float old_distance = ranges[0];
+    for (size_t i = 1; i < size; i++)
     {
         if (std::abs(ranges[i] - old_distance) > DISPARITY_THRESHOLD)
         {
             float closer_distance = std::min(ranges[i], old_distance);
-            uint32_t bubble_distance = static_cast<uint32_t>(std::atan(BUBBLE_RADIUS / closer_distance) / scanMsg_->angle_increment);
+            uint32_t bubble_distance = static_cast<uint32_t>(std::atan(BUBBLE_RADIUS / closer_distance) * inv_angle_inc);
             if (std::isnan(bubble_distance))
             {
-                bubble_distance = static_cast<uint32_t>((M_PI / 2 - std::atan(closer_distance / BUBBLE_RADIUS)) / scanMsg_->angle_increment);
+                bubble_distance = static_cast<uint32_t>((M_PI / 2 - std::atan(closer_distance / BUBBLE_RADIUS)) * inv_angle_inc);
             }
             for (int32_t j = -static_cast<int32_t>(bubble_distance); j <= static_cast<int32_t>(bubble_distance); j++)
             {
@@ -78,36 +86,33 @@ void ReactiveGapFollow::lidar_CB(sensor_msgs::msg::LaserScan::SharedPtr scanMsg_
                 // }
                 index = static_cast<int32_t>(i) + j;
 
-                if (index >= 0 && index < static_cast<int32_t>(rangesSize))
+                if (index >= 0 && index < static_cast<int32_t>(size))
                 {
-                    preprocessedRanges[index] = std::min(preprocessedRanges[index], closer_distance);
+                    _processedRanges[index] = std::min(_processedRanges[index], closer_distance);
                 }
             }
         }
         old_distance = ranges[i];
     }
 
-    std::vector<float> extendedRanges = preprocessedRanges;
-
-    for (size_t i = 0; i < preprocessedRanges.size(); i++)
+    for (size_t i = 0; i < _processedRanges.size(); i++)
     {
-        if (preprocessedRanges[i] > scanMsg_->range_max)
+        if (_processedRanges[i] > range_max)
         {
-            preprocessedRanges[i] = 0.0f;
+            _processedRanges[i] = 0.0f;
         }
     }
 
-    uint32_t maxDistanceIndex = std::distance(preprocessedRanges.begin(), std::max_element(preprocessedRanges.begin(), preprocessedRanges.end()));
-    //    = std::distance(preprocessedRanges.begin() + neg90deg_index, std::max_element(preprocessedRanges.begin() + neg90deg_index, preprocessedRanges.begin() + pos90deg_index));
-    
-    //maxDistanceIndex += neg90deg_index;
+    uint32_t maxDistanceIndex
+        = std::distance(_processedRanges.begin(), std::max_element(_processedRanges.begin(), _processedRanges.end()));
+    //    = std::distance(preprocessedRanges.begin() + neg90deg_index, std::max_element(preprocessedRanges.begin() +
+    //    neg90deg_index, preprocessedRanges.begin() + pos90deg_index));
 
-    float rawTargetAngle = scanMsg_->angle_min + maxDistanceIndex * scanMsg_->angle_increment;
+    // maxDistanceIndex += neg90deg_index;
+
+    float rawTargetAngle = angle_min + maxDistanceIndex * angle_inc;
     _smoothedTargetAngle = computeRollingAverage(rawTargetAngle);
     _targetAngle = _smoothedTargetAngle;
-
-
-
 
     // Check for obstacles on the side in the turning direction
     // Check left side (angles > 90 degrees)
@@ -139,12 +144,12 @@ void ReactiveGapFollow::lidar_CB(sensor_msgs::msg::LaserScan::SharedPtr scanMsg_
 
     geometry_msgs::msg::PointStamped targetWaypointMsg;
     targetWaypointMsg.header = scanMsg_->header;
-    targetWaypointMsg.point.x = preprocessedRanges[maxDistanceIndex] * std::cos(_targetAngle);
-    targetWaypointMsg.point.y = preprocessedRanges[maxDistanceIndex] * std::sin(_targetAngle);
+    targetWaypointMsg.point.x = _processedRanges[maxDistanceIndex] * std::cos(_targetAngle);
+    targetWaypointMsg.point.y = _processedRanges[maxDistanceIndex] * std::sin(_targetAngle);
     _targetWaypointPublisher->publish(targetWaypointMsg);
 
     sensor_msgs::msg::LaserScan processedScan = *scanMsg_;
-    processedScan.ranges = preprocessedRanges;
+    processedScan.ranges = _processedRanges;
     _laserPublisher->publish(processedScan);
 
     // RCLCPP_INFO(this->get_logger(), "Target angle: %.2f degrees, index: %u, distance: %.2f", _targetAngle * 180.0 / M_PI,
@@ -153,8 +158,7 @@ void ReactiveGapFollow::lidar_CB(sensor_msgs::msg::LaserScan::SharedPtr scanMsg_
     ackermann_msgs::msg::AckermannDriveStamped newMsg = ackermann_msgs::msg::AckermannDriveStamped();
 
     newMsg.drive.steering_angle = _targetAngle * OVERSHOOT_FACTOR;
-
-    float targetSpeed = setSpeedFromDistance(extendedRanges[rangesSize / 2], _targetAngle);  // Use the distance directly in front of the robot to set the speed
+    float targetSpeed = setSpeedFromDistance(_processedRanges[size / 2], _targetAngle);
     newMsg.drive.speed = targetSpeed;
 
     _directionPublisher->publish(newMsg);
@@ -169,12 +173,12 @@ void ReactiveGapFollow::lidar_CB(sensor_msgs::msg::LaserScan::SharedPtr scanMsg_
     vectorMsg.pose.orientation.z = 0.0f;
     vectorMsg.pose.orientation.w = 0.0f;
     _vectorPublisher->publish(vectorMsg);
-    
 };
 
 float ReactiveGapFollow::setSpeedFromDistance(float distance_, float steeringAngle_)
 {
-    float speed = distance_ * SPEED_DISTANCE_FACTOR / (1.0f + 2.0f*std::abs(steeringAngle_));  // Reduce speed when steering angle is large
+    float speed = distance_ * SPEED_DISTANCE_FACTOR
+                  / (1.0f + 2.0f * std::abs(steeringAngle_));  // Reduce speed when steering angle is large
     if (speed > MAX_SPEED)
     {
         speed = MAX_SPEED;
@@ -185,15 +189,12 @@ float ReactiveGapFollow::setSpeedFromDistance(float distance_, float steeringAng
 float ReactiveGapFollow::computeRollingAverage(float newValue_)
 {
     _targetAngleWindow.push_back(newValue_);
+    _rollingSum += newValue_;
     if (_targetAngleWindow.size() > ROLLING_AVERAGE_WINDOW)
     {
+        _rollingSum -= _targetAngleWindow.front();
         _targetAngleWindow.pop_front();
     }
-    
-    float sum = 0.0f;
-    for (float angle : _targetAngleWindow)
-    {
-        sum += angle;
-    }
-    return sum / _targetAngleWindow.size();
+
+    return _rollingSum / _targetAngleWindow.size();
 }
