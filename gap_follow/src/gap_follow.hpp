@@ -29,6 +29,8 @@ class ReactiveGapFollow : public rclcpp::Node
 
     static constexpr uint16_t DEFAULT_QOS = 1U;
 
+    static constexpr uint16_t ROLLING_AVERAGE_WINDOW = 5U;
+
   public:
     ReactiveGapFollow();
 
@@ -44,7 +46,7 @@ class ReactiveGapFollow : public rclcpp::Node
     uint32_t _maxGapStartingIndex = 0;
     uint32_t _maxGapEndingIndex = 0;
 
-    static constexpr uint16_t ROLLING_AVERAGE_WINDOW = 5U;
+    
     std::deque<float> _targetAngleWindow;
     std::vector<float> _processedRanges;
     float _smoothedTargetAngle = 0.0f;

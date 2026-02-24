@@ -39,12 +39,10 @@ void ReactiveGapFollow::lidar_CB(sensor_msgs::msg::LaserScan::SharedPtr scanMsg_
 
     const float inv_angle_inc = 1.0f / angle_inc;
 
-    if (_processedRanges.size() != size)
-    {
-        _processedRanges.resize(size);
-    }
+    // uint32_t pos90deg_index = (M_PI/2 - scanMsg_->angle_min) / scanMsg_->angle_increment;
+    // uint32_t neg90deg_index = (-M_PI/2 - scanMsg_->angle_min) / scanMsg_->angle_increment;
 
-    for (size_t i = 0; i < size; i++)
+    for (size_t i = 0; i < rangesSize; i++)
     {
         if (ranges[i] > range_max || std::isinf(ranges[i]) || std::isnan(ranges[i]))
         {
@@ -55,15 +53,6 @@ void ReactiveGapFollow::lidar_CB(sensor_msgs::msg::LaserScan::SharedPtr scanMsg_
             ranges[i] = range_min;
         }
 
-        _processedRanges[i] = ranges[i];
-    }
-
-    // uint32_t pos90deg_index = (M_PI/2 - scanMsg_->angle_min) / scanMsg_->angle_increment;
-    // uint32_t neg90deg_index = (-M_PI/2 - scanMsg_->angle_min) / scanMsg_->angle_increment;
-
-    float old_distance = ranges[0];
-    for (size_t i = 1; i < size; i++)
-    {
         if (std::abs(ranges[i] - old_distance) > DISPARITY_THRESHOLD)
         {
             float closer_distance = std::min(ranges[i], old_distance);
@@ -75,15 +64,6 @@ void ReactiveGapFollow::lidar_CB(sensor_msgs::msg::LaserScan::SharedPtr scanMsg_
             for (int32_t j = -static_cast<int32_t>(bubble_distance); j <= static_cast<int32_t>(bubble_distance); j++)
             {
                 int32_t index;
-                // Extend bubble only on the side of the sudden drop
-                // if ((ranges[i] < old_distance))
-                // {
-                //     index = static_cast<int32_t>(i) - j;
-                // }
-                // else
-                // {
-                //     index = static_cast<int32_t>(i) + j;
-                // }
                 index = static_cast<int32_t>(i) + j;
 
                 if (index >= 0 && index < static_cast<int32_t>(size))
@@ -92,11 +72,12 @@ void ReactiveGapFollow::lidar_CB(sensor_msgs::msg::LaserScan::SharedPtr scanMsg_
                 }
             }
         }
+        else
+        {
+            _processedRanges[i] = std::min(_processedRanges[i], ranges[i]);
+        }
         old_distance = ranges[i];
-    }
-
-    for (size_t i = 0; i < _processedRanges.size(); i++)
-    {
+        // extendedRanges[i] = _processedRanges[i];
         if (_processedRanges[i] > range_max)
         {
             _processedRanges[i] = 0.0f;
@@ -105,8 +86,8 @@ void ReactiveGapFollow::lidar_CB(sensor_msgs::msg::LaserScan::SharedPtr scanMsg_
 
     uint32_t maxDistanceIndex
         = std::distance(_processedRanges.begin(), std::max_element(_processedRanges.begin(), _processedRanges.end()));
-    //    = std::distance(preprocessedRanges.begin() + neg90deg_index, std::max_element(preprocessedRanges.begin() +
-    //    neg90deg_index, preprocessedRanges.begin() + pos90deg_index));
+    //    = std::distance(_processedRanges.begin() + neg90deg_index, std::max_element(_processedRanges.begin() +
+    //    neg90deg_index, _processedRanges.begin() + pos90deg_index));
 
     // maxDistanceIndex += neg90deg_index;
 
@@ -121,7 +102,7 @@ void ReactiveGapFollow::lidar_CB(sensor_msgs::msg::LaserScan::SharedPtr scanMsg_
     //     for (size_t i = round(rangesSize / 2); i < rangesSize; i++)
     //     {
     //         float angle = scanMsg_->angle_min + i * scanMsg_->angle_increment;
-    //         if (angle > M_PI / 2 && preprocessedRanges[i] < SAFE_TURNING_DISTANCE)
+    //         if (angle > M_PI / 2 && _processedRanges[i] < SAFE_TURNING_DISTANCE)
     //         {
     //             _targetAngle = 0.0f;  // Go straight
     //             break;
@@ -134,7 +115,7 @@ void ReactiveGapFollow::lidar_CB(sensor_msgs::msg::LaserScan::SharedPtr scanMsg_
     //     for (size_t i = 0; i < round(rangesSize / 2); i++)
     //     {
     //         float angle = scanMsg_->angle_min + i * scanMsg_->angle_increment;
-    //         if (angle < -M_PI / 2 && preprocessedRanges[i] < SAFE_TURNING_DISTANCE)
+    //         if (angle < -M_PI / 2 && _processedRanges[i] < SAFE_TURNING_DISTANCE)
     //         {
     //             _targetAngle = 0.0f;  // Go straight
     //             break;
