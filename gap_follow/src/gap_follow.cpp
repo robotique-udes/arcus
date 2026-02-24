@@ -119,15 +119,15 @@ void ReactiveGapFollow::lidar_CB(sensor_msgs::msg::LaserScan::SharedPtr scanMsg_
     //     }
     // }
 
-    geometry_msgs::msg::PointStamped targetWaypointMsg;
-    targetWaypointMsg.header = scanMsg_->header;
-    targetWaypointMsg.point.x = preprocessedRanges[maxDistanceIndex] * std::cos(_targetAngle);
-    targetWaypointMsg.point.y = preprocessedRanges[maxDistanceIndex] * std::sin(_targetAngle);
-    _targetWaypointPublisher->publish(targetWaypointMsg);
+    // geometry_msgs::msg::PointStamped targetWaypointMsg;
+    // targetWaypointMsg.header = scanMsg_->header;
+    // targetWaypointMsg.point.x = preprocessedRanges[maxDistanceIndex] * std::cos(_targetAngle);
+    // targetWaypointMsg.point.y = preprocessedRanges[maxDistanceIndex] * std::sin(_targetAngle);
+    // _targetWaypointPublisher->publish(targetWaypointMsg);
 
-    sensor_msgs::msg::LaserScan processedScan = *scanMsg_;
-    processedScan.ranges = preprocessedRanges;
-    _laserPublisher->publish(processedScan);
+    // sensor_msgs::msg::LaserScan processedScan = *scanMsg_;
+    // processedScan.ranges = preprocessedRanges;
+    // _laserPublisher->publish(processedScan);
 
     // RCLCPP_INFO(this->get_logger(), "Target angle: %.2f degrees, index: %u, distance: %.2f", _targetAngle * 180.0 / M_PI,
     // maxDistanceIndex, ranges[maxDistanceIndex]);
@@ -141,16 +141,16 @@ void ReactiveGapFollow::lidar_CB(sensor_msgs::msg::LaserScan::SharedPtr scanMsg_
 
     _directionPublisher->publish(newMsg);
 
-    geometry_msgs::msg::PoseStamped vectorMsg;
-    vectorMsg.header = scanMsg_->header;
-    vectorMsg.pose.position.x = 0.0f;
-    vectorMsg.pose.position.y = 0.0f;
-    vectorMsg.pose.position.z = 0.0f;
-    vectorMsg.pose.orientation.x = std::cos(_targetAngle / 2);
-    vectorMsg.pose.orientation.y = std::sin(_targetAngle / 2);
-    vectorMsg.pose.orientation.z = 0.0f;
-    vectorMsg.pose.orientation.w = 0.0f;
-    _vectorPublisher->publish(vectorMsg);
+    // geometry_msgs::msg::PoseStamped vectorMsg;
+    // vectorMsg.header = scanMsg_->header;
+    // vectorMsg.pose.position.x = 0.0f;
+    // vectorMsg.pose.position.y = 0.0f;
+    // vectorMsg.pose.position.z = 0.0f;
+    // vectorMsg.pose.orientation.x = std::cos(_targetAngle / 2);
+    // vectorMsg.pose.orientation.y = std::sin(_targetAngle / 2);
+    // vectorMsg.pose.orientation.z = 0.0f;
+    // vectorMsg.pose.orientation.w = 0.0f;
+    // _vectorPublisher->publish(vectorMsg);
     
 };
 
