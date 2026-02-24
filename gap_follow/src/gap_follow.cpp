@@ -70,7 +70,7 @@ void ReactiveGapFollow::lidar_CB(sensor_msgs::msg::LaserScan::SharedPtr scanMsg_
             }
         } else
         {
-            preprocessedRanges[i] = ranges[i];
+            preprocessedRanges[i] = std::min(preprocessedRanges[i], ranges[i]);
         }
         old_distance = ranges[i];
     }
