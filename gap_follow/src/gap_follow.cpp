@@ -36,13 +36,14 @@ void ReactiveGapFollow::lidar_CB(sensor_msgs::msg::LaserScan::SharedPtr scanMsg_
     const float angle_inc = scanMsg_->angle_increment;
     const float range_max = scanMsg_->range_max;
     const float range_min = scanMsg_->range_min;
+    float old_distance = ranges[0];  // Initialize to an invalid distance greater than range_max
 
     const float inv_angle_inc = 1.0f / angle_inc;
 
     // uint32_t pos90deg_index = (M_PI/2 - scanMsg_->angle_min) / scanMsg_->angle_increment;
     // uint32_t neg90deg_index = (-M_PI/2 - scanMsg_->angle_min) / scanMsg_->angle_increment;
 
-    for (size_t i = 0; i < rangesSize; i++)
+    for (size_t i = 0; i < size; i++)
     {
         if (ranges[i] > range_max || std::isinf(ranges[i]) || std::isnan(ranges[i]))
         {
@@ -99,7 +100,7 @@ void ReactiveGapFollow::lidar_CB(sensor_msgs::msg::LaserScan::SharedPtr scanMsg_
     // Check left side (angles > 90 degrees)
     // if (_targetAngle > 0)
     // {
-    //     for (size_t i = round(rangesSize / 2); i < rangesSize; i++)
+    //     for (size_t i = round(size / 2); i < size; i++)
     //     {
     //         float angle = scanMsg_->angle_min + i * scanMsg_->angle_increment;
     //         if (angle > M_PI / 2 && _processedRanges[i] < SAFE_TURNING_DISTANCE)
@@ -112,7 +113,7 @@ void ReactiveGapFollow::lidar_CB(sensor_msgs::msg::LaserScan::SharedPtr scanMsg_
     // // Check right side (angles < -90 degrees)
     // else
     // {
-    //     for (size_t i = 0; i < round(rangesSize / 2); i++)
+    //     for (size_t i = 0; i < round(size / 2); i++)
     //     {
     //         float angle = scanMsg_->angle_min + i * scanMsg_->angle_increment;
     //         if (angle < -M_PI / 2 && _processedRanges[i] < SAFE_TURNING_DISTANCE)
