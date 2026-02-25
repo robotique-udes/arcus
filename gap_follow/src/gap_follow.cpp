@@ -65,11 +65,7 @@ void ReactiveGapFollow::lidar_CB(sensor_msgs::msg::LaserScan::SharedPtr scanMsg_
         if (std::abs(ranges[i] - old_distance) > DISPARITY_THRESHOLD)
         {
             float closer_distance = std::min(ranges[i], old_distance);
-            uint32_t bubble_distance = static_cast<uint32_t>(std::atan(BUBBLE_RADIUS / closer_distance) * inv_angle_inc);
-            if (std::isnan(bubble_distance))
-            {
-                bubble_distance = static_cast<uint32_t>((M_PI / 2 - std::atan(closer_distance / BUBBLE_RADIUS)) * inv_angle_inc);
-            }
+            uint32_t bubble_distance = static_cast<uint32_t>(std::atan2(BUBBLE_RADIUS, closer_distance) * inv_angle_inc);
             for (int32_t j = -static_cast<int32_t>(bubble_distance); j <= static_cast<int32_t>(bubble_distance); j++)
             {
                 int32_t index;
@@ -86,7 +82,7 @@ void ReactiveGapFollow::lidar_CB(sensor_msgs::msg::LaserScan::SharedPtr scanMsg_
             _processedRanges[i] = std::min(_processedRanges[i], ranges[i]);
         }
         old_distance = ranges[i];
-        // extendedRanges[i] = _processedRanges[i];
+        extendedRanges[i] = _processedRanges[i];
         if (_processedRanges[i] > range_max)
         {
             _processedRanges[i] = 0.0f;
@@ -102,7 +98,7 @@ void ReactiveGapFollow::lidar_CB(sensor_msgs::msg::LaserScan::SharedPtr scanMsg_
 
     float rawTargetAngle = angle_min + maxDistanceIndex * angle_inc;
     _smoothedTargetAngle = computeRollingAverage(rawTargetAngle);
-    _targetAngle = _smoothedTargetAngle;
+    _targetAngle = rawTargetAngle;//_smoothedTargetAngle;
 
     // Check for obstacles on the side in the turning direction
     // Check left side (angles > 90 degrees)
