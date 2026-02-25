@@ -98,7 +98,7 @@ void ReactiveGapFollow::lidar_CB(sensor_msgs::msg::LaserScan::SharedPtr scanMsg_
 
     float rawTargetAngle = angle_min + maxDistanceIndex * angle_inc;
     _smoothedTargetAngle = computeRollingAverage(rawTargetAngle);
-    _targetAngle = rawTargetAngle;//_smoothedTargetAngle;
+    _targetAngle = _smoothedTargetAngle;
 
     // Check for obstacles on the side in the turning direction
     // Check left side (angles > 90 degrees)
@@ -144,7 +144,7 @@ void ReactiveGapFollow::lidar_CB(sensor_msgs::msg::LaserScan::SharedPtr scanMsg_
     ackermann_msgs::msg::AckermannDriveStamped newMsg = ackermann_msgs::msg::AckermannDriveStamped();
 
     newMsg.drive.steering_angle = _targetAngle * OVERSHOOT_FACTOR;
-    float targetSpeed = 1.0f;//setSpeedFromDistance(extendedRanges[size / 2], _targetAngle);
+    float targetSpeed = setSpeedFromDistance(extendedRanges[size / 2], _targetAngle);
     // RCLCPP_INFO(this->get_logger(), "Speed: %0.2f, from distance: %0.2f", targetSpeed, extendedRanges[size / 2]);
     newMsg.drive.speed = targetSpeed;
 
