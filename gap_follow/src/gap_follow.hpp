@@ -29,7 +29,7 @@ class ReactiveGapFollow : public rclcpp::Node
 
     static constexpr uint16_t DEFAULT_QOS = 1U;
 
-    static constexpr uint16_t ROLLING_AVERAGE_WINDOW = 5U;
+    static constexpr uint16_t ROLLING_AVERAGE_WINDOW = 20U;
 
   public:
     ReactiveGapFollow();
