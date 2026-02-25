@@ -31,7 +31,9 @@ ReactiveGapFollow::ReactiveGapFollow():
 void ReactiveGapFollow::lidar_CB(sensor_msgs::msg::LaserScan::SharedPtr scanMsg_)
 {
     std::vector<float> ranges = scanMsg_->ranges;
+    std::vector<float> extendedRanges;
     size_t size = ranges.size();
+    extendedRanges.resize(size);
     const float angle_min = scanMsg_->angle_min;
     const float angle_inc = scanMsg_->angle_increment;
     const float range_max = scanMsg_->range_max;
@@ -58,7 +60,8 @@ void ReactiveGapFollow::lidar_CB(sensor_msgs::msg::LaserScan::SharedPtr scanMsg_
         {
             ranges[i] = range_min;
         }
-
+        _processedRanges[i] = ranges[i];
+        
         if (std::abs(ranges[i] - old_distance) > DISPARITY_THRESHOLD)
         {
             float closer_distance = std::min(ranges[i], old_distance);
@@ -83,7 +86,7 @@ void ReactiveGapFollow::lidar_CB(sensor_msgs::msg::LaserScan::SharedPtr scanMsg_
             _processedRanges[i] = std::min(_processedRanges[i], ranges[i]);
         }
         old_distance = ranges[i];
-        // extendedRanges[i] = _processedRanges[i];
+        extendedRanges[i] = _processedRanges[i];
         if (_processedRanges[i] > range_max)
         {
             _processedRanges[i] = 0.0f;
@@ -145,7 +148,8 @@ void ReactiveGapFollow::lidar_CB(sensor_msgs::msg::LaserScan::SharedPtr scanMsg_
     ackermann_msgs::msg::AckermannDriveStamped newMsg = ackermann_msgs::msg::AckermannDriveStamped();
 
     newMsg.drive.steering_angle = _targetAngle * OVERSHOOT_FACTOR;
-    float targetSpeed = setSpeedFromDistance(_processedRanges[size / 2], _targetAngle);
+    float targetSpeed = setSpeedFromDistance(extendedRanges[size / 2], _targetAngle);
+    RCLCPP_INFO(this->get_logger(), "Speed: %0.2f, from distance: %0.2f", targetSpeed, extendedRanges[size / 2]);
     newMsg.drive.speed = targetSpeed;
 
     _directionPublisher->publish(newMsg);
