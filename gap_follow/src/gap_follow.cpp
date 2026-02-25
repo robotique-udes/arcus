@@ -30,7 +30,7 @@ ReactiveGapFollow::ReactiveGapFollow():
 
 void ReactiveGapFollow::lidar_CB(sensor_msgs::msg::LaserScan::SharedPtr scanMsg_)
 {
-    std::vector<float> ranges = scanMsg_->ranges;
+    std::vector<float>& ranges = scanMsg_->ranges;
     std::vector<float> extendedRanges;
     size_t size = ranges.size();
     extendedRanges.resize(size);
