@@ -149,7 +149,7 @@ void ReactiveGapFollow::lidar_CB(sensor_msgs::msg::LaserScan::SharedPtr scanMsg_
 
     newMsg.drive.steering_angle = _targetAngle * OVERSHOOT_FACTOR;
     float targetSpeed = setSpeedFromDistance(extendedRanges[size / 2], _targetAngle);
-    RCLCPP_INFO(this->get_logger(), "Speed: %0.2f, from distance: %0.2f", targetSpeed, extendedRanges[size / 2]);
+    // RCLCPP_INFO(this->get_logger(), "Speed: %0.2f, from distance: %0.2f", targetSpeed, extendedRanges[size / 2]);
     newMsg.drive.speed = targetSpeed;
 
     _directionPublisher->publish(newMsg);
