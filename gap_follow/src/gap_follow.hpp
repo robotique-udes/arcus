@@ -15,7 +15,7 @@
 
 class ReactiveGapFollow : public rclcpp::Node
 {
-    static constexpr uint16_t OVERSHOOT_FACTOR = 1U;
+    static constexpr uint16_t OVERSHOOT_FACTOR = 0.8f;
     static constexpr uint16_t ELIMINATE_EXTREMES_POSITION = 4U;
 
     static constexpr float BUBBLE_RADIUS = 0.25f;
