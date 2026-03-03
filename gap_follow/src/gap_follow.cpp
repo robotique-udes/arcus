@@ -98,7 +98,7 @@ void ReactiveGapFollow::lidar_CB(sensor_msgs::msg::LaserScan::SharedPtr scanMsg_
 
     float rawTargetAngle = angle_min + maxDistanceIndex * angle_inc;
     _smoothedTargetAngle = computeRollingAverage(rawTargetAngle);
-    _targetAngle = _smoothedTargetAngle;
+    _targetAngle = _smoothedTargetAngle * OVERSHOOT_FACTOR;
 
     // Check for obstacles on the side in the turning direction
     // Check left side (angles > 90 degrees)
