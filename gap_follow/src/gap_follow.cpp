@@ -128,11 +128,11 @@ void ReactiveGapFollow::lidar_CB(sensor_msgs::msg::LaserScan::SharedPtr scanMsg_
     //     }
     // }
 
-    // geometry_msgs::msg::PointStamped targetWaypointMsg;
-    // targetWaypointMsg.header = scanMsg_->header;
-    // targetWaypointMsg.point.x = _processedRanges[maxDistanceIndex] * std::cos(_targetAngle);
-    // targetWaypointMsg.point.y = _processedRanges[maxDistanceIndex] * std::sin(_targetAngle);
-    // _targetWaypointPublisher->publish(targetWaypointMsg);
+    geometry_msgs::msg::PointStamped targetWaypointMsg;
+    targetWaypointMsg.header = scanMsg_->header;
+    targetWaypointMsg.point.x = _processedRanges[maxDistanceIndex] * std::cos(_targetAngle);
+    targetWaypointMsg.point.y = _processedRanges[maxDistanceIndex] * std::sin(_targetAngle);
+    _targetWaypointPublisher->publish(targetWaypointMsg);
 
     // sensor_msgs::msg::LaserScan processedScan = *scanMsg_;
     // processedScan.ranges = _processedRanges;
@@ -150,16 +150,16 @@ void ReactiveGapFollow::lidar_CB(sensor_msgs::msg::LaserScan::SharedPtr scanMsg_
 
     _directionPublisher->publish(newMsg);
 
-    // geometry_msgs::msg::PoseStamped vectorMsg;
-    // vectorMsg.header = scanMsg_->header;
-    // vectorMsg.pose.position.x = 0.0f;
-    // vectorMsg.pose.position.y = 0.0f;
-    // vectorMsg.pose.position.z = 0.0f;
-    // vectorMsg.pose.orientation.x = std::cos(_targetAngle / 2);
-    // vectorMsg.pose.orientation.y = std::sin(_targetAngle / 2);
-    // vectorMsg.pose.orientation.z = 0.0f;
-    // vectorMsg.pose.orientation.w = 0.0f;
-    // _vectorPublisher->publish(vectorMsg);
+    geometry_msgs::msg::PoseStamped vectorMsg;
+    vectorMsg.header = scanMsg_->header;
+    vectorMsg.pose.position.x = 0.0f;
+    vectorMsg.pose.position.y = 0.0f;
+    vectorMsg.pose.position.z = 0.0f;
+    vectorMsg.pose.orientation.x = std::cos(_targetAngle / 2);
+    vectorMsg.pose.orientation.y = std::sin(_targetAngle / 2);
+    vectorMsg.pose.orientation.z = 0.0f;
+    vectorMsg.pose.orientation.w = 0.0f;
+    _vectorPublisher->publish(vectorMsg);
 };
 
 float ReactiveGapFollow::setSpeedFromDistance(float distance_, float steeringAngle_)
