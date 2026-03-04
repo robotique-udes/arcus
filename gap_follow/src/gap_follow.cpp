@@ -165,7 +165,7 @@ void ReactiveGapFollow::lidar_CB(sensor_msgs::msg::LaserScan::SharedPtr scanMsg_
 float ReactiveGapFollow::setSpeedFromDistance(float distance_, float steeringAngle_)
 {
     float speed = distance_ * SPEED_DISTANCE_FACTOR
-                  / (1.0f +  (std::abs(steeringAngle_))/2);  // Reduce speed when steering angle is large
+                  / (1.0f +  (std::abs(steeringAngle_)/2));  // Reduce speed when steering angle is large
     if (speed > MAX_SPEED)
     {
         speed = MAX_SPEED;

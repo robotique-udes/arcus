@@ -19,7 +19,7 @@ class ReactiveGapFollow : public rclcpp::Node
     static constexpr uint16_t ELIMINATE_EXTREMES_POSITION = 4U;
 
     static constexpr float BUBBLE_RADIUS = 0.25f;
-    static constexpr float SPEED_DISTANCE_FACTOR = 0.5f;
+    static constexpr float SPEED_DISTANCE_FACTOR = 0.6f;
     static constexpr float MAX_SPEED = 5.0f;
     static constexpr float DISPARITY_THRESHOLD = 0.1f;
     static constexpr float SAFE_TURNING_DISTANCE = 0.1f;
