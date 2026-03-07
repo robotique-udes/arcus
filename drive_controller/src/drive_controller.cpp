@@ -40,7 +40,7 @@ class DriveController : public rclcpp::Node
         auto drive_msg = ackermann_msgs::msg::AckermannDriveStamped();
         float throttle = (-joy_msg->axes[this->right_trigger] + joy_msg->axes[this->left_trigger]);
         float steering = (joy_msg->axes[this->left_axis_x]);
-        drive_msg.drive.speed = throttle;
+        drive_msg.drive.speed = throttle*3;
         drive_msg.drive.steering_angle = steering;
         _drive_publisher->publish(drive_msg);
     }
