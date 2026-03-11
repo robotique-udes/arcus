@@ -23,9 +23,10 @@ class PurePursuit : public rclcpp::Node
     static constexpr double MIN_LOOKAHEAD_DISTANCE_M = 0.35;
     static constexpr double LOOKAHEAD_DISTANCE_GAIN = 0.25;
     static constexpr double MAX_LOOKAHEAD_FRACTION_OF_PATH = 0.05;
-    static constexpr double LOOP_FREQUENCY_HZ = 20.0;
+    static constexpr double LOOP_FREQUENCY_HZ = 38.0;
     static constexpr double WHEELBASE_M = 0.325;      // Distance between front and rear axles
-    static constexpr double CONSTANT_SPEED_MS = 2.0;  // Constant speed in m/s
+    static constexpr double MAX_SPEED_MS = 5.0;  // Constant speed in m/s
+    static constexpr double MAX_LAT_ACCEL = 3.5;  // Constant speed in m/s2 
 
     // Topic, input file names and QoS
     static constexpr const uint8_t DEFAULT_QOS = 1;
