@@ -48,7 +48,11 @@ void PurePursuit::CB_publishDriveCmd(void)
     driveCmd.header.stamp = this->now();
     driveCmd.header.frame_id = "base_link";
     driveCmd.drive.steering_angle = steeringAngle;
-    driveCmd.drive.speed = CONSTANT_SPEED_MS;
+
+    float curvature = 2*sin(alpha)/lookaheadDistanceActual;
+    float targetSpeed = std::min(MAX_SPEED_MS, sqrt(MAX_LAT_ACCEL / abs(curvature)));
+
+    driveCmd.drive.speed = targetSpeed; // SMARTER WA
 
     _driveCmdPublisher->publish(driveCmd);
 }
