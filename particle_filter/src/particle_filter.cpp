@@ -225,6 +225,7 @@ void ParticleFilter::setupROS() {
       create_publisher<sensor_msgs::msg::LaserScan>("/pf/viz/fake_scan", 1);
 
   // Set up subscribers
+  RCLCPP_INFO(this->get_logger(), "%s", odometry_topic_.c_str());
   odom_sub_ = create_subscription<nav_msgs::msg::Odometry>(
       odometry_topic_, rclcpp::SensorDataQoS().keep_last(1),
       std::bind(&ParticleFilter::odom_cb, this, std::placeholders::_1));
@@ -498,7 +499,7 @@ void ParticleFilter::publishTfOdom() {
   geometry_msgs::msg::TransformStamped laser_to_odom_msg;
   try {
     laser_to_odom_msg =
-        tf_buffer_->lookupTransform("laser", "odom", tf2::TimePointZero);
+        tf_buffer_->lookupTransform("ego_racecar/laser", "odom", tf2::TimePointZero);
   } catch (const tf2::TransformException &ex) {
     RCLCPP_WARN(get_logger(), "Could not transform laser to odom: %s",
                 ex.what());

@@ -19,6 +19,7 @@
 #include <iostream>
 #include <mutex>
 #include <random>
+#include <string.h>
 
 #include "RangeLib.h"
 using namespace ranges;
