@@ -52,7 +52,7 @@ class ReactiveGapFollow : public rclcpp::Node
 
     rclcpp::TimerBase::SharedPtr _timer;
     rclcpp::Publisher<arcus_msgs::msg::ErrorCode>::SharedPtr _error_publisher;
-    
+
     std::deque<float> _targetAngleWindow;
     std::vector<float> _processedRanges;
     float _smoothedTargetAngle = 0.0f;

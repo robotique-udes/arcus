@@ -46,7 +46,7 @@ void Safety::CB_scan(const sensor_msgs::msg::LaserScan& scanMsg_)
             break;
         }
 
-        if(i == (ranges.size() - 1))
+        if (i == (ranges.size() - 1))
         {
             _stopFlag = false;
         }
@@ -55,12 +55,11 @@ void Safety::CB_scan(const sensor_msgs::msg::LaserScan& scanMsg_)
 
 void Safety::CB_spam_stop(void)
 {
-    if (_stopFlag) 
+    if (_stopFlag)
     {
         ackermann_msgs::msg::AckermannDriveStamped driveCmd;
         driveCmd.drive.speed = 0.0;
         _driveCmdPublisher->publish(driveCmd);
-
 
         arcus_msgs::msg::ErrorCode error_msg;
         error_msg.source = arcus_msgs::msg::ErrorCode::SAFETY;
@@ -87,20 +86,15 @@ void Safety::initRosElements(void)
                                                                              {
                                                                                  this->CB_positionSubscriber(msg);
                                                                              });
-    _spammingTimer = this->create_wall_timer(
-        std::chrono::milliseconds(5),
-        std::bind(&Safety::CB_spam_stop, this)
-        );
-
+    _spammingTimer = this->create_wall_timer(std::chrono::milliseconds(5), std::bind(&Safety::CB_spam_stop, this));
 
     _error_publisher = this->create_publisher<arcus_msgs::msg::ErrorCode>("/node_error_code", 10);
     _timer = this->create_wall_timer(std::chrono::milliseconds(50), std::bind(&Safety::heartbeat, this));
 }
 
-
 void Safety::heartbeat()
 {
-    if(!_stopFlag)
+    if (!_stopFlag)
     {
         arcus_msgs::msg::ErrorCode error_msg;
         error_msg.source = arcus_msgs::msg::ErrorCode::SAFETY;

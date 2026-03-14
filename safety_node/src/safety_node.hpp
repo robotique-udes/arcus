@@ -27,6 +27,7 @@ class Safety : public rclcpp::Node
 
     void initRosElements(void);
     void publishBrakeMessage(void);
+    void heartbeat(void);
 
     double _currentSpeed = 0.0;
     bool _stopFlag = false;

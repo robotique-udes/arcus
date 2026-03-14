@@ -27,36 +27,15 @@ ReactiveGapFollow::ReactiveGapFollow():
                                                                  {
                                                                      this->lidar_CB(msg);
                                                                  });
-
 }
 
 void ReactiveGapFollow::heartbeat()
 {
     arcus_msgs::msg::ErrorCode error_msg;
-    error_msg.source = arcus_msgs::msg::ErrorCode::GAP_FOLLOW;
+    error_msg.source = arcus_msgs::msg::ErrorCode::DISPARITY;
     error_msg.header.stamp = rclcpp::Clock().now();
     error_msg.error_code = arcus_msgs::msg::ErrorCode::OK;
     this->_error_publisher->publish(error_msg);
-}
-
-void ReactiveGapFollow::preprocessLidar(std::vector<float>& ranges_)
-{
-    size_t rangesSize = ranges_.size();
-
-    for (size_t i = ELIMINATE_EXTREMES_POSITION; i < rangesSize - ELIMINATE_EXTREMES_POSITION; i++)
-    {
-        ranges_[i]
-            = (ranges_[i] + ranges_[i - 1] + ranges_[i - 2] + ranges_[i - 3] + ranges_[i + 1] + ranges_[i + 2] + ranges_[i + 3])
-              / PREPROCESSING_AVG_SAMPLES;
-
-        if (ranges_[i] > MAX_LIDAR_DISTANCE_M)
-        {
-            ranges_[i] = MAX_LIDAR_DISTANCE_M;
-        }
-    }
-
-    return;
-    _vectorPublisher = this->create_publisher<geometry_msgs::msg::PoseStamped>("target_vector", DEFAULT_QOS);
 }
 
 void ReactiveGapFollow::lidar_CB(sensor_msgs::msg::LaserScan::SharedPtr scanMsg_)
@@ -92,7 +71,7 @@ void ReactiveGapFollow::lidar_CB(sensor_msgs::msg::LaserScan::SharedPtr scanMsg_
             ranges[i] = range_min;
         }
         _processedRanges[i] = ranges[i];
-        
+
         if (std::abs(ranges[i] - old_distance) > DISPARITY_THRESHOLD)
         {
             float closer_distance = std::min(ranges[i], old_distance);
@@ -196,7 +175,7 @@ void ReactiveGapFollow::lidar_CB(sensor_msgs::msg::LaserScan::SharedPtr scanMsg_
 float ReactiveGapFollow::setSpeedFromDistance(float distance_, float steeringAngle_)
 {
     float speed = distance_ * SPEED_DISTANCE_FACTOR
-                  / (1.0f +  (std::abs(steeringAngle_)/4));  // Reduce speed when steering angle is large
+                  / (1.0f + (std::abs(steeringAngle_) / 4));  // Reduce speed when steering angle is large
     if (speed > MAX_SPEED)
     {
         speed = MAX_SPEED;

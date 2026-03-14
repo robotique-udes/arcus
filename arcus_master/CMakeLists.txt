@@ -10,6 +10,7 @@ set(DEPENDENCY_LIST
   "ament_cmake"
   "rclcpp"
   "arcus_msgs"
+  "ackermann_msgs"
   )
 
   set(MSGS
