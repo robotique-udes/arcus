@@ -33,7 +33,7 @@ void Safety::CB_scan(const sensor_msgs::msg::LaserScan& scanMsg_)
             continue;
         }
 
-        double rangeRate = _currentSpeed * std::cos((scanMsg_.angle_min + i * scanMsg_.angle_increment)*2);
+        double rangeRate = _currentSpeed * std::cos(scanMsg_.angle_min + i * scanMsg_.angle_increment);
 
         if (rangeRate <= MIN_RANGE_RATE_MS)
         {
