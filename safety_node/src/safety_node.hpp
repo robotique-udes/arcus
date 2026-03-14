@@ -5,6 +5,7 @@
 #include "sensor_msgs/msg/laser_scan.hpp"
 #include "nav_msgs/msg/odometry.hpp"
 #include "ackermann_msgs/msg/ackermann_drive_stamped.hpp"
+#include "arcus_msgs/msg/error_code.hpp"
 
 class Safety : public rclcpp::Node
 {
@@ -34,5 +35,8 @@ class Safety : public rclcpp::Node
     rclcpp::Subscription<sensor_msgs::msg::LaserScan>::SharedPtr _laserScanSubscriber;
     rclcpp::Subscription<nav_msgs::msg::Odometry>::SharedPtr _positionSubscriber;
     rclcpp::TimerBase::SharedPtr _spammingTimer;
+
+    rclcpp::TimerBase::SharedPtr _timer;
+    rclcpp::Publisher<arcus_msgs::msg::ErrorCode>::SharedPtr _error_publisher;
 };
 #endif  // SAFETY_NODE_HPP

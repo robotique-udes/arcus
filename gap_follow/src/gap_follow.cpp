@@ -28,6 +28,8 @@ ReactiveGapFollow::ReactiveGapFollow():
                                                                      this->lidar_CB(msg);
                                                                  });
 
+}
+
 void ReactiveGapFollow::heartbeat()
 {
     arcus_msgs::msg::ErrorCode error_msg;

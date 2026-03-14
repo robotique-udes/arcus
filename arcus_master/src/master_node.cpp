@@ -27,7 +27,7 @@ MasterNode::MasterNode():
 
 void MasterNode::watchdog()
 {
-    for (int i = 0; i < 7; i++)
+    for (int i = 0; i < 8; i++)
     {
         if (rclcpp::Clock().now().nanoseconds() - this->heartbeats[i] > 100000000)
         {  // 0.1 second timeout
@@ -43,7 +43,7 @@ void MasterNode::watchdog()
 
 void MasterNode::errorCodeCallback(const arcus_msgs::msg::ErrorCode::SharedPtr msg)
 {
-    if (msg->source >= 7)
+    if (msg->source >= 8)
     {
         RCLCPP_ERROR(this->get_logger(), "Received error code from invalid source: %d", msg->source);
         return;

@@ -60,6 +60,13 @@ void Safety::CB_spam_stop(void)
         ackermann_msgs::msg::AckermannDriveStamped driveCmd;
         driveCmd.drive.speed = 0.0;
         _driveCmdPublisher->publish(driveCmd);
+
+
+        arcus_msgs::msg::ErrorCode error_msg;
+        error_msg.source = arcus_msgs::msg::ErrorCode::SAFETY;
+        error_msg.header.stamp = rclcpp::Clock().now();
+        error_msg.error_code = arcus_msgs::msg::ErrorCode::EMERGENCY_BRAKE;
+        this->_error_publisher->publish(error_msg);
     }
 }
 
@@ -84,6 +91,20 @@ void Safety::initRosElements(void)
         std::chrono::milliseconds(5),
         std::bind(&Safety::CB_spam_stop, this)
         );
+
+
+    _error_publisher = this->create_publisher<arcus_msgs::msg::ErrorCode>("/node_error_code", 10);
+    _timer = this->create_wall_timer(std::chrono::milliseconds(50), std::bind(&Safety::heartbeat, this));
+}
+
+
+void Safety::heartbeat()
+{
+    arcus_msgs::msg::ErrorCode error_msg;
+    error_msg.source = arcus_msgs::msg::ErrorCode::SAFETY;
+    error_msg.header.stamp = rclcpp::Clock().now();
+    error_msg.error_code = arcus_msgs::msg::ErrorCode::OK;
+    this->_error_publisher->publish(error_msg);
 }
 
 void Safety::publishBrakeMessage(void)
