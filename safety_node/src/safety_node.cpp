@@ -49,7 +49,7 @@ void Safety::CB_scan(const sensor_msgs::msg::LaserScan& scanMsg_)
             break;
         }
 
-        if (i == (fov_end - 1) && std::abs(_currentSpeed) > 0.1)
+        if (i == (fov_end - 1) && std::abs(_currentSpeed) < 0.1)
         {
             _stopFlag = false;
         }
