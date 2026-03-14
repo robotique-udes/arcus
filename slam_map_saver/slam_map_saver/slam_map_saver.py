@@ -38,7 +38,7 @@ class MapSaverCliNode(Node):
         timestamp = datetime.datetime.now().strftime("%Y%m%d_%H%M%S")
 
         # Directory where maps will be written. expanduser allows ~ usage if present.
-        maps_dir = os.path.expanduser('/sim_ws/src/arcus/slam_map_saver/slam_maps')
+        maps_dir = os.path.expanduser('/home/arcus/arcus/slam_map_saver/slam_maps')
         os.makedirs(maps_dir, exist_ok=True)
 
         # Base path (no extension) passed to map_saver_cli; it will create .yaml and .pgm

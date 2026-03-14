@@ -16,6 +16,8 @@ set(DEPENDENCY_LIST
   "sensor_msgs" 
   "std_msgs"
   "arcus_msgs"
+  "tf2"
+  "tf2_ros"
   )
 
   set(MSGS
@@ -67,6 +69,12 @@ IF (IS_PACKAGE_EXECUTABLE)
   install(TARGETS
     ${EXECUTABLE_NAME}
     DESTINATION lib/${PROJECT_NAME})
+
+  # Install launch dir
+  install(
+    DIRECTORY launch
+    DESTINATION share/${PROJECT_NAME}
+  )
 ENDIF()
 
 ament_package()

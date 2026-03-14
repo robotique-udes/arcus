@@ -1,0 +1,40 @@
+<?xml version="1.0"?>
+<?xml-model href="http://download.ros.org/schema/package_format3.xsd"
+            schematypesversion="3.0"?>
+<package format="3">
+
+  <name>range_libc</name>
+  <version>0.0.1</version>
+  <description>
+    RangeLibc: an optimized C++/CUDA library for 2D ray casting,
+    used for Monte Carlo localization / particle filters in ROS2.
+  </description>
+
+  <maintainer email="you@example.com">Your Name</maintainer>
+  <license>MIT</license>
+
+  <!-- ─────────────────────────────────────────
+       Build tool
+  ───────────────────────────────────────────── -->
+  <buildtool_depend>ament_cmake</buildtool_depend>
+
+  <!-- ─────────────────────────────────────────
+       Build dependencies
+  ───────────────────────────────────────────── -->
+  <build_depend>python3-numpy</build_depend>
+  <build_depend>python3-dev</build_depend>
+
+  <!-- ─────────────────────────────────────────
+       Runtime dependencies
+  ───────────────────────────────────────────── -->
+  <exec_depend>python3-numpy</exec_depend>
+
+  <!-- ─────────────────────────────────────────
+       Export build type so colcon knows this
+       is an ament_cmake package
+  ───────────────────────────────────────────── -->
+  <export>
+    <build_type>ament_cmake</build_type>
+  </export>
+
+</package>

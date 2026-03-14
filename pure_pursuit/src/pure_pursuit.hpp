@@ -8,6 +8,8 @@
 #include "ackermann_msgs/msg/ackermann_drive_stamped.hpp"
 #include "nav_msgs/msg/path.hpp"
 #include "arcus_msgs/msg/error_code.hpp"
+#include <tf2_ros/buffer.h>
+#include <tf2_ros/transform_listener.h>
 
 #include <fstream>
 #include <string>
@@ -19,19 +21,20 @@ class PurePursuit : public rclcpp::Node
 {
     // Below are parameters that need to be tweaked for better performance
     static constexpr double MAX_LOOKAHEAD_DISTANCE_M = 3.5;
-    static constexpr double MIN_LOOKAHEAD_DISTANCE_M = 0.4;
+    static constexpr double MIN_LOOKAHEAD_DISTANCE_M = 0.35;
     static constexpr double LOOKAHEAD_DISTANCE_GAIN = 0.25;
     static constexpr double MAX_LOOKAHEAD_FRACTION_OF_PATH = 0.05;
-    static constexpr double LOOP_FREQUENCY_HZ = 20.0;
+    static constexpr double LOOP_FREQUENCY_HZ = 38.0;
     static constexpr double WHEELBASE_M = 0.325;      // Distance between front and rear axles
-    static constexpr double CONSTANT_SPEED_MS = 5.0;  // Constant speed in m/s
+    static constexpr double MAX_SPEED_MS = 5.0;  // Constant speed in m/s
+    static constexpr double MAX_LAT_ACCEL = 3.5;  // Constant speed in m/s2 
 
     // Topic, input file names and QoS
     static constexpr const uint8_t DEFAULT_QOS = 1;
     static constexpr const char* DEFAULT_DRIVE_CMD_TOPIC = "/drive";
     static constexpr const char* TARGET_WAYPOINT_TOPIC = "/target_waypoint";
-    static constexpr const char* DEFAULT_POSITION_TOPIC = "/ego_racecar/odom";
-    static constexpr const char* DEFAULT_WAYPOINTS_CSV_FILE_NAME = "/sim_ws/src/arcus/resources/waypoints/waypoints.csv";
+    static constexpr const char* DEFAULT_POSITION_TOPIC = "/odometry/filtered";
+    static constexpr const char* DEFAULT_WAYPOINTS_CSV_FILE_NAME = "/home/arcus/arcus/resources/waypoints/waypoints.csv";
 
     // Mathematical constants
     static constexpr const double PI = 3.14159;
@@ -73,6 +76,9 @@ class PurePursuit : public rclcpp::Node
     rclcpp::Publisher<geometry_msgs::msg::PointStamped>::SharedPtr _targetWaypointPublisher;
     rclcpp::TimerBase::SharedPtr _heartbeatTimer;
     rclcpp::Publisher<arcus_msgs::msg::ErrorCode>::SharedPtr _errorPublisher;
+
+    std::shared_ptr<tf2_ros::Buffer> _tfBuffer;
+    std::shared_ptr<tf2_ros::TransformListener> _tfListener;
 };
 
 #endif  // PURE_PURSUIT_HPP
