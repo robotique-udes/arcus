@@ -13,6 +13,10 @@ ReactiveGapFollow::ReactiveGapFollow():
 {
     _directionPublisher = this->create_publisher<ackermann_msgs::msg::AckermannDriveStamped>(DRIVE_TOPIC, DEFAULT_QOS);
 
+    _laserPublisher = this->create_publisher<sensor_msgs::msg::LaserScan>("processed_scan", DEFAULT_QOS);
+
+    _targetWaypointPublisher = this->create_publisher<geometry_msgs::msg::PointStamped>("target_waypoint", DEFAULT_QOS);
+
     _laserScanSubscriber
         = this->create_subscription<sensor_msgs::msg::LaserScan>(LIDAR_SCAN_TOPIC,
                                                                  DEFAULT_QOS,
@@ -20,113 +24,164 @@ ReactiveGapFollow::ReactiveGapFollow():
                                                                  {
                                                                      this->lidar_CB(msg);
                                                                  });
-}
 
-void ReactiveGapFollow::preprocessLidar(std::vector<float>& ranges_)
-{
-    size_t rangesSize = ranges_.size();
-
-    for (size_t i = ELIMINATE_EXTREMES_POSITION; i < rangesSize - ELIMINATE_EXTREMES_POSITION; i++)
-    {
-        ranges_[i]
-            = (ranges_[i] + ranges_[i - 1] + ranges_[i - 2] + ranges_[i - 3] + ranges_[i + 1] + ranges_[i + 2] + ranges_[i + 3])
-              / PREPROCESSING_AVG_SAMPLES;
-
-        if (ranges_[i] > MAX_LIDAR_DISTANCE_M)
-        {
-            ranges_[i] = MAX_LIDAR_DISTANCE_M;
-        }
-    }
-
-    return;
+    _vectorPublisher = this->create_publisher<geometry_msgs::msg::PoseStamped>("target_vector", DEFAULT_QOS);
 }
 
 void ReactiveGapFollow::lidar_CB(sensor_msgs::msg::LaserScan::SharedPtr scanMsg_)
 {
-    preprocessLidar(scanMsg_->ranges);
+    std::vector<float>& ranges = scanMsg_->ranges;
+    std::vector<float> extendedRanges;
+    size_t size = ranges.size();
+    extendedRanges.resize(size);
+    const float angle_min = scanMsg_->angle_min;
+    const float angle_inc = scanMsg_->angle_increment;
+    const float range_max = scanMsg_->range_max;
+    const float range_min = scanMsg_->range_min;
+    float old_distance = ranges[0];  // Initialize to an invalid distance greater than range_max
 
-    std::vector<float> ranges = scanMsg_->ranges;
-    size_t rangesSize = ranges.size();
+    const float inv_angle_inc = 1.0f / angle_inc;
 
-    if (!_straight)
+    if (_processedRanges.size() != size)
     {
-        float min_value = 0.f;
-
-        if (!ranges.empty())
-        {
-            min_value = *std::min_element(ranges.begin(), ranges.end());
-        }
-
-        for (size_t i = 0; i < rangesSize; i++)
-        {
-            if (ranges[i] <= (min_value + BUBBLE_RADIUS))
-            {
-                ranges[i] = 0.0;
-            }
-        }
-
-        for (uint32_t i = 0; i < ELIMINATE_EXTREMES_POSITION; i++)
-        {
-            ranges[i] = 0.0;
-        }
-
-        for (uint32_t i = rangesSize - ELIMINATE_EXTREMES_POSITION; i < rangesSize; i++)
-        {
-            ranges[i] = 0.0;
-        }
-
-        uint32_t maxGap = 0;
-        uint32_t gap = 0;
-        uint32_t startingGapIndex = 0;
-        uint32_t endingGapIndex = 0;
-
-        for (uint32_t i = 0; i < rangesSize; i++)
-        {
-            if (ranges[i] != 0.0)  // Non-zero value: part of a gap
-            {
-                if (gap == 0)
-                {
-                    // Start of a new gap
-                    startingGapIndex = i;
-                }
-                gap++;
-                endingGapIndex = i;
-            }
-            else
-            {
-                if (gap > maxGap)
-                {
-                    maxGap = gap;
-                    _maxGapStartingIndex = startingGapIndex;
-                    _maxGapEndingIndex = endingGapIndex;
-                }
-                gap = 0;
-            }
-        }
-
-        _targetIndex = (_maxGapEndingIndex - _maxGapStartingIndex) / 2. + _maxGapStartingIndex;
-
-        _targetAngle = scanMsg_->angle_min + _targetIndex * scanMsg_->angle_increment;
+        _processedRanges.resize(size, range_max + 1.0f);  // Initialize with invalid readings
     }
 
-    _straight = false;
+    // uint32_t pos90deg_index = (M_PI/2 - scanMsg_->angle_min) / scanMsg_->angle_increment;
+    // uint32_t neg90deg_index = (-M_PI/2 - scanMsg_->angle_min) / scanMsg_->angle_increment;
+
+    for (size_t i = 0; i < size; i++)
+    {
+        if (ranges[i] > range_max || std::isinf(ranges[i]) || std::isnan(ranges[i]))
+        {
+            ranges[i] = range_max + 1.0f;  // Set to a value greater than range_max to indicate invalid reading
+        }
+        else if (ranges[i] < range_min)
+        {
+            ranges[i] = range_min;
+        }
+        _processedRanges[i] = ranges[i];
+        
+        if (std::abs(ranges[i] - old_distance) > DISPARITY_THRESHOLD)
+        {
+            float closer_distance = std::min(ranges[i], old_distance);
+            uint32_t bubble_distance = static_cast<uint32_t>(std::atan2(BUBBLE_RADIUS, closer_distance) * inv_angle_inc);
+            for (int32_t j = -static_cast<int32_t>(bubble_distance); j <= static_cast<int32_t>(bubble_distance); j++)
+            {
+                int32_t index;
+                index = static_cast<int32_t>(i) + j;
+
+                if (index >= 0 && index < static_cast<int32_t>(size))
+                {
+                    _processedRanges[index] = std::min(_processedRanges[index], closer_distance);
+                }
+            }
+        }
+        else
+        {
+            _processedRanges[i] = std::min(_processedRanges[i], ranges[i]);
+        }
+        old_distance = ranges[i];
+        extendedRanges[i] = _processedRanges[i];
+        if (_processedRanges[i] > range_max)
+        {
+            _processedRanges[i] = 0.0f;
+        }
+    }
+
+    uint32_t maxDistanceIndex
+        = std::distance(_processedRanges.begin(), std::max_element(_processedRanges.begin(), _processedRanges.end()));
+    //    = std::distance(_processedRanges.begin() + neg90deg_index, std::max_element(_processedRanges.begin() +
+    //    neg90deg_index, _processedRanges.begin() + pos90deg_index));
+
+    // maxDistanceIndex += neg90deg_index;
+
+    float rawTargetAngle = angle_min + maxDistanceIndex * angle_inc;
+    _smoothedTargetAngle = computeRollingAverage(rawTargetAngle);
+    _targetAngle = _smoothedTargetAngle;
+
+    // Check for obstacles on the side in the turning direction
+    // Check left side (angles > 90 degrees)
+    // if (_targetAngle > 0)
+    // {
+    //     for (size_t i = round(size / 2); i < size; i++)
+    //     {
+    //         float angle = scanMsg_->angle_min + i * scanMsg_->angle_increment;
+    //         if (angle > M_PI / 2 && _processedRanges[i] < SAFE_TURNING_DISTANCE)
+    //         {
+    //             _targetAngle = 0.0f;  // Go straight
+    //             break;
+    //         }
+    //     }
+    // }
+    // // Check right side (angles < -90 degrees)
+    // else
+    // {
+    //     for (size_t i = 0; i < round(size / 2); i++)
+    //     {
+    //         float angle = scanMsg_->angle_min + i * scanMsg_->angle_increment;
+    //         if (angle < -M_PI / 2 && _processedRanges[i] < SAFE_TURNING_DISTANCE)
+    //         {
+    //             _targetAngle = 0.0f;  // Go straight
+    //             break;
+    //         }
+    //     }
+    // }
+
+    geometry_msgs::msg::PointStamped targetWaypointMsg;
+    targetWaypointMsg.header = scanMsg_->header;
+    targetWaypointMsg.point.x = _processedRanges[maxDistanceIndex] * std::cos(_targetAngle);
+    targetWaypointMsg.point.y = _processedRanges[maxDistanceIndex] * std::sin(_targetAngle);
+    _targetWaypointPublisher->publish(targetWaypointMsg);
+
+    // sensor_msgs::msg::LaserScan processedScan = *scanMsg_;
+    // processedScan.ranges = _processedRanges;
+    // _laserPublisher->publish(processedScan);
+
+    // RCLCPP_INFO(this->get_logger(), "Target angle: %.2f degrees, index: %u, distance: %.2f", _targetAngle * 180.0 / M_PI,
+    // maxDistanceIndex, ranges[maxDistanceIndex]);
 
     ackermann_msgs::msg::AckermannDriveStamped newMsg = ackermann_msgs::msg::AckermannDriveStamped();
 
     newMsg.drive.steering_angle = _targetAngle * OVERSHOOT_FACTOR;
-
-    float targetSpeed = setSpeedFromDistance(ranges[_targetIndex]);
+    float targetSpeed = setSpeedFromDistance(extendedRanges[size / 2], _targetAngle);
+    // RCLCPP_INFO(this->get_logger(), "Speed: %0.2f, from distance: %0.2f", targetSpeed, extendedRanges[size / 2]);
     newMsg.drive.speed = targetSpeed;
 
     _directionPublisher->publish(newMsg);
+
+    geometry_msgs::msg::PoseStamped vectorMsg;
+    vectorMsg.header = scanMsg_->header;
+    vectorMsg.pose.position.x = 0.0f;
+    vectorMsg.pose.position.y = 0.0f;
+    vectorMsg.pose.position.z = 0.0f;
+    vectorMsg.pose.orientation.x = std::cos(_targetAngle / 2);
+    vectorMsg.pose.orientation.y = std::sin(_targetAngle / 2);
+    vectorMsg.pose.orientation.z = 0.0f;
+    vectorMsg.pose.orientation.w = 0.0f;
+    _vectorPublisher->publish(vectorMsg);
 };
 
-float ReactiveGapFollow::setSpeedFromDistance(float distance_)
+float ReactiveGapFollow::setSpeedFromDistance(float distance_, float steeringAngle_)
 {
-    float speed = distance_ * SPEED_DISTANCE_FACTOR;
+    float speed = distance_ * SPEED_DISTANCE_FACTOR
+                  / (1.0f +  (std::abs(steeringAngle_)/4));  // Reduce speed when steering angle is large
     if (speed > MAX_SPEED)
     {
         speed = MAX_SPEED;
     }
     return speed;
+}
+
+float ReactiveGapFollow::computeRollingAverage(float newValue_)
+{
+    _targetAngleWindow.push_back(newValue_);
+    _rollingSum += newValue_;
+    if (_targetAngleWindow.size() > ROLLING_AVERAGE_WINDOW)
+    {
+        _rollingSum -= _targetAngleWindow.front();
+        _targetAngleWindow.pop_front();
+    }
+
+    return _rollingSum / _targetAngleWindow.size();
 }

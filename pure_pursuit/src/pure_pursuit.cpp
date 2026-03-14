@@ -48,24 +48,47 @@ void PurePursuit::CB_publishDriveCmd(void)
     driveCmd.header.stamp = this->now();
     driveCmd.header.frame_id = "base_link";
     driveCmd.drive.steering_angle = steeringAngle;
-    driveCmd.drive.speed = CONSTANT_SPEED_MS;
+
+    float curvature = 2*sin(alpha)/lookaheadDistanceActual;
+    float targetSpeed = std::min(MAX_SPEED_MS, sqrt(MAX_LAT_ACCEL / abs(curvature)));
+
+    driveCmd.drive.speed = targetSpeed; // SMARTER WA
 
     _driveCmdPublisher->publish(driveCmd);
 }
 
 void PurePursuit::CB_positionSubscriber(const nav_msgs::msg::Odometry& msg)
 {
-    _currentX = msg.pose.pose.position.x;
-    _currentY = msg.pose.pose.position.y;
+   ///
+    geometry_msgs::msg::TransformStamped tf;
+
+    try
+    {
+        tf = _tfBuffer->lookupTransform(
+            "map",                         // target frame
+            "ego_racecar/base_link",       // source frame
+            tf2::TimePointZero
+        );
+    }
+    catch (const tf2::TransformException &ex)
+    {
+        RCLCPP_WARN(this->get_logger(), "TF lookup failed: %s", ex.what());
+        return;
+    }
+
+    // Position
+    _currentX = tf.transform.translation.x;
+    _currentY = tf.transform.translation.y;
+
+    // Orientation (quaternion → yaw)
+    const auto &q = tf.transform.rotation;
+
+    _currentYaw = std::atan2(
+        2.0 * (q.w * q.z + q.x * q.y),
+        1.0 - 2.0 * (q.y * q.y + q.z * q.z)
+    );
     _currentSpeed = msg.twist.twist.linear.x;
 
-    // converting quaternion to euler angle (yaw)
-    double qw = msg.pose.pose.orientation.w;
-    double qx = msg.pose.pose.orientation.x;
-    double qy = msg.pose.pose.orientation.y;
-    double qz = msg.pose.pose.orientation.z;
-
-    _currentYaw = std::atan2(2.0 * (qw * qz + qx * qy), 1.0 - 2.0 * (qy * qy + qz * qz));
 }
 
 void PurePursuit::CB_publishTargetWaypoint(const geometry_msgs::msg::PoseStamped& msg)
@@ -153,6 +176,9 @@ void PurePursuit::initRosElements(void)
 
     _driveCmdPublisher = this->create_publisher<ackermann_msgs::msg::AckermannDriveStamped>(_driveCmdTopic, DEFAULT_QOS);
     _targetWaypointPublisher = this->create_publisher<geometry_msgs::msg::PointStamped>(TARGET_WAYPOINT_TOPIC, DEFAULT_QOS);
+
+    _tfBuffer = std::make_shared<tf2_ros::Buffer>(this->get_clock());
+    _tfListener = std::make_shared<tf2_ros::TransformListener>(*_tfBuffer);
 }
 
 double PurePursuit::clipLookaheadDistance(double lookAheadDistance_) const
