@@ -23,14 +23,17 @@ void Safety::CB_scan(const sensor_msgs::msg::LaserScan& scanMsg_)
 {
     std::vector<float> ranges = scanMsg_.ranges;
 
-    for (size_t i = 0; i < ranges.size(); i++)
+    size_t fov_start = (-FOV - scanMsg_.angle_min) / scanMsg_.angle_increment;
+    size_t fov_end = (FOV - scanMsg_.angle_min) / scanMsg_.angle_increment;
+
+    for (size_t i = fov_start; i < fov_end; i++)
     {
         if (std::isnan(ranges[i]) || std::isinf(ranges[i]))
         {
             continue;
         }
 
-        double rangeRate = _currentSpeed * std::cos(scanMsg_.angle_min + i * scanMsg_.angle_increment);
+        double rangeRate = _currentSpeed * std::cos((scanMsg_.angle_min + i * scanMsg_.angle_increment)*2);
 
         if (rangeRate <= MIN_RANGE_RATE_MS)
         {
@@ -46,7 +49,7 @@ void Safety::CB_scan(const sensor_msgs::msg::LaserScan& scanMsg_)
             break;
         }
 
-        if (i == (ranges.size() - 1))
+        if (i == (ranges.size() - 1) && std::abs(_currentSpeed) > 0.1)
         {
             _stopFlag = false;
         }
