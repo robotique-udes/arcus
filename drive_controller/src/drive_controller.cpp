@@ -22,7 +22,7 @@ class DriveController : public rclcpp::Node
         Node("motor_sweep_test"),
         count_(0)
     {
-        _drive_publisher = this->create_publisher<ackermann_msgs::msg::AckermannDriveStamped>("/drive", 10);
+        _drive_publisher = this->create_publisher<ackermann_msgs::msg::AckermannDriveStamped>("/controller/drive", 10);
         _joy_sub
             = create_subscription<sensor_msgs::msg::Joy>("/joy",
                                                          rclcpp::QoS{10},

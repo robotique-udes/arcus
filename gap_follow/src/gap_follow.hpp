@@ -26,7 +26,7 @@ class ReactiveGapFollow : public rclcpp::Node
     static constexpr float SAFE_TURNING_DISTANCE = 0.1f;
 
     static constexpr const char* LIDAR_SCAN_TOPIC = "/scan";
-    static constexpr const char* DRIVE_TOPIC = "/drive";
+    static constexpr const char* DRIVE_TOPIC = "/disparity/drive";
 
     static constexpr uint16_t DEFAULT_QOS = 1U;
 
