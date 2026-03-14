@@ -100,11 +100,14 @@ void Safety::initRosElements(void)
 
 void Safety::heartbeat()
 {
-    arcus_msgs::msg::ErrorCode error_msg;
-    error_msg.source = arcus_msgs::msg::ErrorCode::SAFETY;
-    error_msg.header.stamp = rclcpp::Clock().now();
-    error_msg.error_code = arcus_msgs::msg::ErrorCode::OK;
-    this->_error_publisher->publish(error_msg);
+    if(!_stopFlag)
+    {
+        arcus_msgs::msg::ErrorCode error_msg;
+        error_msg.source = arcus_msgs::msg::ErrorCode::SAFETY;
+        error_msg.header.stamp = rclcpp::Clock().now();
+        error_msg.error_code = arcus_msgs::msg::ErrorCode::OK;
+        this->_error_publisher->publish(error_msg);
+    }
 }
 
 void Safety::publishBrakeMessage(void)
