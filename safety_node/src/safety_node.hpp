@@ -6,17 +6,19 @@
 #include "nav_msgs/msg/odometry.hpp"
 #include "ackermann_msgs/msg/ackermann_drive_stamped.hpp"
 #include "arcus_msgs/msg/error_code.hpp"
+#include "std_msgs/msg/float64.hpp"
 
 class Safety : public rclcpp::Node
 {
-    static constexpr double TTC_THRESHOLD_S = 1.0;
+    static constexpr double TTC_THRESHOLD_S = 0.7;
     static constexpr double MIN_RANGE_RATE_MS = 0.0;  // Minimum range rate in m/s
 
     static constexpr const uint8_t QOS = 1;
     static constexpr const char* DRIVE_CMD_TOPIC = "/safety/drive";
+    static constexpr const char* BRAKE_CMD_TOPIC = "commands/motor/brake";
     static constexpr const char* LIDAR_SCAN_TOPIC = "/scan";
     static constexpr const char* POSITION_TOPIC = "/odometry/filtered";
-    static constexpr const uint8_t FOV = 15;
+    static constexpr const float FOV = 0.5/180. * M_PI;
 
   public:
     Safety();
@@ -34,6 +36,7 @@ class Safety : public rclcpp::Node
     bool _stopFlag = false;
 
     rclcpp::Publisher<ackermann_msgs::msg::AckermannDriveStamped>::SharedPtr _driveCmdPublisher;
+    rclcpp::Publisher<std_msgs::msg::Float64>::SharedPtr _brakePublisher;
     rclcpp::Subscription<sensor_msgs::msg::LaserScan>::SharedPtr _laserScanSubscriber;
     rclcpp::Subscription<nav_msgs::msg::Odometry>::SharedPtr _positionSubscriber;
     rclcpp::TimerBase::SharedPtr _spammingTimer;

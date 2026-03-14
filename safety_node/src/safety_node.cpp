@@ -34,13 +34,13 @@ void Safety::CB_scan(const sensor_msgs::msg::LaserScan& scanMsg_)
         }
 
         double rangeRate = _currentSpeed * std::cos(scanMsg_.angle_min + i * scanMsg_.angle_increment);
+        double iTTC = 100;
 
-        if (rangeRate <= MIN_RANGE_RATE_MS)
+        if(rangeRate > MIN_RANGE_RATE_MS)
         {
-            continue;
+            iTTC = ranges[i] / rangeRate;
         }
 
-        double iTTC = ranges[i] / rangeRate;
 
         if (iTTC < TTC_THRESHOLD_S)
         {
@@ -49,7 +49,7 @@ void Safety::CB_scan(const sensor_msgs::msg::LaserScan& scanMsg_)
             break;
         }
 
-        if (i == (fov_end - 1) && std::abs(_currentSpeed) < 0.1)
+        if (i == (fov_end - 1) && std::abs(_currentSpeed) < 0.05)
         {
             _stopFlag = false;
         }
@@ -63,7 +63,10 @@ void Safety::CB_spam_stop(void)
         ackermann_msgs::msg::AckermannDriveStamped driveCmd;
         driveCmd.drive.speed = 0.0;
         _driveCmdPublisher->publish(driveCmd);
+        std_msgs::msg::Float64 brake;
+        brake.data = 5.0;
 
+        _brakePublisher->publish(brake);
         arcus_msgs::msg::ErrorCode error_msg;
         error_msg.source = arcus_msgs::msg::ErrorCode::SAFETY;
         error_msg.header.stamp = rclcpp::Clock().now();
@@ -75,6 +78,8 @@ void Safety::CB_spam_stop(void)
 void Safety::initRosElements(void)
 {
     _driveCmdPublisher = this->create_publisher<ackermann_msgs::msg::AckermannDriveStamped>(DRIVE_CMD_TOPIC, QOS);
+
+    _brakePublisher = this->create_publisher<std_msgs::msg::Float64>(BRAKE_CMD_TOPIC, QOS);
 
     _laserScanSubscriber = this->create_subscription<sensor_msgs::msg::LaserScan>(LIDAR_SCAN_TOPIC,
                                                                                   QOS,
