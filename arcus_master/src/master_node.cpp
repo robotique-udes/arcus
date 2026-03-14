@@ -14,7 +14,7 @@ int main(int argc, char** argv)
 MasterNode::MasterNode():
     Node("master_node")
 {
-    timer_ = this->create_wall_timer(std::chrono::milliseconds(10), std::bind(&MasterNode::watchdog, this));
+    // timer_ = this->create_wall_timer(std::chrono::milliseconds(10), std::bind(&MasterNode::watchdog, this));
     _mainLoopTimer = this->create_wall_timer(std::chrono::milliseconds(10), std::bind(&MasterNode::mainLoop, this));
 
     error_listener_ = this->create_subscription<arcus_msgs::msg::ErrorCode>(
@@ -140,14 +140,6 @@ void MasterNode::processDriveCommands()
                  || this->driveCommands[arcus_msgs::msg::ErrorCode::DISPARITY].drive.steering_angle != 0)
         {
             _drivePublisher->publish(this->driveCommands[arcus_msgs::msg::ErrorCode::DISPARITY]);
-        }
-        else
-        {
-            // if no commands, publish a zero command to stop the car
-            ackermann_msgs::msg::AckermannDriveStamped stopCmd;
-            stopCmd.drive.speed = 0.0;
-            stopCmd.drive.steering_angle = 0.0;
-            _drivePublisher->publish(stopCmd);
         }
     }
 }
