@@ -180,18 +180,35 @@ void MasterNode::tryPublishDriveCommand()
     switch (this->determineDriveState())
     {
         case DriveState::SAFETY_EMERGENCY:
-            // Intentional fall-through: both safety states publish the safety command.
+        {
+            ackermann_msgs::msg::AckermannDriveStamped emergency_cmd =
+                this->driveCommands[arcus_msgs::msg::ErrorCode::SAFETY];
+            if (_hasLastNonEmergencySteering)
+            {
+                emergency_cmd.drive.steering_angle = _lastNonEmergencySteering;
+            }
+            _drivePublisher->publish(emergency_cmd);
+            break;
+        }
         case DriveState::SAFETY_OVERRIDE:
             _drivePublisher->publish(this->driveCommands[arcus_msgs::msg::ErrorCode::SAFETY]);
+            _lastNonEmergencySteering = this->driveCommands[arcus_msgs::msg::ErrorCode::SAFETY].drive.steering_angle;
+            _hasLastNonEmergencySteering = true;
             break;
         case DriveState::CONTROLLER:
             _drivePublisher->publish(this->driveCommands[arcus_msgs::msg::ErrorCode::CONTROLLER]);
+            _lastNonEmergencySteering = this->driveCommands[arcus_msgs::msg::ErrorCode::CONTROLLER].drive.steering_angle;
+            _hasLastNonEmergencySteering = true;
             break;
         case DriveState::PURE_PURSUIT:
             _drivePublisher->publish(this->driveCommands[arcus_msgs::msg::ErrorCode::PURE_PURSUIT]);
+            _lastNonEmergencySteering = this->driveCommands[arcus_msgs::msg::ErrorCode::PURE_PURSUIT].drive.steering_angle;
+            _hasLastNonEmergencySteering = true;
             break;
         case DriveState::DISPARITY:
             _drivePublisher->publish(this->driveCommands[arcus_msgs::msg::ErrorCode::DISPARITY]);
+            _lastNonEmergencySteering = this->driveCommands[arcus_msgs::msg::ErrorCode::DISPARITY].drive.steering_angle;
+            _hasLastNonEmergencySteering = true;
             break;
         case DriveState::NONE:
             break;
