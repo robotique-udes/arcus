@@ -1,6 +1,7 @@
 #include "rclcpp/rclcpp.hpp"
 #include "arcus_msgs/msg/error_code.hpp"
 #include "ackermann_msgs/msg/ackermann_drive_stamped.hpp"
+#include <array>
 
 class MasterNode : public rclcpp::Node
 {
@@ -15,16 +16,31 @@ class MasterNode : public rclcpp::Node
     MasterNode();
 
   private:
+    enum class DriveState
+    {
+        NONE,
+        SAFETY_EMERGENCY,
+        SAFETY_OVERRIDE,
+        CONTROLLER,
+        PURE_PURSUIT,
+        DISPARITY,
+    };
+
     void watchdog();
     void mainLoop();
+    void refreshOnlineStatus();
     void errorCodeCallback(const arcus_msgs::msg::ErrorCode::SharedPtr msg);
+    void tryPublishDriveCommand();
+    DriveState determineDriveState() const;
+    bool hasCommand(const ackermann_msgs::msg::AckermannDriveStamped& cmd) const;
+
     rclcpp::TimerBase::SharedPtr timer_;
     rclcpp::TimerBase::SharedPtr _mainLoopTimer;
     rclcpp::Subscription<arcus_msgs::msg::ErrorCode>::SharedPtr error_listener_;
     rclcpp::Publisher<arcus_msgs::msg::ErrorCode>::SharedPtr error_publisher_;
-    uint32_t heartbeats[10];
-    ackermann_msgs::msg::AckermannDriveStamped driveCommands[10];
-    void processDriveCommands();
+    std::array<uint64_t, 10> _lastHeartbeatNs{};
+    std::array<bool, 10> _nodeOnline{};
+    std::array<ackermann_msgs::msg::AckermannDriveStamped, 10> driveCommands{};
 
     bool emergencyBrakeEngaged = false;
 

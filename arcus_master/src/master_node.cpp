@@ -14,8 +14,7 @@ int main(int argc, char** argv)
 MasterNode::MasterNode():
     Node("master_node")
 {
-    // timer_ = this->create_wall_timer(std::chrono::milliseconds(10), std::bind(&MasterNode::watchdog, this));
-    _mainLoopTimer = this->create_wall_timer(std::chrono::milliseconds(10), std::bind(&MasterNode::mainLoop, this));
+    _mainLoopTimer = this->create_wall_timer(std::chrono::milliseconds(20), std::bind(&MasterNode::mainLoop, this));
 
     error_listener_ = this->create_subscription<arcus_msgs::msg::ErrorCode>(
         "/node_error_code",
@@ -51,7 +50,7 @@ void MasterNode::watchdog()
 {
     for (int i = 0; i < 10; i++)
     {
-        if (rclcpp::Clock().now().nanoseconds() - this->heartbeats[i] > 100000000)
+        if (rclcpp::Clock().now().nanoseconds() - this->_lastHeartbeatNs[i] > 100000000)
         {  // 0.1 second timeout
             RCLCPP_WARN(this->get_logger(), "No heartbeat from node %d", i);
             arcus_msgs::msg::ErrorCode error_msg;
@@ -70,7 +69,10 @@ void MasterNode::errorCodeCallback(const arcus_msgs::msg::ErrorCode::SharedPtr m
         RCLCPP_ERROR(this->get_logger(), "Received error code from invalid source: %d", msg->source);
         return;
     }
-    this->heartbeats[msg->source] = msg->header.stamp.nanosec;
+
+    this->_lastHeartbeatNs[msg->source] = msg->header.stamp.nanosec;
+    this->_nodeOnline[msg->source] = msg->error_code != arcus_msgs::msg::ErrorCode::OFFLINE;
+
     if (msg->error_code != arcus_msgs::msg::ErrorCode::OK)
     {
         arcus_msgs::msg::ErrorCode error_msg;
@@ -89,63 +91,115 @@ void MasterNode::errorCodeCallback(const arcus_msgs::msg::ErrorCode::SharedPtr m
     {
         emergencyBrakeEngaged = false;
     }
+
+    this->refreshOnlineStatus();
+    this->tryPublishDriveCommand();
 }
 
 void MasterNode::disparityDriveCallback(const ackermann_msgs::msg::AckermannDriveStamped::SharedPtr msg)
 {
     driveCommands[arcus_msgs::msg::ErrorCode::DISPARITY] = *msg;
+    this->tryPublishDriveCommand();
 }
 
 void MasterNode::safetyDriveCallback(const ackermann_msgs::msg::AckermannDriveStamped::SharedPtr msg)
 {
     driveCommands[arcus_msgs::msg::ErrorCode::SAFETY] = *msg;
+    this->tryPublishDriveCommand();
 }
 
 void MasterNode::purePursuitDriveCallback(const ackermann_msgs::msg::AckermannDriveStamped::SharedPtr msg)
 {
     driveCommands[arcus_msgs::msg::ErrorCode::PURE_PURSUIT] = *msg;
+    this->tryPublishDriveCommand();
 }
 
 void MasterNode::controllerDriveCallback(const ackermann_msgs::msg::AckermannDriveStamped::SharedPtr msg)
 {
     driveCommands[arcus_msgs::msg::ErrorCode::CONTROLLER] = *msg;
+    this->tryPublishDriveCommand();
 }
 
-void MasterNode::processDriveCommands()
+void MasterNode::refreshOnlineStatus()
 {
-    // If in emergency brake, only publish the safety drive command (which should be a brake command)
-    if (emergencyBrakeEngaged)
+    const uint64_t now_ns = this->now().nanoseconds();
+    constexpr uint64_t timeout_ns = 100000000;  // 0.1 second timeout
+
+    for (std::size_t i = 0; i < _nodeOnline.size(); ++i)
     {
-        _drivePublisher->publish(this->driveCommands[arcus_msgs::msg::ErrorCode::SAFETY]);
+        if (_lastHeartbeatNs[i] == 0 || (now_ns - _lastHeartbeatNs[i]) > timeout_ns)
+        {
+            _nodeOnline[i] = false;
+        }
     }
-    else
+}
+
+bool MasterNode::hasCommand(const ackermann_msgs::msg::AckermannDriveStamped& cmd) const
+{
+    return cmd.drive.speed != 0.0 || cmd.drive.steering_angle != 0.0;
+}
+
+MasterNode::DriveState MasterNode::determineDriveState() const
+{
+    if (emergencyBrakeEngaged && _nodeOnline[arcus_msgs::msg::ErrorCode::SAFETY])
     {
-        // otherwise, a simple priority system: if the safety node has a command, use it. Otherwise, use the controller command.
-        if (this->driveCommands[arcus_msgs::msg::ErrorCode::SAFETY].drive.speed != 0
-            || this->driveCommands[arcus_msgs::msg::ErrorCode::SAFETY].drive.steering_angle != 0)
-        {
+        return DriveState::SAFETY_EMERGENCY;
+    }
+
+    if (_nodeOnline[arcus_msgs::msg::ErrorCode::SAFETY]
+        && hasCommand(driveCommands[arcus_msgs::msg::ErrorCode::SAFETY]))
+    {
+        return DriveState::SAFETY_OVERRIDE;
+    }
+
+    if (_nodeOnline[arcus_msgs::msg::ErrorCode::CONTROLLER]
+        && hasCommand(driveCommands[arcus_msgs::msg::ErrorCode::CONTROLLER]))
+    {
+        return DriveState::CONTROLLER;
+    }
+
+    if (_nodeOnline[arcus_msgs::msg::ErrorCode::PURE_PURSUIT]
+        && hasCommand(driveCommands[arcus_msgs::msg::ErrorCode::PURE_PURSUIT]))
+    {
+        return DriveState::PURE_PURSUIT;
+    }
+
+    if (_nodeOnline[arcus_msgs::msg::ErrorCode::DISPARITY]
+        && hasCommand(driveCommands[arcus_msgs::msg::ErrorCode::DISPARITY]))
+    {
+        return DriveState::DISPARITY;
+    }
+
+    return DriveState::NONE;
+}
+
+void MasterNode::tryPublishDriveCommand()
+{
+    this->refreshOnlineStatus();
+
+    switch (this->determineDriveState())
+    {
+        case DriveState::SAFETY_EMERGENCY:
+            // Intentional fall-through: both safety states publish the safety command.
+        case DriveState::SAFETY_OVERRIDE:
             _drivePublisher->publish(this->driveCommands[arcus_msgs::msg::ErrorCode::SAFETY]);
-        }
-        else if (this->driveCommands[arcus_msgs::msg::ErrorCode::CONTROLLER].drive.speed != 0
-                 || this->driveCommands[arcus_msgs::msg::ErrorCode::CONTROLLER].drive.steering_angle != 0)
-        {
+            break;
+        case DriveState::CONTROLLER:
             _drivePublisher->publish(this->driveCommands[arcus_msgs::msg::ErrorCode::CONTROLLER]);
-        }  // if no safety or controller command, use the pure pursuit command if it exists
-        else if (this->driveCommands[arcus_msgs::msg::ErrorCode::PURE_PURSUIT].drive.speed != 0
-                 || this->driveCommands[arcus_msgs::msg::ErrorCode::PURE_PURSUIT].drive.steering_angle != 0)
-        {
+            break;
+        case DriveState::PURE_PURSUIT:
             _drivePublisher->publish(this->driveCommands[arcus_msgs::msg::ErrorCode::PURE_PURSUIT]);
-        }  // if no safety, controller, or pure pursuit command, use the disparity command if it exists
-        else if (this->driveCommands[arcus_msgs::msg::ErrorCode::DISPARITY].drive.speed != 0
-                 || this->driveCommands[arcus_msgs::msg::ErrorCode::DISPARITY].drive.steering_angle != 0)
-        {
+            break;
+        case DriveState::DISPARITY:
             _drivePublisher->publish(this->driveCommands[arcus_msgs::msg::ErrorCode::DISPARITY]);
-        }
+            break;
+        case DriveState::NONE:
+            break;
     }
 }
 
 void MasterNode::mainLoop()
 {
-    this->processDriveCommands();
+    this->refreshOnlineStatus();
 }
 #endif  // MASTER_NODE_CPP
