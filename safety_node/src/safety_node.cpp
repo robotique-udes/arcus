@@ -49,7 +49,7 @@ void Safety::CB_scan(const sensor_msgs::msg::LaserScan& scanMsg_)
             break;
         }
 
-        if (i == (fov_end - 1) && std::abs(_currentSpeed) < 0.05)
+        if (i == (fov_end - 1))
         {
             _stopFlag = false;
         }
@@ -64,12 +64,12 @@ void Safety::CB_spam_stop(void)
         driveCmd.drive.speed = 0.0;
         _driveCmdPublisher->publish(driveCmd);
         std_msgs::msg::Float64 brake;
-        brake.data = 5.0;
+        brake.data = 10.0;
 
         _brakePublisher->publish(brake);
         arcus_msgs::msg::ErrorCode error_msg;
         error_msg.source = arcus_msgs::msg::ErrorCode::SAFETY;
-        error_msg.header.stamp = rclcpp::Clock().now();
+        error_msg.header.stamp = this->now();
         error_msg.error_code = arcus_msgs::msg::ErrorCode::EMERGENCY_BRAKE;
         this->_error_publisher->publish(error_msg);
     }

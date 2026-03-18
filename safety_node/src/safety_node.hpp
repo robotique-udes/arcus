@@ -15,7 +15,7 @@ class Safety : public rclcpp::Node
 
     static constexpr const uint8_t QOS = 1;
     static constexpr const char* DRIVE_CMD_TOPIC = "/safety/drive";
-    static constexpr const char* BRAKE_CMD_TOPIC = "commands/motor/brake";
+    static constexpr const char* BRAKE_CMD_TOPIC = "/commands/motor/brake";
     static constexpr const char* LIDAR_SCAN_TOPIC = "/scan";
     static constexpr const char* POSITION_TOPIC = "/odometry/filtered";
     static constexpr const float FOV = 0.25/180. * M_PI;

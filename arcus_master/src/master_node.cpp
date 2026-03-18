@@ -46,21 +46,21 @@ MasterNode::MasterNode():
         std::bind(&MasterNode::controllerDriveCallback, this, std::placeholders::_1));
 }
 
-void MasterNode::watchdog()
-{
-    for (int i = 0; i < 10; i++)
-    {
-        if (rclcpp::Clock().now().nanoseconds() - this->_lastHeartbeatNs[i] > 100000000)
-        {  // 0.1 second timeout
-            RCLCPP_WARN(this->get_logger(), "No heartbeat from node %d", i);
-            arcus_msgs::msg::ErrorCode error_msg;
-            error_msg.source = i;
-            error_msg.header.stamp = rclcpp::Clock().now();
-            error_msg.error_code = arcus_msgs::msg::ErrorCode::OFFLINE;
-            this->error_publisher_->publish(error_msg);
-        }
-    }
-}
+// void MasterNode::watchdog()
+// {
+//     for (int i = 0; i < 10; i++)
+//     {
+//         if (rclcpp::Clock().now().nanoseconds() - this->_lastHeartbeatNs[i] > 100000000)
+//         {  // 0.1 second timeout
+//             RCLCPP_WARN(this->get_logger(), "No heartbeat from node %d", i);
+//             arcus_msgs::msg::ErrorCode error_msg;
+//             error_msg.source = i;
+//             error_msg.header.stamp = rclcpp::Clock().now();
+//             error_msg.error_code = arcus_msgs::msg::ErrorCode::OFFLINE;
+//             this->error_publisher_->publish(error_msg);
+//         }
+//     }
+// }
 
 void MasterNode::errorCodeCallback(const arcus_msgs::msg::ErrorCode::SharedPtr msg)
 {
@@ -70,7 +70,7 @@ void MasterNode::errorCodeCallback(const arcus_msgs::msg::ErrorCode::SharedPtr m
         return;
     }
 
-    this->_lastHeartbeatNs[msg->source] = msg->header.stamp.nanosec;
+    this->_lastHeartbeatNs[msg->source] = (uint64_t)msg->header.stamp.sec * 1000000000ULL + msg->header.stamp.nanosec;
     this->_nodeOnline[msg->source] = msg->error_code != arcus_msgs::msg::ErrorCode::OFFLINE;
 
     if (msg->error_code != arcus_msgs::msg::ErrorCode::OK)
@@ -122,12 +122,12 @@ void MasterNode::controllerDriveCallback(const ackermann_msgs::msg::AckermannDri
 
 void MasterNode::refreshOnlineStatus()
 {
-    const uint64_t now_ns = this->now().nanoseconds();
+    uint64_t now_ns = this->now().nanoseconds();
     constexpr uint64_t timeout_ns = 100000000;  // 0.1 second timeout
 
     for (std::size_t i = 0; i < _nodeOnline.size(); ++i)
     {
-        if (_lastHeartbeatNs[i] == 0 || (now_ns - _lastHeartbeatNs[i]) > timeout_ns)
+        if ((now_ns - _lastHeartbeatNs[i]) > timeout_ns)
         {
             _nodeOnline[i] = false;
         }
@@ -177,7 +177,11 @@ void MasterNode::tryPublishDriveCommand()
 {
     this->refreshOnlineStatus();
 
-    switch (this->determineDriveState())
+    RCLCPP_INFO(this->get_logger(), "ONLINE NODES, safety:  %d, controller: %d,", _nodeOnline[arcus_msgs::msg::ErrorCode::SAFETY], _nodeOnline[arcus_msgs::msg::ErrorCode::CONTROLLER]);
+    DriveState state = this->determineDriveState();
+    RCLCPP_INFO(this->get_logger(), "STATE %d", state);
+
+    switch (state)
     {
         case DriveState::SAFETY_EMERGENCY:
         {

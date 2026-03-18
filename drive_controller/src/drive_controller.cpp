@@ -44,7 +44,7 @@ class DriveController : public rclcpp::Node
     {
         arcus_msgs::msg::ErrorCode error_msg;
         error_msg.source = arcus_msgs::msg::ErrorCode::CONTROLLER;
-        error_msg.header.stamp = rclcpp::Clock().now();
+        error_msg.header.stamp = this->now();
         error_msg.error_code = arcus_msgs::msg::ErrorCode::OK;
         this->_error_publisher->publish(error_msg);
     }
