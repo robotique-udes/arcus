@@ -127,7 +127,7 @@ void MasterNode::controllerDriveCallback(const ackermann_msgs::msg::AckermannDri
 
 void MasterNode::deadmanCallback(const std_msgs::msg::Bool::SharedPtr msg)
 {
-    _deadmanActive = msg.data;
+    _deadmanActive = msg->data;
 }
 
 void MasterNode::refreshOnlineStatus()
@@ -155,7 +155,7 @@ MasterNode::DriveState MasterNode::determineDriveState() const
     {
         return DriveState::SAFETY_EMERGENCY;
     }
-    if (!_deadManActive)
+    if (!_deadmanActive)
     {
         return DriveState::SAFETY_EMERGENCY;
     }
