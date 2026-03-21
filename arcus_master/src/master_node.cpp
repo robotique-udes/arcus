@@ -125,7 +125,7 @@ void MasterNode::controllerDriveCallback(const ackermann_msgs::msg::AckermannDri
     this->tryPublishDriveCommand();
 }
 
-void MasterNode::deadmanCallback(const std_msgs::msg::Bool::SharePtr msg)
+void MasterNode::deadmanCallback(const std_msgs::msg::Bool::SharedPtr msg)
 {
     _deadmanActive = msg.data;
 }
