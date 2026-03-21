@@ -44,6 +44,11 @@ MasterNode::MasterNode():
         CONTROLLER_DRIVE_TOPIC,
         10,
         std::bind(&MasterNode::controllerDriveCallback, this, std::placeholders::_1));
+
+    _deadmanSubscriber
+        = this->create_subscription<std_msgs::msg::Bool>(DEADMAN_TOPIC,
+                                                         10,
+                                                         std::bind(&MasterNode::deadmanCallback, this, std::placeholders::_1));
 }
 
 // void MasterNode::watchdog()
@@ -120,6 +125,11 @@ void MasterNode::controllerDriveCallback(const ackermann_msgs::msg::AckermannDri
     this->tryPublishDriveCommand();
 }
 
+void MasterNode::deadmanCallback(const std_msgs::msg::Bool::SharePtr msg)
+{
+    _deadmanActive = msg.data;
+}
+
 void MasterNode::refreshOnlineStatus()
 {
     uint64_t now_ns = this->now().nanoseconds();
@@ -145,15 +155,17 @@ MasterNode::DriveState MasterNode::determineDriveState() const
     {
         return DriveState::SAFETY_EMERGENCY;
     }
+    if (!_deadManActive)
+    {
+        return DriveState::SAFETY_EMERGENCY;
+    }
 
-    if (_nodeOnline[arcus_msgs::msg::ErrorCode::SAFETY]
-        && hasCommand(driveCommands[arcus_msgs::msg::ErrorCode::SAFETY]))
+    if (_nodeOnline[arcus_msgs::msg::ErrorCode::SAFETY] && hasCommand(driveCommands[arcus_msgs::msg::ErrorCode::SAFETY]))
     {
         return DriveState::SAFETY_OVERRIDE;
     }
 
-    if (_nodeOnline[arcus_msgs::msg::ErrorCode::CONTROLLER]
-        && hasCommand(driveCommands[arcus_msgs::msg::ErrorCode::CONTROLLER]))
+    if (_nodeOnline[arcus_msgs::msg::ErrorCode::CONTROLLER] && hasCommand(driveCommands[arcus_msgs::msg::ErrorCode::CONTROLLER]))
     {
         return DriveState::CONTROLLER;
     }
@@ -164,8 +176,7 @@ MasterNode::DriveState MasterNode::determineDriveState() const
         return DriveState::PURE_PURSUIT;
     }
 
-    if (_nodeOnline[arcus_msgs::msg::ErrorCode::DISPARITY]
-        && hasCommand(driveCommands[arcus_msgs::msg::ErrorCode::DISPARITY]))
+    if (_nodeOnline[arcus_msgs::msg::ErrorCode::DISPARITY] && hasCommand(driveCommands[arcus_msgs::msg::ErrorCode::DISPARITY]))
     {
         return DriveState::DISPARITY;
     }
@@ -177,7 +188,10 @@ void MasterNode::tryPublishDriveCommand()
 {
     this->refreshOnlineStatus();
 
-    RCLCPP_INFO(this->get_logger(), "ONLINE NODES, safety:  %d, controller: %d,", _nodeOnline[arcus_msgs::msg::ErrorCode::SAFETY], _nodeOnline[arcus_msgs::msg::ErrorCode::CONTROLLER]);
+    RCLCPP_INFO(this->get_logger(),
+                "ONLINE NODES, safety:  %d, controller: %d,",
+                _nodeOnline[arcus_msgs::msg::ErrorCode::SAFETY],
+                _nodeOnline[arcus_msgs::msg::ErrorCode::CONTROLLER]);
     DriveState state = this->determineDriveState();
     RCLCPP_INFO(this->get_logger(), "STATE %d", state);
 
@@ -185,8 +199,7 @@ void MasterNode::tryPublishDriveCommand()
     {
         case DriveState::SAFETY_EMERGENCY:
         {
-            ackermann_msgs::msg::AckermannDriveStamped emergency_cmd =
-                this->driveCommands[arcus_msgs::msg::ErrorCode::SAFETY];
+            ackermann_msgs::msg::AckermannDriveStamped emergency_cmd = this->driveCommands[arcus_msgs::msg::ErrorCode::SAFETY];
             if (_hasLastNonEmergencySteering)
             {
                 emergency_cmd.drive.steering_angle = _lastNonEmergencySteering;
