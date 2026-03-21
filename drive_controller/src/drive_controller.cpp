@@ -22,7 +22,7 @@ class DriveController : public rclcpp::Node
         Node("motor_sweep_test"),
         count_(0)
     {
-        _drive_publisher = this->create_publisher<ackermann_msgs::msg::AckermannDriveStamped>("/drive", 10);
+        _drive_publisher = this->create_publisher<ackermann_msgs::msg::AckermannDriveStamped>("/controller/drive", 10);
         _joy_sub
             = create_subscription<sensor_msgs::msg::Joy>("/joy",
                                                          rclcpp::QoS{10},
@@ -31,16 +31,29 @@ class DriveController : public rclcpp::Node
             "/controller_type",
             rclcpp::QoS{10},
             std::bind(&DriveController::controller_type_callback, this, std::placeholders::_1));
+
+        _error_publisher = this->create_publisher<arcus_msgs::msg::ErrorCode>("/node_error_code", 10);
+
+        timer_ = this->create_wall_timer(std::chrono::milliseconds(50), std::bind(&DriveController::heartbeat, this));
+
         RCLCPP_INFO(this->get_logger(), "DriveController node has been started.");
     }
 
   private:
+    void heartbeat()
+    {
+        arcus_msgs::msg::ErrorCode error_msg;
+        error_msg.source = arcus_msgs::msg::ErrorCode::CONTROLLER;
+        error_msg.header.stamp = this->now();
+        error_msg.error_code = arcus_msgs::msg::ErrorCode::OK;
+        this->_error_publisher->publish(error_msg);
+    }
     void joy_callback(const sensor_msgs::msg::Joy::SharedPtr joy_msg)
     {
         auto drive_msg = ackermann_msgs::msg::AckermannDriveStamped();
         float throttle = (-joy_msg->axes[this->right_trigger] + joy_msg->axes[this->left_trigger]);
         float steering = (joy_msg->axes[this->left_axis_x]);
-        drive_msg.drive.speed = throttle*3;
+        drive_msg.drive.speed = throttle * 3;
         drive_msg.drive.steering_angle = steering;
         _drive_publisher->publish(drive_msg);
     }
@@ -73,8 +86,10 @@ class DriveController : public rclcpp::Node
     }
 
     rclcpp::Publisher<ackermann_msgs::msg::AckermannDriveStamped>::SharedPtr _drive_publisher;
+    rclcpp::Publisher<arcus_msgs::msg::ErrorCode>::SharedPtr _error_publisher;
     rclcpp::Subscription<sensor_msgs::msg::Joy>::SharedPtr _joy_sub;
     rclcpp::Subscription<arcus_msgs::msg::ControllerType>::SharedPtr _controller_type_subscription;
+    rclcpp::TimerBase::SharedPtr timer_;
 
     size_t count_;
     uint8_t left_axis_x;

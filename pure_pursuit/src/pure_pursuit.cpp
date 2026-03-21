@@ -49,28 +49,26 @@ void PurePursuit::CB_publishDriveCmd(void)
     driveCmd.header.frame_id = "base_link";
     driveCmd.drive.steering_angle = steeringAngle;
 
-    float curvature = 2*sin(alpha)/lookaheadDistanceActual;
+    float curvature = 2 * sin(alpha) / lookaheadDistanceActual;
     float targetSpeed = std::min(MAX_SPEED_MS, sqrt(MAX_LAT_ACCEL / abs(curvature)));
 
-    driveCmd.drive.speed = targetSpeed; // SMARTER WA
+    driveCmd.drive.speed = targetSpeed;  // SMARTER WA
 
     _driveCmdPublisher->publish(driveCmd);
 }
 
 void PurePursuit::CB_positionSubscriber(const nav_msgs::msg::Odometry& msg)
 {
-   ///
+    ///
     geometry_msgs::msg::TransformStamped tf;
 
     try
     {
-        tf = _tfBuffer->lookupTransform(
-            "map",                         // target frame
-            "ego_racecar/base_link",       // source frame
-            tf2::TimePointZero
-        );
+        tf = _tfBuffer->lookupTransform("map",                    // target frame
+                                        "ego_racecar/base_link",  // source frame
+                                        tf2::TimePointZero);
     }
-    catch (const tf2::TransformException &ex)
+    catch (const tf2::TransformException& ex)
     {
         RCLCPP_WARN(this->get_logger(), "TF lookup failed: %s", ex.what());
         return;
@@ -81,14 +79,10 @@ void PurePursuit::CB_positionSubscriber(const nav_msgs::msg::Odometry& msg)
     _currentY = tf.transform.translation.y;
 
     // Orientation (quaternion → yaw)
-    const auto &q = tf.transform.rotation;
+    const auto& q = tf.transform.rotation;
 
-    _currentYaw = std::atan2(
-        2.0 * (q.w * q.z + q.x * q.y),
-        1.0 - 2.0 * (q.y * q.y + q.z * q.z)
-    );
+    _currentYaw = std::atan2(2.0 * (q.w * q.z + q.x * q.y), 1.0 - 2.0 * (q.y * q.y + q.z * q.z));
     _currentSpeed = msg.twist.twist.linear.x;
-
 }
 
 void PurePursuit::CB_publishTargetWaypoint(const geometry_msgs::msg::PoseStamped& msg)
@@ -177,8 +171,20 @@ void PurePursuit::initRosElements(void)
     _driveCmdPublisher = this->create_publisher<ackermann_msgs::msg::AckermannDriveStamped>(_driveCmdTopic, DEFAULT_QOS);
     _targetWaypointPublisher = this->create_publisher<geometry_msgs::msg::PointStamped>(TARGET_WAYPOINT_TOPIC, DEFAULT_QOS);
 
+    _errorPublisher = this->create_publisher<arcus_msgs::msg::ErrorCode>("/node_error_code", 10);
+
+    _heartbeatTimer = this->create_wall_timer(std::chrono::milliseconds(50), std::bind(&PurePursuit::heartbeat, this));
     _tfBuffer = std::make_shared<tf2_ros::Buffer>(this->get_clock());
     _tfListener = std::make_shared<tf2_ros::TransformListener>(*_tfBuffer);
+}
+
+void PurePursuit::heartbeat()
+{
+    arcus_msgs::msg::ErrorCode error_msg;
+    error_msg.source = arcus_msgs::msg::ErrorCode::PURE_PURSUIT;
+    error_msg.header.stamp = this->now();
+    error_msg.error_code = arcus_msgs::msg::ErrorCode::OK;
+    this->_errorPublisher->publish(error_msg);
 }
 
 double PurePursuit::clipLookaheadDistance(double lookAheadDistance_) const

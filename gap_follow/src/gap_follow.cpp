@@ -1,4 +1,5 @@
 #include "gap_follow.hpp"
+#include "arcus_msgs/msg/error_code.hpp"
 
 int main(int argc, char** argv)
 {
@@ -13,6 +14,8 @@ ReactiveGapFollow::ReactiveGapFollow():
 {
     _directionPublisher = this->create_publisher<ackermann_msgs::msg::AckermannDriveStamped>(DRIVE_TOPIC, DEFAULT_QOS);
 
+    _error_publisher = this->create_publisher<arcus_msgs::msg::ErrorCode>("/node_error_code", 10);
+    _timer = this->create_wall_timer(std::chrono::milliseconds(50), std::bind(&ReactiveGapFollow::heartbeat, this));
     _laserPublisher = this->create_publisher<sensor_msgs::msg::LaserScan>("processed_scan", DEFAULT_QOS);
 
     _targetWaypointPublisher = this->create_publisher<geometry_msgs::msg::PointStamped>("target_waypoint", DEFAULT_QOS);
@@ -24,8 +27,15 @@ ReactiveGapFollow::ReactiveGapFollow():
                                                                  {
                                                                      this->lidar_CB(msg);
                                                                  });
+}
 
-    _vectorPublisher = this->create_publisher<geometry_msgs::msg::PoseStamped>("target_vector", DEFAULT_QOS);
+void ReactiveGapFollow::heartbeat()
+{
+    arcus_msgs::msg::ErrorCode error_msg;
+    error_msg.source = arcus_msgs::msg::ErrorCode::DISPARITY;
+    error_msg.header.stamp = this->now();
+    error_msg.error_code = arcus_msgs::msg::ErrorCode::OK;
+    this->_error_publisher->publish(error_msg);
 }
 
 void ReactiveGapFollow::lidar_CB(sensor_msgs::msg::LaserScan::SharedPtr scanMsg_)
@@ -61,7 +71,7 @@ void ReactiveGapFollow::lidar_CB(sensor_msgs::msg::LaserScan::SharedPtr scanMsg_
             ranges[i] = range_min;
         }
         _processedRanges[i] = ranges[i];
-        
+
         if (std::abs(ranges[i] - old_distance) > DISPARITY_THRESHOLD)
         {
             float closer_distance = std::min(ranges[i], old_distance);
@@ -165,7 +175,7 @@ void ReactiveGapFollow::lidar_CB(sensor_msgs::msg::LaserScan::SharedPtr scanMsg_
 float ReactiveGapFollow::setSpeedFromDistance(float distance_, float steeringAngle_)
 {
     float speed = distance_ * SPEED_DISTANCE_FACTOR
-                  / (1.0f +  (std::abs(steeringAngle_)/4));  // Reduce speed when steering angle is large
+                  / (1.0f + (std::abs(steeringAngle_) / 4));  // Reduce speed when steering angle is large
     if (speed > MAX_SPEED)
     {
         speed = MAX_SPEED;
