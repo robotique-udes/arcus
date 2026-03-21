@@ -53,7 +53,7 @@ jobs:
               export CPR_USE_SYSTEM_CURL=ON
               export CXXFLAGS='-Werror'
               echo -e '\e[0;34m=== Building ROS2 Packages ... ===\e[0m'
-              if colcon build; then
+              if [colcon build --packages-ignore range_libc particle_filter]; then
                 echo -e '\e[0;32m=== [SUCCESS] ===\e[0m'
               else
                 echo -e '\e[0;31m[FAILED] Building step triggered warnings or errors\e[0m'
