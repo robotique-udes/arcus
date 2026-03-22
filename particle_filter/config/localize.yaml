@@ -8,7 +8,7 @@ particle_filter:
     transform_tolerance: 0.5
     # range data downsampling
     angle_step: 10
-    max_particles: 2000
+    max_particles: 3000
     squash_factor: 2.2
     # visualization
     viz: 1
@@ -19,7 +19,7 @@ particle_filter:
     # range data filtering
     max_range: 25.0
     fine_timing: 0
-    publish_odom: 0
+    publish_odom: 1
     # sensor model constants
     z_short: 0.01
     z_max: 0.07

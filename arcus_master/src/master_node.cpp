@@ -2,6 +2,8 @@
 #define MASTER_NODE_CPP
 
 #include "master_node.hpp"
+#include <sstream>
+
 
 int main(int argc, char** argv)
 {
@@ -75,7 +77,8 @@ void MasterNode::errorCodeCallback(const arcus_msgs::msg::ErrorCode::SharedPtr m
         return;
     }
 
-    this->_lastHeartbeatNs[msg->source] = (uint64_t)msg->header.stamp.sec * 1000000000ULL + msg->header.stamp.nanosec;
+    // Use local receive time so online tracking is immune to clock skew between nodes.
+    this->_lastHeartbeatNs[msg->source] = static_cast<uint64_t>(this->now().nanoseconds());
     this->_nodeOnline[msg->source] = msg->error_code != arcus_msgs::msg::ErrorCode::OFFLINE;
 
     if (msg->error_code != arcus_msgs::msg::ErrorCode::OK)
@@ -133,7 +136,7 @@ void MasterNode::deadmanCallback(const std_msgs::msg::Bool::SharedPtr msg)
 void MasterNode::refreshOnlineStatus()
 {
     uint64_t now_ns = this->now().nanoseconds();
-    constexpr uint64_t timeout_ns = 100000000;  // 0.1 second timeout
+    constexpr uint64_t timeout_ns = 300000000;  // 0.3 second timeout for scheduler/network jitter
 
     for (std::size_t i = 0; i < _nodeOnline.size(); ++i)
     {
@@ -151,11 +154,17 @@ bool MasterNode::hasCommand(const ackermann_msgs::msg::AckermannDriveStamped& cm
 
 MasterNode::DriveState MasterNode::determineDriveState() const
 {
-    if (emergencyBrakeEngaged && _nodeOnline[arcus_msgs::msg::ErrorCode::SAFETY])
+    if (!_deadmanActive)
     {
         return DriveState::SAFETY_EMERGENCY;
     }
-    if (!_deadmanActive)
+
+    if (_nodeOnline[arcus_msgs::msg::ErrorCode::CONTROLLER] && hasCommand(driveCommands[arcus_msgs::msg::ErrorCode::CONTROLLER]))
+    {
+        return DriveState::CONTROLLER;
+    }
+    
+    if (emergencyBrakeEngaged && _nodeOnline[arcus_msgs::msg::ErrorCode::SAFETY])
     {
         return DriveState::SAFETY_EMERGENCY;
     }
@@ -163,11 +172,6 @@ MasterNode::DriveState MasterNode::determineDriveState() const
     if (_nodeOnline[arcus_msgs::msg::ErrorCode::SAFETY] && hasCommand(driveCommands[arcus_msgs::msg::ErrorCode::SAFETY]))
     {
         return DriveState::SAFETY_OVERRIDE;
-    }
-
-    if (_nodeOnline[arcus_msgs::msg::ErrorCode::CONTROLLER] && hasCommand(driveCommands[arcus_msgs::msg::ErrorCode::CONTROLLER]))
-    {
-        return DriveState::CONTROLLER;
     }
 
     if (_nodeOnline[arcus_msgs::msg::ErrorCode::PURE_PURSUIT]
@@ -188,12 +192,7 @@ void MasterNode::tryPublishDriveCommand()
 {
     this->refreshOnlineStatus();
 
-    RCLCPP_INFO(this->get_logger(),
-                "ONLINE NODES, safety:  %d, controller: %d,",
-                _nodeOnline[arcus_msgs::msg::ErrorCode::SAFETY],
-                _nodeOnline[arcus_msgs::msg::ErrorCode::CONTROLLER]);
     DriveState state = this->determineDriveState();
-    RCLCPP_INFO(this->get_logger(), "STATE %d", state);
 
     switch (state)
     {

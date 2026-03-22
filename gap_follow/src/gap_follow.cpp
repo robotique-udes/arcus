@@ -19,6 +19,7 @@ ReactiveGapFollow::ReactiveGapFollow():
     _laserPublisher = this->create_publisher<sensor_msgs::msg::LaserScan>("processed_scan", DEFAULT_QOS);
 
     _targetWaypointPublisher = this->create_publisher<geometry_msgs::msg::PointStamped>("target_waypoint", DEFAULT_QOS);
+    _vectorPublisher = this->create_publisher<geometry_msgs::msg::PoseStamped>("vector", DEFAULT_QOS);
 
     _laserScanSubscriber
         = this->create_subscription<sensor_msgs::msg::LaserScan>(LIDAR_SCAN_TOPIC,
@@ -40,6 +41,18 @@ void ReactiveGapFollow::heartbeat()
 
 void ReactiveGapFollow::lidar_CB(sensor_msgs::msg::LaserScan::SharedPtr scanMsg_)
 {
+
+    if (!scanMsg_ || scanMsg_->ranges.empty())
+    {
+        RCLCPP_WARN(this->get_logger(), "Invalid scan");
+        return;
+    }
+
+    if (scanMsg_->angle_increment == 0.0f)
+    {
+        RCLCPP_ERROR(this->get_logger(), "Invalid angle_increment");
+        return;
+    }
     std::vector<float>& ranges = scanMsg_->ranges;
     std::vector<float> extendedRanges;
     size_t size = ranges.size();
