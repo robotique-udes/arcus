@@ -47,6 +47,7 @@ class MasterNode : public rclcpp::Node
     double _lastNonEmergencySteering = 0.0;
 
     bool emergencyBrakeEngaged = false;
+    bool ppRecoveryEngaged = false;
     bool _deadmanActive = false;
 
     void disparityDriveCallback(const ackermann_msgs::msg::AckermannDriveStamped::SharedPtr msg);

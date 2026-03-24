@@ -25,9 +25,13 @@ class PurePursuit : public rclcpp::Node
     static constexpr double LOOKAHEAD_DISTANCE_GAIN = 0.46;
     static constexpr double MAX_LOOKAHEAD_FRACTION_OF_PATH = 0.10;
     static constexpr double LOOP_FREQUENCY_HZ = 38.0;
-    static constexpr double WHEELBASE_M = 0.325;      // Distance between front and rear axles
+    static constexpr double WHEELBASE_M = 0.325;  // Distance between front and rear axles
     static constexpr double MAX_SPEED_MS = 20.0;  // Constant speed in m/s
-    static constexpr double MAX_LAT_ACCEL = 2.8;  // Constant speed in m/s2 
+    static constexpr double MAX_LAT_ACCEL = 2.8;  // Constant speed in m/s2
+    static constexpr double RECOVERY_TRIGGER_SPEED_MS = 0.1;
+    static constexpr double RECOVERY_REVERSE_SPEED_MS = 1.0;
+    static constexpr double RECOVERY_DISENGAGE_STEER_RAD = PI / 4.0;
+    static constexpr double RECOVERY_REARM_SPEED_MS = 0.2;
 
     // Topic, input file names and QoS
     static constexpr const uint8_t DEFAULT_QOS = 1;
@@ -67,6 +71,9 @@ class PurePursuit : public rclcpp::Node
 
     size_t _previousWaypointIndex = 0;
     bool _firstTargetWaypointLocked = false;
+    bool _recoveryActive = false;
+    bool _recoveryArmed = true;
+    double _recoverySteeringAngle = 0.0;
 
     std::vector<geometry_msgs::msg::PoseStamped> _waypoints;
 

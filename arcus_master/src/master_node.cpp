@@ -4,7 +4,6 @@
 #include "master_node.hpp"
 #include <sstream>
 
-
 int main(int argc, char** argv)
 {
     rclcpp::init(argc, argv);
@@ -100,6 +99,15 @@ void MasterNode::errorCodeCallback(const arcus_msgs::msg::ErrorCode::SharedPtr m
         emergencyBrakeEngaged = false;
     }
 
+    if (msg->source == arcus_msgs::msg::ErrorCode::PURE_PURSUIT && msg->error_code == arcus_msgs::msg::ErrorCode::EMERGENCY_BRAKE)
+    {
+        ppRecoveryEngaged = true;
+    }
+    else if (msg->source == arcus_msgs::msg::ErrorCode::PURE_PURSUIT && msg->error_code == arcus_msgs::msg::ErrorCode::OK)
+    {
+        ppRecoveryEngaged = false;
+    }
+
     this->refreshOnlineStatus();
     this->tryPublishDriveCommand();
 }
@@ -163,7 +171,13 @@ MasterNode::DriveState MasterNode::determineDriveState() const
     {
         return DriveState::CONTROLLER;
     }
-    
+
+    if (ppRecoveryEngaged && _nodeOnline[arcus_msgs::msg::ErrorCode::PURE_PURSUIT]
+        && hasCommand(driveCommands[arcus_msgs::msg::ErrorCode::PURE_PURSUIT]))
+    {
+        return DriveState::PURE_PURSUIT;
+    }
+
     if (emergencyBrakeEngaged && _nodeOnline[arcus_msgs::msg::ErrorCode::SAFETY])
     {
         return DriveState::SAFETY_EMERGENCY;

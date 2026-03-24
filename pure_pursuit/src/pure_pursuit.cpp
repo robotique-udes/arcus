@@ -52,6 +52,33 @@ void PurePursuit::CB_publishDriveCmd(void)
     float curvature = 2 * sin(alpha) / lookaheadDistanceActual;
     float targetSpeed = std::min(MAX_SPEED_MS, sqrt(MAX_LAT_ACCEL / abs(curvature)));
 
+    if (_recoveryActive)
+    {
+        if (std::abs(steeringAngle) < RECOVERY_DISENGAGE_STEER_RAD)
+        {
+            _recoveryActive = false;
+        }
+        else
+        {
+            driveCmd.drive.steering_angle = _recoverySteeringAngle;
+            driveCmd.drive.speed = -RECOVERY_REVERSE_SPEED_MS;
+            _driveCmdPublisher->publish(driveCmd);
+            return;
+        }
+    }
+
+    if (_recoveryArmed && (_currentSpeed < RECOVERY_TRIGGER_SPEED_MS))
+    {
+        _recoveryActive = true;
+        _recoveryArmed = false;
+        _recoverySteeringAngle = steeringAngle;
+
+        driveCmd.drive.steering_angle = _recoverySteeringAngle;
+        driveCmd.drive.speed = -RECOVERY_REVERSE_SPEED_MS;
+        _driveCmdPublisher->publish(driveCmd);
+        return;
+    }
+
     driveCmd.drive.speed = targetSpeed;  // SMARTER WA
 
     _driveCmdPublisher->publish(driveCmd);
@@ -83,6 +110,11 @@ void PurePursuit::CB_positionSubscriber(const nav_msgs::msg::Odometry& msg)
 
     _currentYaw = std::atan2(2.0 * (q.w * q.z + q.x * q.y), 1.0 - 2.0 * (q.y * q.y + q.z * q.z));
     _currentSpeed = msg.twist.twist.linear.x;
+
+    if (_currentSpeed > RECOVERY_REARM_SPEED_MS)
+    {
+        _recoveryArmed = true;
+    }
 }
 
 void PurePursuit::CB_publishTargetWaypoint(const geometry_msgs::msg::PoseStamped& msg)
@@ -183,7 +215,14 @@ void PurePursuit::heartbeat()
     arcus_msgs::msg::ErrorCode error_msg;
     error_msg.source = arcus_msgs::msg::ErrorCode::PURE_PURSUIT;
     error_msg.header.stamp = this->now();
-    error_msg.error_code = arcus_msgs::msg::ErrorCode::OK;
+    if (!_recoveryActive)
+    {
+        error_msg.error_code = arcus_msgs::msg::ErrorCode::OK;
+    }
+    else
+    {
+        error_msg.error_code = arcus_msgs::msg::ErrorCode::EMERGENCY_BRAKE;
+    }
     this->_errorPublisher->publish(error_msg);
 }
 
