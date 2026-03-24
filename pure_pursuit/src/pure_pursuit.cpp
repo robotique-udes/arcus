@@ -54,12 +54,15 @@ void PurePursuit::CB_publishDriveCmd(void)
 
     if (_recoveryActive)
     {
+        RCLCPP_DEBUG(this->get_logger(), "Recovery Active: steeringAngle=%.4f, threshold=%.4f", std::abs(steeringAngle), RECOVERY_DISENGAGE_STEER_RAD);
         if (std::abs(steeringAngle) < RECOVERY_DISENGAGE_STEER_RAD)
         {
             _recoveryActive = false;
+            RCLCPP_INFO(this->get_logger(), "Recovery Mode DISENGAGED: steering angle now below threshold");
         }
         else
         {
+            RCLCPP_DEBUG(this->get_logger(), "Recovery Mode: Sending reverse command (speed=%.2f, steeringAngle=%.4f)", -RECOVERY_REVERSE_SPEED_MS, _recoverySteeringAngle);
             driveCmd.drive.steering_angle = _recoverySteeringAngle;
             driveCmd.drive.speed = -RECOVERY_REVERSE_SPEED_MS;
             _driveCmdPublisher->publish(driveCmd);
@@ -69,10 +72,12 @@ void PurePursuit::CB_publishDriveCmd(void)
 
     if (_recoveryArmed && (_currentSpeed < RECOVERY_TRIGGER_SPEED_MS))
     {
+        RCLCPP_WARN(this->get_logger(), "Recovery Mode ACTIVATED: carHasEverMoved=%d, currentSpeed=%.4f, triggerSpeed=%.4f", _carHasEverMoved, _currentSpeed, RECOVERY_TRIGGER_SPEED_MS);
         _recoveryActive = true;
         _recoveryArmed = false;
         _recoverySteeringAngle = steeringAngle;
 
+        RCLCPP_INFO(this->get_logger(), "Sending initial recovery reverse command (speed=%.2f, steeringAngle=%.4f)", -RECOVERY_REVERSE_SPEED_MS, _recoverySteeringAngle);
         driveCmd.drive.steering_angle = _recoverySteeringAngle;
         driveCmd.drive.speed = -RECOVERY_REVERSE_SPEED_MS;
         _driveCmdPublisher->publish(driveCmd);
@@ -111,9 +116,20 @@ void PurePursuit::CB_positionSubscriber(const nav_msgs::msg::Odometry& msg)
     _currentYaw = std::atan2(2.0 * (q.w * q.z + q.x * q.y), 1.0 - 2.0 * (q.y * q.y + q.z * q.z));
     _currentSpeed = msg.twist.twist.linear.x;
 
-    if (_currentSpeed > RECOVERY_REARM_SPEED_MS)
+    // Track if the car has ever moved
+    if (_currentSpeed > 0.0 && !_carHasEverMoved)
     {
-        _recoveryArmed = true;
+        _carHasEverMoved = true;
+        RCLCPP_INFO(this->get_logger(), "Car has started moving for the first time! Speed: %.4f m/s", _currentSpeed);
+    }
+
+    if (_carHasEverMoved && (_currentSpeed > RECOVERY_REARM_SPEED_MS))
+    {
+        if (!_recoveryArmed)
+        {
+            _recoveryArmed = true;
+            RCLCPP_DEBUG(this->get_logger(), "Recovery Mode ARMED: speed (%.4f) > rearm threshold (%.4f)", _currentSpeed, RECOVERY_REARM_SPEED_MS);
+        }
     }
 }
 
