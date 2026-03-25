@@ -24,16 +24,16 @@ class PurePursuit : public rclcpp::Node
     static constexpr const double e = 2.71828;
     // Below are parameters that need to be tweaked for better performance
     static constexpr double MAX_LOOKAHEAD_DISTANCE_M = 10.0;
-    static constexpr double MIN_LOOKAHEAD_DISTANCE_M = 0.35;
+    static constexpr double MIN_LOOKAHEAD_DISTANCE_M = 0.10;
     static constexpr double LOOKAHEAD_DISTANCE_GAIN = 0.46;
     static constexpr double MAX_LOOKAHEAD_FRACTION_OF_PATH = 0.10;
     static constexpr double LOOP_FREQUENCY_HZ = 38.0;
     static constexpr double WHEELBASE_M = 0.325;  // Distance between front and rear axles
     static constexpr double MAX_SPEED_MS = 20.0;  // Constant speed in m/s
     static constexpr double MAX_LAT_ACCEL = 2.8;  // Constant speed in m/s2
-    static constexpr double RECOVERY_TRIGGER_SPEED_MS = 0.1;
-    static constexpr double RECOVERY_REVERSE_SPEED_MS = 1.0;
-    static constexpr double RECOVERY_DISENGAGE_STEER_RAD = PI / 4.0;
+    static constexpr double RECOVERY_TRIGGER_SPEED_MS = 0.06;
+    static constexpr double RECOVERY_REVERSE_SPEED_MS = 0.7;
+    static constexpr double RECOVERY_DISENGAGE_STEER_RAD = PI / 12.0;
     static constexpr double RECOVERY_REARM_SPEED_MS = 1.0;
 
     // Topic, input file names and QoS
@@ -41,7 +41,7 @@ class PurePursuit : public rclcpp::Node
     static constexpr const char* DEFAULT_DRIVE_CMD_TOPIC = "/pure_pursuit/drive";
     static constexpr const char* TARGET_WAYPOINT_TOPIC = "/target_waypoint";
     static constexpr const char* DEFAULT_POSITION_TOPIC = "/odometry/filtered";
-    static constexpr const char* DEFAULT_WAYPOINTS_CSV_FILE_NAME = "/sim_ws/src/arcus/resources/waypoints/waypoints.csv";
+    static constexpr const char* DEFAULT_WAYPOINTS_CSV_FILE_NAME = "/home/arcus/arcus/resources/waypoints/waypoints.csv";
 
 
   public:

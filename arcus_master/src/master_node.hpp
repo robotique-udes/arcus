@@ -43,6 +43,7 @@ class MasterNode : public rclcpp::Node
     std::array<uint64_t, 10> _lastHeartbeatNs{};
     std::array<bool, 10> _nodeOnline{};
     std::array<ackermann_msgs::msg::AckermannDriveStamped, 10> driveCommands{};
+    ackermann_msgs::msg::AckermannDriveStamped _emptyMsg;
     bool _hasLastNonEmergencySteering = false;
     double _lastNonEmergencySteering = 0.0;
 

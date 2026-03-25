@@ -10,7 +10,7 @@
 
 class Safety : public rclcpp::Node
 {
-    static constexpr double TTC_THRESHOLD_S = 0.7;
+    static constexpr double TTC_THRESHOLD_S = 0.45;
     static constexpr double MIN_RANGE_RATE_MS = 0.0;  // Minimum range rate in m/s
 
     static constexpr const uint8_t QOS = 1;

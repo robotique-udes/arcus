@@ -63,7 +63,7 @@ void PurePursuit::CB_publishDriveCmd(void)
         else
         {
             RCLCPP_DEBUG(this->get_logger(), "Recovery Mode: Sending reverse command (speed=%.2f, steeringAngle=%.4f)", -RECOVERY_REVERSE_SPEED_MS, _recoverySteeringAngle);
-            driveCmd.drive.steering_angle = _recoverySteeringAngle;
+            driveCmd.drive.steering_angle = -_recoverySteeringAngle;
             driveCmd.drive.speed = -RECOVERY_REVERSE_SPEED_MS;
             _driveCmdPublisher->publish(driveCmd);
             return;

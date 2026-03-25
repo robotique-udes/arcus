@@ -241,6 +241,9 @@ void MasterNode::tryPublishDriveCommand()
             _hasLastNonEmergencySteering = true;
             break;
         case DriveState::NONE:
+            _emptyMsg.drive.speed = 0.0;
+            _emptyMsg.drive.steering_angle = 0.0;
+            _drivePublisher->publish(_emptyMsg);
             break;
     }
 }
