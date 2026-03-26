@@ -21,20 +21,23 @@ void PurePursuit::CB_publishDriveCmd(void)
     double lookAheadDistance = LOOKAHEAD_DISTANCE_GAIN * _currentSpeed;
     double clippedLookAheadDistance = this->clipLookaheadDistance(lookAheadDistance);
 
-    geometry_msgs::msg::PoseStamped lookaheadPoint = this->getLookaheadPoint(clippedLookAheadDistance);
-    this->CB_publishTargetWaypoint(lookaheadPoint);  // For visualization purposes only
+    Waypoint lookaheadPoint = this->getLookaheadPoint(clippedLookAheadDistance);
+    this->CB_publishTargetWaypoint(lookaheadPoint.point);  // For visualization purposes only
 
-    RCLCPP_DEBUG(this->get_logger(),
+    /* RCLCPP_DEBUG(this->get_logger(),
                  "Lookahead Point: (%.2f, %.2f), Current Position: (%.2f, %.2f), Lookahead Distance: %.2f",
                  lookaheadPoint.pose.position.x,
                  lookaheadPoint.pose.position.y,
                  _currentX,
                  _currentY,
-                 clippedLookAheadDistance);
+                 clippedLookAheadDistance); */
 
     // Find the actual lookahead distance based on the selected lookahead point
-    double dx = lookaheadPoint.pose.position.x - _currentX;
-    double dy = lookaheadPoint.pose.position.y - _currentY;
+
+    float targetSpeed = lookaheadPoint.speed;
+
+    double dx = lookaheadPoint.point.pose.position.x - _currentX;
+    double dy = lookaheadPoint.point.pose.position.y - _currentY;
     double lookaheadDistanceActual = std::sqrt(dx * dx + dy * dy);
 
     // Transform (dx, dy) from world to vehicle local frame
@@ -48,9 +51,6 @@ void PurePursuit::CB_publishDriveCmd(void)
     driveCmd.header.stamp = this->now();
     driveCmd.header.frame_id = "base_link";
     driveCmd.drive.steering_angle = steeringAngle;
-
-    float curvature = 2 * sin(alpha) / lookaheadDistanceActual;
-    float targetSpeed = std::min(MAX_SPEED_MS, sqrt(MAX_LAT_ACCEL / abs(curvature)));
 
     driveCmd.drive.speed = targetSpeed;  // SMARTER WA
 
@@ -136,9 +136,11 @@ void PurePursuit::loadWaypointsFromCSV(void)
 
         std::string xPos;
         std::string yPos;
+        std::string speed;
 
         std::getline(ss, xPos, ',');
         std::getline(ss, yPos, ',');
+        std::getline(ss, speed, ',');
 
         geometry_msgs::msg::PoseStamped poseStamped;
         poseStamped.pose.position.x = std::stod(xPos);
@@ -148,7 +150,10 @@ void PurePursuit::loadWaypointsFromCSV(void)
         poseStamped.header.frame_id = "map";
         poseStamped.header.stamp = this->now();
 
-        _waypoints.push_back(poseStamped);
+        double speedDouble = std::stod(speed);
+
+        Waypoint pointRead = {poseStamped, speedDouble};
+        _waypoints.push_back(pointRead);
     }
     inputFile.close();
 }
@@ -202,7 +207,7 @@ double PurePursuit::clipLookaheadDistance(double lookAheadDistance_) const
     return clippedLookaheadDistance;
 }
 
-geometry_msgs::msg::PoseStamped PurePursuit::getLookaheadPoint(const double lookAheadDistance_)
+PurePursuit::Waypoint PurePursuit::getLookaheadPoint(const double lookAheadDistance_)
 {
     double minDistanceDifference = std::numeric_limits<double>::max();
     size_t bestIndex = 0;
@@ -219,8 +224,8 @@ geometry_msgs::msg::PoseStamped PurePursuit::getLookaheadPoint(const double look
     {
         size_t wrappingIndex = (i + _previousWaypointIndex) % _waypoints.size();
 
-        double dx = _waypoints[wrappingIndex].pose.position.x - _currentX;
-        double dy = _waypoints[wrappingIndex].pose.position.y - _currentY;
+        double dx = _waypoints[wrappingIndex].point.pose.position.x - _currentX;
+        double dy = _waypoints[wrappingIndex].point.pose.position.y - _currentY;
         double distance = std::sqrt(dx * dx + dy * dy);
         double distanceDifference = std::abs(distance - lookAheadDistance_);
 
