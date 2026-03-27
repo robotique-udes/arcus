@@ -184,6 +184,7 @@ MasterNode::DriveState MasterNode::determineDriveState() const
     }
 
     if (_nodeOnline[arcus_msgs::msg::ErrorCode::SAFETY] && hasCommand(driveCommands[arcus_msgs::msg::ErrorCode::SAFETY]))
+    if (_nodeOnline[arcus_msgs::msg::ErrorCode::SAFETY] && hasCommand(driveCommands[arcus_msgs::msg::ErrorCode::SAFETY]))
     {
         return DriveState::SAFETY_OVERRIDE;
     }
@@ -194,6 +195,7 @@ MasterNode::DriveState MasterNode::determineDriveState() const
         return DriveState::PURE_PURSUIT;
     }
 
+    if (_nodeOnline[arcus_msgs::msg::ErrorCode::DISPARITY] && hasCommand(driveCommands[arcus_msgs::msg::ErrorCode::DISPARITY]))
     if (_nodeOnline[arcus_msgs::msg::ErrorCode::DISPARITY] && hasCommand(driveCommands[arcus_msgs::msg::ErrorCode::DISPARITY]))
     {
         return DriveState::DISPARITY;
@@ -206,12 +208,17 @@ void MasterNode::tryPublishDriveCommand()
 {
     this->refreshOnlineStatus();
 
+    RCLCPP_INFO(this->get_logger(),
+                "ONLINE NODES, safety:  %d, controller: %d,",
+                _nodeOnline[arcus_msgs::msg::ErrorCode::SAFETY],
+                _nodeOnline[arcus_msgs::msg::ErrorCode::CONTROLLER]);
     DriveState state = this->determineDriveState();
 
     switch (state)
     {
         case DriveState::SAFETY_EMERGENCY:
         {
+            ackermann_msgs::msg::AckermannDriveStamped emergency_cmd = this->driveCommands[arcus_msgs::msg::ErrorCode::SAFETY];
             ackermann_msgs::msg::AckermannDriveStamped emergency_cmd = this->driveCommands[arcus_msgs::msg::ErrorCode::SAFETY];
             if (_hasLastNonEmergencySteering)
             {

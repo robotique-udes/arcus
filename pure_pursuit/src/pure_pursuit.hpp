@@ -16,25 +16,33 @@
 #include <sstream>
 #include <vector>
 #include <algorithm>
+#include <cmath>
 
 class PurePursuit : public rclcpp::Node
 {
-    // Mathematical constants
-    static constexpr const double PI = 3.14159;
-    static constexpr const double e = 2.71828;
-    // Below are parameters that need to be tweaked for better performance
-    static constexpr double MAX_LOOKAHEAD_DISTANCE_M = 10.0;
-    static constexpr double MIN_LOOKAHEAD_DISTANCE_M = 0.10;
-    static constexpr double LOOKAHEAD_DISTANCE_GAIN = 0.46;
-    static constexpr double MAX_LOOKAHEAD_FRACTION_OF_PATH = 0.10;
-    static constexpr double LOOP_FREQUENCY_HZ = 38.0;
-    static constexpr double WHEELBASE_M = 0.325;  // Distance between front and rear axles
-    static constexpr double MAX_SPEED_MS = 20.0;  // Constant speed in m/s
-    static constexpr double MAX_LAT_ACCEL = 2.8;  // Constant speed in m/s2
-    static constexpr double RECOVERY_TRIGGER_SPEED_MS = 0.06;
-    static constexpr double RECOVERY_REVERSE_SPEED_MS = 0.7;
-    static constexpr double RECOVERY_DISENGAGE_STEER_RAD = PI / 12.0;
-    static constexpr double RECOVERY_REARM_SPEED_MS = 1.0;
+    struct Waypoint
+    {
+        geometry_msgs::msg::PoseStamped point;
+        double speed;
+    };
+
+    // fallback constants and also holds constants after param loaded
+    double MAX_LOOKAHEAD_M = 3.5;
+    double MIN_LOOKAHEAD_M = 0.2;
+    double LOOKAHEAD_GAIN = 0.5;
+    double MAX_LOOKAHEAD_FRACTION = 0.05;
+    double LOOP_FREQUENCY_HZ = 38.0;
+    double WHEELBASE_M = 0.325;
+    double SPEED_MIN = 0.5;
+    double SPEED_MAX = 7.0;
+    double A_LAT_MAX = 2.0;
+    double A_ACCEL_MAX = 4.0;
+    double A_BRAKE_MAX = 3.0;
+    double SPEED_EPS = 1.0e-6;
+    double RECOVERY_TRIGGER_SPEED_MS = 0.06;
+    double RECOVERY_REVERSE_SPEED_MS = 0.7;
+    double RECOVERY_DISENGAGE_STEER_RAD = PI / 12.0;
+    double RECOVERY_REARM_SPEED_MS = 1.0;
 
     // Topic, input file names and QoS
     static constexpr const uint8_t DEFAULT_QOS = 1;
@@ -54,11 +62,12 @@ class PurePursuit : public rclcpp::Node
 
     void handleRosParam(void);
     void loadWaypointsFromCSV(void);
+    void calculateSpeed(void);
     void initRosElements(void);
     void heartbeat();
 
     double clipLookaheadDistance(double lookAheadDistance_) const;
-    geometry_msgs::msg::PoseStamped getLookaheadPoint(const double lookAheadDistance);
+    Waypoint getLookaheadPoint(const double lookAheadDistance);
 
     std::string _waypointsFilePath = DEFAULT_WAYPOINTS_CSV_FILE_NAME;
     std::string _positionTopic = DEFAULT_POSITION_TOPIC;
@@ -76,7 +85,7 @@ class PurePursuit : public rclcpp::Node
     bool _carHasEverMoved = false;
     double _recoverySteeringAngle = 0.0;
 
-    std::vector<geometry_msgs::msg::PoseStamped> _waypoints;
+    std::vector<Waypoint> _waypoints;
 
     rclcpp::Subscription<nav_msgs::msg::Odometry>::SharedPtr _positionSubscriber;
     rclcpp::TimerBase::SharedPtr _loopTimer;
