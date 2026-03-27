@@ -35,10 +35,10 @@ class PurePursuit : public rclcpp::Node
 
     // Topic, input file names and QoS
     static constexpr const uint8_t DEFAULT_QOS = 1;
-    static constexpr const char* DEFAULT_DRIVE_CMD_TOPIC = "/pure_pursuit/drive";
+    static constexpr const char* DEFAULT_DRIVE_CMD_TOPIC = "/drive";
     static constexpr const char* TARGET_WAYPOINT_TOPIC = "/target_waypoint";
-    static constexpr const char* DEFAULT_POSITION_TOPIC = "/odometry/filtered";
-    static constexpr const char* DEFAULT_WAYPOINTS_CSV_FILE_NAME = "/home/arcus/arcus/resources/waypoints/waypoints.csv";
+    static constexpr const char* DEFAULT_POSITION_TOPIC = "/ego_racecar/odom";
+    static constexpr const char* DEFAULT_WAYPOINTS_CSV_FILE_NAME = "/sim_ws/src/arcus/resources/waypoints/waypoints.csv";
 
     // Mathematical constants
     static constexpr const double PI = 3.14159;

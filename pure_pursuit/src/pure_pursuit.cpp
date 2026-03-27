@@ -18,6 +18,12 @@ PurePursuit::PurePursuit():
 
 void PurePursuit::CB_publishDriveCmd(void)
 {
+    if (_waypoints.empty())
+    {
+        RCLCPP_ERROR(this->get_logger(), "No waypoints loaded. Cannot publish drive command.");
+        return;
+    }
+
     double lookAheadDistance = LOOKAHEAD_DISTANCE_GAIN * _currentSpeed;
     double clippedLookAheadDistance = this->clipLookaheadDistance(lookAheadDistance);
 
@@ -125,6 +131,7 @@ void PurePursuit::loadWaypointsFromCSV(void)
     if (inputFile.peek() == std::ifstream::traits_type::eof())
     {
         RCLCPP_ERROR(this->get_logger(), "Specified file containing waypoints is empty : '%s'", _waypointsFilePath.c_str());
+        RCLCPP_INFO(this->get_logger(), "Make sure the waypoints file exists at: %s", _waypointsFilePath.c_str());
         return;
     }
 
