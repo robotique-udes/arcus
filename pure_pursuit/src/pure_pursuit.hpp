@@ -16,18 +16,29 @@
 #include <sstream>
 #include <vector>
 #include <algorithm>
+#include <cmath>
 
 class PurePursuit : public rclcpp::Node
 {
-    // Below are parameters that need to be tweaked for better performance
-    static constexpr double MAX_LOOKAHEAD_DISTANCE_M = 3.5;
-    static constexpr double MIN_LOOKAHEAD_DISTANCE_M = 0.4;
-    static constexpr double LOOKAHEAD_DISTANCE_GAIN = 0.5;
-    static constexpr double MAX_LOOKAHEAD_FRACTION_OF_PATH = 0.05;
-    static constexpr double LOOP_FREQUENCY_HZ = 38.0;
-    static constexpr double WHEELBASE_M = 0.325;      // Distance between front and rear axles
-    static constexpr double MAX_SPEED_MS = 4.0;  // Constant speed in m/s
-    static constexpr double MAX_LAT_ACCEL = 3.5;  // Constant speed in m/s2 
+    struct Waypoint
+    {
+        geometry_msgs::msg::PoseStamped point;
+        double speed;
+    };
+
+    // fallback constants and also holds constants after param loaded
+    double MAX_LOOKAHEAD_M = 3.5;
+    double MIN_LOOKAHEAD_M = 0.2;
+    double LOOKAHEAD_GAIN = 0.5;
+    double MAX_LOOKAHEAD_FRACTION = 0.05;
+    double LOOP_FREQUENCY_HZ = 38.0;
+    double WHEELBASE_M = 0.325;
+    double SPEED_MIN = 0.5;
+    double SPEED_MAX = 7.0;
+    double A_LAT_MAX = 2.0;
+    double A_ACCEL_MAX = 4.0;
+    double A_BRAKE_MAX = 3.0;
+    double SPEED_EPS = 1.0e-6;
 
     // Topic, input file names and QoS
     static constexpr const uint8_t DEFAULT_QOS = 1;
@@ -50,11 +61,12 @@ class PurePursuit : public rclcpp::Node
 
     void handleRosParam(void);
     void loadWaypointsFromCSV(void);
+    void calculateSpeed(void);
     void initRosElements(void);
     void heartbeat();
 
     double clipLookaheadDistance(double lookAheadDistance_) const;
-    geometry_msgs::msg::PoseStamped getLookaheadPoint(const double lookAheadDistance);
+    Waypoint getLookaheadPoint(const double lookAheadDistance);
 
     std::string _waypointsFilePath = DEFAULT_WAYPOINTS_CSV_FILE_NAME;
     std::string _positionTopic = DEFAULT_POSITION_TOPIC;
@@ -68,7 +80,7 @@ class PurePursuit : public rclcpp::Node
     size_t _previousWaypointIndex = 0;
     bool _firstTargetWaypointLocked = false;
 
-    std::vector<geometry_msgs::msg::PoseStamped> _waypoints;
+    std::vector<Waypoint> _waypoints;
 
     rclcpp::Subscription<nav_msgs::msg::Odometry>::SharedPtr _positionSubscriber;
     rclcpp::TimerBase::SharedPtr _loopTimer;

@@ -70,6 +70,12 @@ IF (IS_PACKAGE_EXECUTABLE)
     ${EXECUTABLE_NAME}
     DESTINATION lib/${PROJECT_NAME})
 
+
+  # Install config dir
+  install(DIRECTORY config/
+    DESTINATION share/${PROJECT_NAME}/config
+  )
+
   # Install launch dir
   install(
     DIRECTORY launch

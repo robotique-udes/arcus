@@ -146,14 +146,12 @@ MasterNode::DriveState MasterNode::determineDriveState() const
         return DriveState::SAFETY_EMERGENCY;
     }
 
-    if (_nodeOnline[arcus_msgs::msg::ErrorCode::SAFETY]
-        && hasCommand(driveCommands[arcus_msgs::msg::ErrorCode::SAFETY]))
+    if (_nodeOnline[arcus_msgs::msg::ErrorCode::SAFETY] && hasCommand(driveCommands[arcus_msgs::msg::ErrorCode::SAFETY]))
     {
         return DriveState::SAFETY_OVERRIDE;
     }
 
-    if (_nodeOnline[arcus_msgs::msg::ErrorCode::CONTROLLER]
-        && hasCommand(driveCommands[arcus_msgs::msg::ErrorCode::CONTROLLER]))
+    if (_nodeOnline[arcus_msgs::msg::ErrorCode::CONTROLLER] && hasCommand(driveCommands[arcus_msgs::msg::ErrorCode::CONTROLLER]))
     {
         return DriveState::CONTROLLER;
     }
@@ -164,8 +162,7 @@ MasterNode::DriveState MasterNode::determineDriveState() const
         return DriveState::PURE_PURSUIT;
     }
 
-    if (_nodeOnline[arcus_msgs::msg::ErrorCode::DISPARITY]
-        && hasCommand(driveCommands[arcus_msgs::msg::ErrorCode::DISPARITY]))
+    if (_nodeOnline[arcus_msgs::msg::ErrorCode::DISPARITY] && hasCommand(driveCommands[arcus_msgs::msg::ErrorCode::DISPARITY]))
     {
         return DriveState::DISPARITY;
     }
@@ -177,7 +174,10 @@ void MasterNode::tryPublishDriveCommand()
 {
     this->refreshOnlineStatus();
 
-    RCLCPP_INFO(this->get_logger(), "ONLINE NODES, safety:  %d, controller: %d,", _nodeOnline[arcus_msgs::msg::ErrorCode::SAFETY], _nodeOnline[arcus_msgs::msg::ErrorCode::CONTROLLER]);
+    RCLCPP_INFO(this->get_logger(),
+                "ONLINE NODES, safety:  %d, controller: %d,",
+                _nodeOnline[arcus_msgs::msg::ErrorCode::SAFETY],
+                _nodeOnline[arcus_msgs::msg::ErrorCode::CONTROLLER]);
     DriveState state = this->determineDriveState();
     RCLCPP_INFO(this->get_logger(), "STATE %d", state);
 
@@ -185,8 +185,7 @@ void MasterNode::tryPublishDriveCommand()
     {
         case DriveState::SAFETY_EMERGENCY:
         {
-            ackermann_msgs::msg::AckermannDriveStamped emergency_cmd =
-                this->driveCommands[arcus_msgs::msg::ErrorCode::SAFETY];
+            ackermann_msgs::msg::AckermannDriveStamped emergency_cmd = this->driveCommands[arcus_msgs::msg::ErrorCode::SAFETY];
             if (_hasLastNonEmergencySteering)
             {
                 emergency_cmd.drive.steering_angle = _lastNonEmergencySteering;
