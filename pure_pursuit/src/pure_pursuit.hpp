@@ -39,6 +39,8 @@ class PurePursuit : public rclcpp::Node
     double A_ACCEL_MAX = 4.0;
     double A_BRAKE_MAX = 3.0;
     double SPEED_EPS = 1.0e-6;
+
+    double PI = 3.14159;
     double RECOVERY_TRIGGER_SPEED_MS = 0.06;
     double RECOVERY_REVERSE_SPEED_MS = 0.7;
     double RECOVERY_DISENGAGE_STEER_RAD = PI / 12.0;
