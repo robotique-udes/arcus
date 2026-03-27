@@ -36,11 +36,10 @@ void Safety::CB_scan(const sensor_msgs::msg::LaserScan& scanMsg_)
         double rangeRate = _currentSpeed * std::cos(scanMsg_.angle_min + i * scanMsg_.angle_increment);
         double iTTC = 100;
 
-        if(rangeRate > MIN_RANGE_RATE_MS)
+        if (rangeRate > MIN_RANGE_RATE_MS)
         {
             iTTC = ranges[i] / rangeRate;
         }
-
 
         if (iTTC < TTC_THRESHOLD_S)
         {

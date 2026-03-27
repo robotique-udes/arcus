@@ -20,25 +20,26 @@
 
 class PurePursuit : public rclcpp::Node
 {
-    struct Waypoint {
+    struct Waypoint
+    {
         geometry_msgs::msg::PoseStamped point;
         double speed;
-    }; 
+    };
 
     // fallback constants and also holds constants after param loaded
-    double MAX_LOOKAHEAD_M        = 3.5;
-    double MIN_LOOKAHEAD_M        = 0.2;
-    double LOOKAHEAD_GAIN         = 0.5;
+    double MAX_LOOKAHEAD_M = 3.5;
+    double MIN_LOOKAHEAD_M = 0.2;
+    double LOOKAHEAD_GAIN = 0.5;
     double MAX_LOOKAHEAD_FRACTION = 0.05;
-    double LOOP_FREQUENCY_HZ      = 38.0;
-    double WHEELBASE_M            = 0.325;
-    double SPEED_MIN              = 0.5;
-    double SPEED_MAX              = 7.0;
-    double A_LAT_MAX              = 2.0;
-    double A_ACCEL_MAX            = 4.0;
-    double A_BRAKE_MAX            = 3.0;
-    double SPEED_EPS              = 1.0e-6;
-    
+    double LOOP_FREQUENCY_HZ = 38.0;
+    double WHEELBASE_M = 0.325;
+    double SPEED_MIN = 0.5;
+    double SPEED_MAX = 7.0;
+    double A_LAT_MAX = 2.0;
+    double A_ACCEL_MAX = 4.0;
+    double A_BRAKE_MAX = 3.0;
+    double SPEED_EPS = 1.0e-6;
+
     // Topic, input file names and QoS
     static constexpr const uint8_t DEFAULT_QOS = 1;
     static constexpr const char* DEFAULT_DRIVE_CMD_TOPIC = "/pure_pursuit/drive";

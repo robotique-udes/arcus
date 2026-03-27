@@ -14,7 +14,7 @@ PurePursuit::PurePursuit():
     this->handleRosParam();
     this->initRosElements();
     this->loadWaypointsFromCSV();
-    this->calculateSpeed(); 
+    this->calculateSpeed();
 }
 
 void PurePursuit::CB_publishDriveCmd(void)
@@ -110,36 +110,37 @@ void PurePursuit::handleRosParam(void)
     this->declare_parameter<std::string>("position_topic", DEFAULT_POSITION_TOPIC);
     this->declare_parameter<std::string>("drive_command_topic", DEFAULT_DRIVE_CMD_TOPIC);
 
-    this->declare_parameter("max_lookahead_distance_m",       MAX_LOOKAHEAD_M);
-    this->declare_parameter("min_lookahead_distance_m",       MIN_LOOKAHEAD_M);
-    this->declare_parameter("lookahead_distance_gain",        LOOKAHEAD_GAIN);
+    this->declare_parameter("max_lookahead_distance_m", MAX_LOOKAHEAD_M);
+    this->declare_parameter("min_lookahead_distance_m", MIN_LOOKAHEAD_M);
+    this->declare_parameter("lookahead_distance_gain", LOOKAHEAD_GAIN);
     this->declare_parameter("max_lookahead_fraction_of_path", MAX_LOOKAHEAD_FRACTION);
-    this->declare_parameter("loop_frequency_hz",              LOOP_FREQUENCY_HZ);
-    this->declare_parameter("wheelbase_m",                    WHEELBASE_M);
-    this->declare_parameter("speed_min",                      SPEED_MIN);
-    this->declare_parameter("speed_max",                      SPEED_MAX);
-    this->declare_parameter("a_lat_max",                      A_LAT_MAX);
-    this->declare_parameter("a_accel_max",                    A_ACCEL_MAX);
-    this->declare_parameter("a_brake_max",                    A_BRAKE_MAX);
-    this->declare_parameter("speed_eps",                      SPEED_EPS);
+    this->declare_parameter("loop_frequency_hz", LOOP_FREQUENCY_HZ);
+    this->declare_parameter("wheelbase_m", WHEELBASE_M);
+    this->declare_parameter("speed_min", SPEED_MIN);
+    this->declare_parameter("speed_max", SPEED_MAX);
+    this->declare_parameter("a_lat_max", A_LAT_MAX);
+    this->declare_parameter("a_accel_max", A_ACCEL_MAX);
+    this->declare_parameter("a_brake_max", A_BRAKE_MAX);
+    this->declare_parameter("speed_eps", SPEED_EPS);
 
     _waypointsFilePath = this->get_parameter("waypoints_file_path").as_string();
     _positionTopic = this->get_parameter("position_topic").as_string();
     _driveCmdTopic = this->get_parameter("drive_command_topic").as_string();
 
-    try {
-        MAX_LOOKAHEAD_M        = this->get_parameter("max_lookahead_distance_m").as_double();
-        MIN_LOOKAHEAD_M        = this->get_parameter("min_lookahead_distance_m").as_double();
-        LOOKAHEAD_GAIN         = this->get_parameter("lookahead_distance_gain").as_double();
+    try
+    {
+        MAX_LOOKAHEAD_M = this->get_parameter("max_lookahead_distance_m").as_double();
+        MIN_LOOKAHEAD_M = this->get_parameter("min_lookahead_distance_m").as_double();
+        LOOKAHEAD_GAIN = this->get_parameter("lookahead_distance_gain").as_double();
         MAX_LOOKAHEAD_FRACTION = this->get_parameter("max_lookahead_fraction_of_path").as_double();
-        LOOP_FREQUENCY_HZ      = this->get_parameter("loop_frequency_hz").as_double();
-        WHEELBASE_M            = this->get_parameter("wheelbase_m").as_double();
-        SPEED_MIN              = this->get_parameter("speed_min").as_double();
-        SPEED_MAX              = this->get_parameter("speed_max").as_double();
-        A_LAT_MAX              = this->get_parameter("a_lat_max").as_double();
-        A_ACCEL_MAX            = this->get_parameter("a_accel_max").as_double();
-        A_BRAKE_MAX            = this->get_parameter("a_brake_max").as_double();
-        SPEED_EPS              = this->get_parameter("speed_eps").as_double();
+        LOOP_FREQUENCY_HZ = this->get_parameter("loop_frequency_hz").as_double();
+        WHEELBASE_M = this->get_parameter("wheelbase_m").as_double();
+        SPEED_MIN = this->get_parameter("speed_min").as_double();
+        SPEED_MAX = this->get_parameter("speed_max").as_double();
+        A_LAT_MAX = this->get_parameter("a_lat_max").as_double();
+        A_ACCEL_MAX = this->get_parameter("a_accel_max").as_double();
+        A_BRAKE_MAX = this->get_parameter("a_brake_max").as_double();
+        SPEED_EPS = this->get_parameter("speed_eps").as_double();
     }
     catch (const rclcpp::ParameterTypeException& ex)
     {
@@ -190,11 +191,11 @@ void PurePursuit::loadWaypointsFromCSV(void)
 
         std::string xPos;
         std::string yPos;
-        //std::string speed;
+        // std::string speed;
 
         std::getline(ss, xPos, ',');
         std::getline(ss, yPos, ',');
-        //std::getline(ss, speed, ',');
+        // std::getline(ss, speed, ',');
 
         geometry_msgs::msg::PoseStamped poseStamped;
         poseStamped.pose.position.x = std::stod(xPos);
@@ -204,7 +205,7 @@ void PurePursuit::loadWaypointsFromCSV(void)
         poseStamped.header.frame_id = "map";
         poseStamped.header.stamp = this->now();
 
-        //double speedDouble = std::stod(speed);
+        // double speedDouble = std::stod(speed);
 
         Waypoint pointRead = {poseStamped, 0.f};
         _waypoints.push_back(pointRead);
@@ -214,56 +215,64 @@ void PurePursuit::loadWaypointsFromCSV(void)
 
 void PurePursuit::calculateSpeed(void)
 {
-size_t n = _waypoints.size();
+    size_t n = _waypoints.size();
 
-    if (n == 0) return;
+    if (n == 0)
+        return;
 
     std::vector<double> x(n), y(n);
     std::vector<double> ds(n), dx(n), dy(n), ddx(n), ddy(n), kappa(n);
     std::vector<double> v_curve(n), v(n);
 
-    auto wrap = [&](int i) {
+    auto wrap = [&](int i)
+    {
         return (i + n) % n;
     };
 
     // Extract positions
-    for (size_t i = 0; i < n; i++) {
+    for (size_t i = 0; i < n; i++)
+    {
         x[i] = _waypoints[i].point.pose.position.x;
         y[i] = _waypoints[i].point.pose.position.y;
     }
 
     // If too small → constant speed
-    if (n < 100) {
-        for (size_t i = 0; i < n; i++) {
+    if (n < 100)
+    {
+        for (size_t i = 0; i < n; i++)
+        {
             _waypoints[i].speed = SPEED_MIN;
         }
         return;
     }
 
     // ds
-    for (size_t i = 0; i < n; i++) {
-        double dx_ = x[wrap(i+1)] - x[i];
-        double dy_ = y[wrap(i+1)] - y[i];
+    for (size_t i = 0; i < n; i++)
+    {
+        double dx_ = x[wrap(i + 1)] - x[i];
+        double dy_ = y[wrap(i + 1)] - y[i];
         ds[i] = std::max(std::hypot(dx_, dy_), SPEED_EPS);
     }
 
     // curvature
-    for (size_t i = 0; i < n; i++) {
-        dx[i]  = 0.5 * (x[wrap(i+1)] - x[wrap(i-1)]);
-        dy[i]  = 0.5 * (y[wrap(i+1)] - y[wrap(i-1)]);
-        ddx[i] = x[wrap(i+1)] - 2.0 * x[i] + x[wrap(i-1)];
-        ddy[i] = y[wrap(i+1)] - 2.0 * y[i] + y[wrap(i-1)];
+    for (size_t i = 0; i < n; i++)
+    {
+        dx[i] = 0.5 * (x[wrap(i + 1)] - x[wrap(i - 1)]);
+        dy[i] = 0.5 * (y[wrap(i + 1)] - y[wrap(i - 1)]);
+        ddx[i] = x[wrap(i + 1)] - 2.0 * x[i] + x[wrap(i - 1)];
+        ddy[i] = y[wrap(i + 1)] - 2.0 * y[i] + y[wrap(i - 1)];
 
-        double num = std::abs(dx[i]*ddy[i] - dy[i]*ddx[i]);
+        double num = std::abs(dx[i] * ddy[i] - dy[i] * ddx[i]);
 
-        double tmp = dx[i]*dx[i] + dy[i]*dy[i];
+        double tmp = dx[i] * dx[i] + dy[i] * dy[i];
         double den = tmp * std::sqrt(tmp) + SPEED_EPS;
 
         kappa[i] = num / den;
     }
 
     // curvature speed limit
-    for (size_t i = 0; i < n; i++) {
+    for (size_t i = 0; i < n; i++)
+    {
         double vtmp = std::sqrt(A_LAT_MAX / std::max(kappa[i], SPEED_EPS));
         v_curve[i] = std::clamp(vtmp, (double)SPEED_MIN, (double)SPEED_MAX);
     }
@@ -273,7 +282,8 @@ size_t n = _waypoints.size();
 
     // roll
     std::vector<double> v_roll(n), ds_roll(n);
-    for (size_t i = 0; i < n; i++) {
+    for (size_t i = 0; i < n; i++)
+    {
         v_roll[i] = v_curve[(i + anchor) % n];
         ds_roll[i] = ds[(i + anchor) % n];
     }
@@ -281,23 +291,22 @@ size_t n = _waypoints.size();
     v = v_roll;
 
     // forward pass (accel)
-    for (size_t i = 1; i < n; i++) {
-        double v_allow = std::sqrt(
-            std::max(v[i-1]*v[i-1] + 2.0 * A_ACCEL_MAX * ds_roll[i-1], 0.0)
-        );
+    for (size_t i = 1; i < n; i++)
+    {
+        double v_allow = std::sqrt(std::max(v[i - 1] * v[i - 1] + 2.0 * A_ACCEL_MAX * ds_roll[i - 1], 0.0));
         v[i] = std::min(v[i], v_allow);
     }
 
     // backward pass (brake)
-    for (int i = n - 2; i >= 0; i--) {
-        double v_allow = std::sqrt(
-            std::max(v[i+1]*v[i+1] + 2.0 * A_BRAKE_MAX * ds_roll[i], 0.0)
-        );
+    for (int i = n - 2; i >= 0; i--)
+    {
+        double v_allow = std::sqrt(std::max(v[i + 1] * v[i + 1] + 2.0 * A_BRAKE_MAX * ds_roll[i], 0.0));
         v[i] = std::min(v[i], v_allow);
     }
 
     // unroll + assign
-    for (size_t i = 0; i < n; i++) {
+    for (size_t i = 0; i < n; i++)
+    {
         double v_final = std::clamp(v[i], (double)SPEED_MIN, (double)SPEED_MAX);
         size_t idx = (i + anchor) % n;
         _waypoints[idx].speed = static_cast<float>(v_final);
