@@ -3,16 +3,16 @@
   ros__parameters:
 
     max_lookahead_distance_m: 3.5
-    min_lookahead_distance_m: 0.2
-    lookahead_distance_gain: 0.5
+    min_lookahead_distance_m: 0.15
+    lookahead_distance_gain: 0.40
 
     max_lookahead_fraction_of_path: 0.05
     loop_frequency_hz: 38.0
     wheelbase_m: 0.325
     
     speed_min: 0.5
-    speed_max: 1.0
-    a_lat_max: 1.0
-    a_accel_max: 4.0
-    a_brake_max: 3.0
+    speed_max: 5.0
+    a_lat_max: 3.0
+    a_accel_max: 7.0
+    a_brake_max: 5.5
     speed_eps: 1e-6

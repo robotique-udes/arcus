@@ -205,11 +205,6 @@ MasterNode::DriveState MasterNode::determineDriveState() const
 void MasterNode::tryPublishDriveCommand()
 {
     this->refreshOnlineStatus();
-
-    RCLCPP_INFO(this->get_logger(),
-                "ONLINE NODES, safety:  %d, controller: %d,",
-                _nodeOnline[arcus_msgs::msg::ErrorCode::SAFETY],
-                _nodeOnline[arcus_msgs::msg::ErrorCode::CONTROLLER]);
     DriveState state = this->determineDriveState();
 
     switch (state)
@@ -219,7 +214,7 @@ void MasterNode::tryPublishDriveCommand()
             ackermann_msgs::msg::AckermannDriveStamped emergency_cmd = this->driveCommands[arcus_msgs::msg::ErrorCode::SAFETY];
             if (_hasLastNonEmergencySteering)
             {
-                emergency_cmd.drive.steering_angle = _lastNonEmergencySteering;
+                emergency_cmd.drive.steering_angle = this->driveCommands[arcus_msgs::msg::ErrorCode::PURE_PURSUIT].drive.steering_angle;
             }
             _drivePublisher->publish(emergency_cmd);
             break;

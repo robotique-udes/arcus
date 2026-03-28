@@ -27,9 +27,9 @@ particle_filter:
     z_hit: 0.75
     sigma_hit: 0.7
     # motion model dispersion constants
-    motion_dispersion_x: 0.2
-    motion_dispersion_y: 0.1
-    motion_dispersion_theta: 0.25
+    motion_dispersion_x: 0.5
+    motion_dispersion_y: 0.4
+    motion_dispersion_theta: 0.5
     # sensor model variant, variant 2 good for rmgpu, 3 doesn't work for rmgpu
     rangelib_variant: 2
 

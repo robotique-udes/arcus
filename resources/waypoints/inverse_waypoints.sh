@@ -1,6 +1,6 @@
 #!/bin/bash
 
-INPUT="raceline.csv"
+INPUT="waypoints.csv"
 TMP="waypoints_tmp.csv"
 
 tac "$INPUT" > "$TMP" && mv "$TMP" "$INPUT"
