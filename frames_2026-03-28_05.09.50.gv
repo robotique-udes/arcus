@@ -1,0 +1,15 @@
+digraph G {
+"ego_racecar/front_left_hinge" -> "ego_racecar/front_left_wheel"[label=" Broadcaster: default_authority\nAverage rate: 200.275\nBuffer length: 5.048\nMost recent transform: 1774674590.076224\nOldest transform: 1774674585.028177\n"];
+"ego_racecar/base_link" -> "ego_racecar/front_left_hinge"[label=" Broadcaster: default_authority\nAverage rate: 10000.0\nBuffer length: 0.0\nMost recent transform: 0.0\nOldest transform: 0.0\n"];
+"ego_racecar/base_link" -> "ego_racecar/back_left_wheel"[label=" Broadcaster: default_authority\nAverage rate: 10000.0\nBuffer length: 0.0\nMost recent transform: 0.0\nOldest transform: 0.0\n"];
+"odom" -> "ego_racecar/base_link"[label=" Broadcaster: default_authority\nAverage rate: 30.201\nBuffer length: 5.0\nMost recent transform: 1774674590.049628\nOldest transform: 1774674585.049855\n"];
+"ego_racecar/base_link" -> "ego_racecar/back_right_wheel"[label=" Broadcaster: default_authority\nAverage rate: 10000.0\nBuffer length: 0.0\nMost recent transform: 0.0\nOldest transform: 0.0\n"];
+"ego_racecar/base_link" -> "ego_racecar/front_right_hinge"[label=" Broadcaster: default_authority\nAverage rate: 10000.0\nBuffer length: 0.0\nMost recent transform: 0.0\nOldest transform: 0.0\n"];
+"ego_racecar/base_link" -> "ego_racecar/imu"[label=" Broadcaster: default_authority\nAverage rate: 10000.0\nBuffer length: 0.0\nMost recent transform: 0.0\nOldest transform: 0.0\n"];
+"ego_racecar/base_link" -> "ego_racecar/laser"[label=" Broadcaster: default_authority\nAverage rate: 10000.0\nBuffer length: 0.0\nMost recent transform: 0.0\nOldest transform: 0.0\n"];
+"ego_racecar/front_right_hinge" -> "ego_racecar/front_right_wheel"[label=" Broadcaster: default_authority\nAverage rate: 200.275\nBuffer length: 5.048\nMost recent transform: 1774674590.076224\nOldest transform: 1774674585.028177\n"];
+edge [style=invis];
+ subgraph cluster_legend { style=bold; color=black; label ="view_frames Result";
+"Recorded at time: 1774674590.1078217"[ shape=plaintext ] ;
+}->"odom";
+}
