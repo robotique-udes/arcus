@@ -5,35 +5,32 @@ particle_filter:
     odometry_topic: '/odometry/filtered'
     # tf params
     publish_map_to_odom: true
-    transform_tolerance: 0.5
+    transform_tolerance: 1.0
     # range data downsampling
-    angle_step: 18
-    lidar_index_mode: 'step'
-    des_lidar_beams: 21
-    lidar_aspect_ratio: 3.0
-    max_particles: 2000
+    angle_step: 8
+    max_particles: 3000
     squash_factor: 2.2
     # visualization
-    viz: 0
+    viz: 1
     max_viz_particles: 60
     # ray marching method
     range_method: 'rmgpu'
-    theta_discretization: 112
+    theta_discretization: 112.0
     # range data filtering
-    max_range: 10
+    max_range: 15.0
     fine_timing: 0
-    publish_odom: 0
+    publish_odom: 1
     # sensor model constants
     z_short: 0.01
     z_max: 0.07
     z_rand: 0.12
     z_hit: 0.75
-    sigma_hit: 5.0
+    sigma_hit: 0.8
     # motion model dispersion constants
-    motion_model: 'basic'
-    motion_dispersion_x: 0.05
-    motion_dispersion_y: 0.025
-    motion_dispersion_theta: 0.4
+    motion_dispersion_x: 0.2
+    motion_dispersion_y: 0.1
+    motion_dispersion_theta: 0.25
+
     alpha_1_tum: 0.2
     alpha_2_tum: 0.2
     alpha_3_tum: 0.2

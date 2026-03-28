@@ -10,9 +10,9 @@
     loop_frequency_hz: 38.0
     wheelbase_m: 0.325
     
-    speed_min: 0.5
-    speed_max: 5.0
-    a_lat_max: 3.0
-    a_accel_max: 7.0
-    a_brake_max: 5.5
+    speed_min: 0.3
+    speed_max: 8.0
+    a_lat_max: 2.4
+    a_accel_max: 9.0
+    a_brake_max: 7.5
     speed_eps: 1e-6
