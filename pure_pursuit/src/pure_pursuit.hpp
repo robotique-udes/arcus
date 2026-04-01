@@ -53,7 +53,6 @@ class PurePursuit : public rclcpp::Node
     static constexpr const char* DEFAULT_POSITION_TOPIC = "/odometry/filtered";
     static constexpr const char* DEFAULT_WAYPOINTS_CSV_FILE_NAME = "/home/arcus/arcus/resources/waypoints/waypoints.csv";
 
-
   public:
     PurePursuit();
 

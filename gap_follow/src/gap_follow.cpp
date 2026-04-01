@@ -41,7 +41,6 @@ void ReactiveGapFollow::heartbeat()
 
 void ReactiveGapFollow::lidar_CB(sensor_msgs::msg::LaserScan::SharedPtr scanMsg_)
 {
-
     if (!scanMsg_ || scanMsg_->ranges.empty())
     {
         RCLCPP_WARN(this->get_logger(), "Invalid scan");

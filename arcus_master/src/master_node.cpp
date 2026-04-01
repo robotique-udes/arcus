@@ -204,7 +204,8 @@ void MasterNode::tryPublishDriveCommand()
             ackermann_msgs::msg::AckermannDriveStamped emergency_cmd = this->driveCommands[arcus_msgs::msg::ErrorCode::SAFETY];
             if (_hasLastNonEmergencySteering)
             {
-                emergency_cmd.drive.steering_angle = this->driveCommands[arcus_msgs::msg::ErrorCode::PURE_PURSUIT].drive.steering_angle;
+                emergency_cmd.drive.steering_angle
+                    = this->driveCommands[arcus_msgs::msg::ErrorCode::PURE_PURSUIT].drive.steering_angle;
             }
             _drivePublisher->publish(emergency_cmd);
             break;
@@ -244,29 +245,29 @@ void MasterNode::mainLoop()
     // Heartbeat + error publishing handled here
     bool noErrors = true;
 
-        for (size_t i = 0; i < _errorCodeLatch.size(); ++i)
+    for (size_t i = 0; i < _errorCodeLatch.size(); ++i)
+    {
+        if (_errorCodeLatch[i] != arcus_msgs::msg::ErrorCode::OK)
         {
-            if (_errorCodeLatch[i] != arcus_msgs::msg::ErrorCode::OK)
-            {
-                noErrors = false;
+            noErrors = false;
 
-                arcus_msgs::msg::ErrorCode error_msg;
-                error_msg.source = i;
-                error_msg.header.stamp = this->now();
-                error_msg.error_code = _errorCodeLatch[i];
-
-                this->error_publisher_->publish(error_msg);
-            }
-        }
-
-        if (noErrors)
-        {
             arcus_msgs::msg::ErrorCode error_msg;
-            error_msg.source = arcus_msgs::msg::ErrorCode::MASTER;
+            error_msg.source = i;
             error_msg.header.stamp = this->now();
-            error_msg.error_code = arcus_msgs::msg::ErrorCode::OK;
+            error_msg.error_code = _errorCodeLatch[i];
 
             this->error_publisher_->publish(error_msg);
         }
+    }
+
+    if (noErrors)
+    {
+        arcus_msgs::msg::ErrorCode error_msg;
+        error_msg.source = arcus_msgs::msg::ErrorCode::MASTER;
+        error_msg.header.stamp = this->now();
+        error_msg.error_code = arcus_msgs::msg::ErrorCode::OK;
+
+        this->error_publisher_->publish(error_msg);
+    }
 }
 #endif  // MASTER_NODE_CPP
