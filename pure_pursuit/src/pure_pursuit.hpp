@@ -40,6 +40,12 @@ class PurePursuit : public rclcpp::Node
     double A_BRAKE_MAX = 3.0;
     double SPEED_EPS = 1.0e-6;
 
+    double PI = 3.14159;
+    double RECOVERY_TRIGGER_SPEED_MS = 0.06;
+    double RECOVERY_REVERSE_SPEED_MS = 0.7;
+    double RECOVERY_DISENGAGE_STEER_RAD = PI / 12.0;
+    double RECOVERY_REARM_SPEED_MS = 1.0;
+
     // Topic, input file names and QoS
     static constexpr const uint8_t DEFAULT_QOS = 1;
     static constexpr const char* DEFAULT_DRIVE_CMD_TOPIC = "/pure_pursuit/drive";
@@ -47,9 +53,6 @@ class PurePursuit : public rclcpp::Node
     static constexpr const char* DEFAULT_POSITION_TOPIC = "/odometry/filtered";
     static constexpr const char* DEFAULT_WAYPOINTS_CSV_FILE_NAME = "/home/arcus/arcus/resources/waypoints/waypoints.csv";
 
-    // Mathematical constants
-    static constexpr const double PI = 3.14159;
-    static constexpr const double e = 2.71828;
 
   public:
     PurePursuit();
@@ -79,6 +82,10 @@ class PurePursuit : public rclcpp::Node
 
     size_t _previousWaypointIndex = 0;
     bool _firstTargetWaypointLocked = false;
+    bool _recoveryActive = false;
+    bool _recoveryArmed = false;
+    bool _carHasEverMoved = false;
+    double _recoverySteeringAngle = 0.0;
 
     std::vector<Waypoint> _waypoints;
 

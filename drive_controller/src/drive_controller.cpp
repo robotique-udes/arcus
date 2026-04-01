@@ -7,6 +7,7 @@
 #include "std_msgs/msg/float64.hpp"
 #include "sensor_msgs/msg/joy.hpp"
 #include "ackermann_msgs/msg/ackermann_drive_stamped.hpp"
+#include "std_msgs/msg/bool.hpp"
 #include "arcus_msgs/msg/controller_type.hpp"
 #include "arcus_msgs/msg/error_code.hpp"
 
@@ -27,15 +28,15 @@ class DriveController : public rclcpp::Node
             = create_subscription<sensor_msgs::msg::Joy>("/joy",
                                                          rclcpp::QoS{10},
                                                          std::bind(&DriveController::joy_callback, this, std::placeholders::_1));
-        _controller_type_subscription = this->create_subscription<arcus_msgs::msg::ControllerType>(
-            "/controller_type",
-            rclcpp::QoS{10},
-            std::bind(&DriveController::controller_type_callback, this, std::placeholders::_1));
+        //_controller_type_subscription = this->create_subscription<arcus_msgs::msg::ControllerType>(
+        //"/controller_type",
+        // rclcpp::QoS{10},
+        // std::bind(&DriveController::controller_type_callback, this, std::placeholders::_1));
 
         _error_publisher = this->create_publisher<arcus_msgs::msg::ErrorCode>("/node_error_code", 10);
+        _deadman_publisher = this->create_publisher<std_msgs::msg::Bool>("/deadman_active", 10);
 
         timer_ = this->create_wall_timer(std::chrono::milliseconds(50), std::bind(&DriveController::heartbeat, this));
-
         RCLCPP_INFO(this->get_logger(), "DriveController node has been started.");
     }
 
@@ -56,6 +57,16 @@ class DriveController : public rclcpp::Node
         drive_msg.drive.speed = throttle * 3;
         drive_msg.drive.steering_angle = steering;
         _drive_publisher->publish(drive_msg);
+        auto deadman_msg = std_msgs::msg::Bool();
+        if (joy_msg->buttons[this->left_button_trigger])
+        {
+            deadman_msg.data = 1;
+        }
+        else
+        {
+            deadman_msg.data = 0;
+        }
+        _deadman_publisher->publish(deadman_msg);
     }
 
     void controller_type_callback(const arcus_msgs::msg::ControllerType::SharedPtr controller_type_msg)
@@ -87,17 +98,20 @@ class DriveController : public rclcpp::Node
 
     rclcpp::Publisher<ackermann_msgs::msg::AckermannDriveStamped>::SharedPtr _drive_publisher;
     rclcpp::Publisher<arcus_msgs::msg::ErrorCode>::SharedPtr _error_publisher;
+    rclcpp::Publisher<std_msgs::msg::Bool>::SharedPtr _deadman_publisher;
     rclcpp::Subscription<sensor_msgs::msg::Joy>::SharedPtr _joy_sub;
     rclcpp::Subscription<arcus_msgs::msg::ControllerType>::SharedPtr _controller_type_subscription;
     rclcpp::TimerBase::SharedPtr timer_;
 
     size_t count_;
-    uint8_t left_axis_x;
-    uint8_t left_axis_y;
-    uint8_t right_axis_x;
-    uint8_t right_axis_y;
-    uint8_t left_trigger;
-    uint8_t right_trigger;
+    // Default to Logitech mapping
+    uint8_t left_axis_x = 0;
+    uint8_t left_axis_y = 1;
+    uint8_t right_axis_x = 3;
+    uint8_t right_axis_y = 4;
+    uint8_t left_trigger = 2;
+    uint8_t right_trigger = 5;
+    uint8_t left_button_trigger = 4;
 };
 
 int main(int argc, char* argv[])

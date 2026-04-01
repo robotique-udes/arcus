@@ -10,7 +10,7 @@
 
 class Safety : public rclcpp::Node
 {
-    static constexpr double TTC_THRESHOLD_S = 0.7;
+    static constexpr double TTC_THRESHOLD_S = 0.20;
     static constexpr double MIN_RANGE_RATE_MS = 0.0;  // Minimum range rate in m/s
 
     static constexpr const uint8_t QOS = 1;
@@ -18,7 +18,7 @@ class Safety : public rclcpp::Node
     static constexpr const char* BRAKE_CMD_TOPIC = "/commands/motor/brake";
     static constexpr const char* LIDAR_SCAN_TOPIC = "/scan";
     static constexpr const char* POSITION_TOPIC = "/odometry/filtered";
-    static constexpr const float FOV = 0.25 / 180. * M_PI;
+    static constexpr const float FOV = 0.25/180. * M_PI;
 
   public:
     Safety();
