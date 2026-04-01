@@ -35,6 +35,7 @@ class MasterNode : public rclcpp::Node
     void tryPublishDriveCommand();
     DriveState determineDriveState() const;
     bool hasCommand(const ackermann_msgs::msg::AckermannDriveStamped& cmd) const;
+    std::array<uint32_t, 10> _errorCodeLatch;  // Latchs the error until condition goes away;
 
     rclcpp::TimerBase::SharedPtr timer_;
     rclcpp::TimerBase::SharedPtr _mainLoopTimer;

@@ -61,7 +61,10 @@ void PurePursuit::CB_publishDriveCmd(void)
 
     if (_recoveryActive)
     {
-        RCLCPP_DEBUG(this->get_logger(), "Recovery Active: steeringAngle=%.4f, threshold=%.4f", std::abs(steeringAngle), RECOVERY_DISENGAGE_STEER_RAD);
+        RCLCPP_DEBUG(this->get_logger(),
+                     "Recovery Active: steeringAngle=%.4f, threshold=%.4f",
+                     std::abs(steeringAngle),
+                     RECOVERY_DISENGAGE_STEER_RAD);
         if (std::abs(steeringAngle) < RECOVERY_DISENGAGE_STEER_RAD)
         {
             _recoveryActive = false;
@@ -69,7 +72,10 @@ void PurePursuit::CB_publishDriveCmd(void)
         }
         else
         {
-            RCLCPP_DEBUG(this->get_logger(), "Recovery Mode: Sending reverse command (speed=%.2f, steeringAngle=%.4f)", -RECOVERY_REVERSE_SPEED_MS, _recoverySteeringAngle);
+            RCLCPP_DEBUG(this->get_logger(),
+                         "Recovery Mode: Sending reverse command (speed=%.2f, steeringAngle=%.4f)",
+                         -RECOVERY_REVERSE_SPEED_MS,
+                         _recoverySteeringAngle);
             driveCmd.drive.steering_angle = -_recoverySteeringAngle;
             driveCmd.drive.speed = -RECOVERY_REVERSE_SPEED_MS;
             _driveCmdPublisher->publish(driveCmd);
@@ -79,12 +85,19 @@ void PurePursuit::CB_publishDriveCmd(void)
 
     if (_recoveryArmed && (_currentSpeed < RECOVERY_TRIGGER_SPEED_MS))
     {
-        RCLCPP_WARN(this->get_logger(), "Recovery Mode ACTIVATED: carHasEverMoved=%d, currentSpeed=%.4f, triggerSpeed=%.4f", _carHasEverMoved, _currentSpeed, RECOVERY_TRIGGER_SPEED_MS);
+        RCLCPP_WARN(this->get_logger(),
+                    "Recovery Mode ACTIVATED: carHasEverMoved=%d, currentSpeed=%.4f, triggerSpeed=%.4f",
+                    _carHasEverMoved,
+                    _currentSpeed,
+                    RECOVERY_TRIGGER_SPEED_MS);
         _recoveryActive = true;
         _recoveryArmed = false;
         _recoverySteeringAngle = steeringAngle;
 
-        RCLCPP_INFO(this->get_logger(), "Sending initial recovery reverse command (speed=%.2f, steeringAngle=%.4f)", -RECOVERY_REVERSE_SPEED_MS, _recoverySteeringAngle);
+        RCLCPP_INFO(this->get_logger(),
+                    "Sending initial recovery reverse command (speed=%.2f, steeringAngle=%.4f)",
+                    -RECOVERY_REVERSE_SPEED_MS,
+                    _recoverySteeringAngle);
         driveCmd.drive.steering_angle = _recoverySteeringAngle;
         driveCmd.drive.speed = -RECOVERY_REVERSE_SPEED_MS;
         _driveCmdPublisher->publish(driveCmd);
@@ -135,7 +148,10 @@ void PurePursuit::CB_positionSubscriber(const nav_msgs::msg::Odometry& msg)
         if (!_recoveryArmed)
         {
             _recoveryArmed = true;
-            RCLCPP_DEBUG(this->get_logger(), "Recovery Mode ARMED: speed (%.4f) > rearm threshold (%.4f)", _currentSpeed, RECOVERY_REARM_SPEED_MS);
+            RCLCPP_DEBUG(this->get_logger(),
+                         "Recovery Mode ARMED: speed (%.4f) > rearm threshold (%.4f)",
+                         _currentSpeed,
+                         RECOVERY_REARM_SPEED_MS);
         }
     }
 }
