@@ -80,15 +80,7 @@ void MasterNode::errorCodeCallback(const arcus_msgs::msg::ErrorCode::SharedPtr m
     this->_lastHeartbeatNs[msg->source] = static_cast<uint64_t>(this->now().nanoseconds());
     this->_nodeOnline[msg->source] = msg->error_code != arcus_msgs::msg::ErrorCode::OFFLINE;
 
-    if (msg->error_code != arcus_msgs::msg::ErrorCode::OK)
-    {
-        arcus_msgs::msg::ErrorCode error_msg;
-        error_msg.source = msg->source;
-        error_msg.header = msg->header;
-        error_msg.error_code = msg->error_code;
-        this->error_publisher_->publish(error_msg);
-        RCLCPP_ERROR(this->get_logger(), "Received error code %d from node %d", msg->error_code, msg->source);
-    }
+    _errorCodeLatch[msg->source] = msg->error_code;
 
     if (msg->source == arcus_msgs::msg::ErrorCode::SAFETY && msg->error_code == arcus_msgs::msg::ErrorCode::EMERGENCY_BRAKE)
     {
@@ -108,7 +100,6 @@ void MasterNode::errorCodeCallback(const arcus_msgs::msg::ErrorCode::SharedPtr m
         ppRecoveryEngaged = false;
     }
 
-    this->refreshOnlineStatus();
     this->tryPublishDriveCommand();
 }
 
@@ -204,8 +195,6 @@ MasterNode::DriveState MasterNode::determineDriveState() const
 
 void MasterNode::tryPublishDriveCommand()
 {
-    this->refreshOnlineStatus();
-
     DriveState state = this->determineDriveState();
 
     switch (state)
@@ -215,7 +204,8 @@ void MasterNode::tryPublishDriveCommand()
             ackermann_msgs::msg::AckermannDriveStamped emergency_cmd = this->driveCommands[arcus_msgs::msg::ErrorCode::SAFETY];
             if (_hasLastNonEmergencySteering)
             {
-                emergency_cmd.drive.steering_angle = _lastNonEmergencySteering;
+                emergency_cmd.drive.steering_angle
+                    = this->driveCommands[arcus_msgs::msg::ErrorCode::PURE_PURSUIT].drive.steering_angle;
             }
             _drivePublisher->publish(emergency_cmd);
             break;
@@ -241,6 +231,9 @@ void MasterNode::tryPublishDriveCommand()
             _hasLastNonEmergencySteering = true;
             break;
         case DriveState::NONE:
+            _emptyMsg.drive.speed = 0.0;
+            _emptyMsg.drive.steering_angle = 0.0;
+            _drivePublisher->publish(_emptyMsg);
             break;
     }
 }
@@ -248,5 +241,33 @@ void MasterNode::tryPublishDriveCommand()
 void MasterNode::mainLoop()
 {
     this->refreshOnlineStatus();
+
+    // Heartbeat + error publishing handled here
+    bool noErrors = true;
+
+    for (size_t i = 0; i < _errorCodeLatch.size(); ++i)
+    {
+        if (_errorCodeLatch[i] != arcus_msgs::msg::ErrorCode::OK)
+        {
+            noErrors = false;
+
+            arcus_msgs::msg::ErrorCode error_msg;
+            error_msg.source = i;
+            error_msg.header.stamp = this->now();
+            error_msg.error_code = _errorCodeLatch[i];
+
+            this->error_publisher_->publish(error_msg);
+        }
+    }
+
+    if (noErrors)
+    {
+        arcus_msgs::msg::ErrorCode error_msg;
+        error_msg.source = arcus_msgs::msg::ErrorCode::MASTER;
+        error_msg.header.stamp = this->now();
+        error_msg.error_code = arcus_msgs::msg::ErrorCode::OK;
+
+        this->error_publisher_->publish(error_msg);
+    }
 }
 #endif  // MASTER_NODE_CPP

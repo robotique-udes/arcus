@@ -1,0 +1,18 @@
+# config/pure_pursuit_params.yaml
+/arcus/pure_pursuit:
+  ros__parameters:
+
+    max_lookahead_distance_m: 3.5
+    min_lookahead_distance_m: 0.15
+    lookahead_distance_gain: 0.40
+
+    max_lookahead_fraction_of_path: 0.05
+    loop_frequency_hz: 38.0
+    wheelbase_m: 0.325
+    
+    speed_min: 0.3
+    speed_max: 8.0
+    a_lat_max: 2.4
+    a_accel_max: 9.0
+    a_brake_max: 7.5
+    speed_eps: 1e-6

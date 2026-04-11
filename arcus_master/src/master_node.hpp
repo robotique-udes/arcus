@@ -35,6 +35,7 @@ class MasterNode : public rclcpp::Node
     void tryPublishDriveCommand();
     DriveState determineDriveState() const;
     bool hasCommand(const ackermann_msgs::msg::AckermannDriveStamped& cmd) const;
+    std::array<uint32_t, 10> _errorCodeLatch;  // Latchs the error until condition goes away;
 
     rclcpp::TimerBase::SharedPtr timer_;
     rclcpp::TimerBase::SharedPtr _mainLoopTimer;
@@ -43,6 +44,7 @@ class MasterNode : public rclcpp::Node
     std::array<uint64_t, 10> _lastHeartbeatNs{};
     std::array<bool, 10> _nodeOnline{};
     std::array<ackermann_msgs::msg::AckermannDriveStamped, 10> driveCommands{};
+    ackermann_msgs::msg::AckermannDriveStamped _emptyMsg;
     bool _hasLastNonEmergencySteering = false;
     double _lastNonEmergencySteering = 0.0;
 

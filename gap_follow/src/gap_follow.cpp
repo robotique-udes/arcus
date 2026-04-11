@@ -59,7 +59,6 @@ void ReactiveGapFollow::heartbeat()
 
 void ReactiveGapFollow::lidar_CB(sensor_msgs::msg::LaserScan::SharedPtr scanMsg_)
 {
-
     if (!scanMsg_ || scanMsg_->ranges.empty())
     {
         RCLCPP_WARN(this->get_logger(), "Invalid scan");
@@ -175,12 +174,12 @@ void ReactiveGapFollow::lidar_CB(sensor_msgs::msg::LaserScan::SharedPtr scanMsg_
     targetWaypointMsg.point.y = _processedRanges[maxDistanceIndex] * std::sin(_targetAngle);
     _targetWaypointPublisher->publish(targetWaypointMsg);
 
-    // sensor_msgs::msg::LaserScan processedScan = *scanMsg_;
-    // processedScan.ranges = _processedRanges;
-    // _laserPublisher->publish(processedScan);
+    sensor_msgs::msg::LaserScan processedScan = *scanMsg_;
+    processedScan.ranges = _processedRanges;
+    _laserPublisher->publish(processedScan);
 
     // RCLCPP_INFO(this->get_logger(), "Target angle: %.2f degrees, index: %u, distance: %.2f", _targetAngle * 180.0 / M_PI,
-    // maxDistanceIndex, ranges[maxDistanceIndex]);
+    maxDistanceIndex, ranges[maxDistanceIndex];
 
     ackermann_msgs::msg::AckermannDriveStamped newMsg = ackermann_msgs::msg::AckermannDriveStamped();
 
