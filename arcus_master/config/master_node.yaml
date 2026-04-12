@@ -1,0 +1,20 @@
+arcus:
+  master_node:
+    ros__parameters:
+      priority_controller: 0
+      priority_safety_override: 1
+      priority_pure_pursuit: 2
+      priority_disparity: 3
+
+      disparity_drive_topic: /disparity/drive
+      controller_drive_topic: /controller/drive
+      safety_drive_topic: /safety/drive
+      pure_pursuit_drive_topic: /pure_pursuit/drive
+      drive_topic: /drive
+      deadman_topic: /deadman_active
+      node_error_topic: /node_error_code
+      master_error_topic: /master_error_code
+
+      speed_limit_topic: /track_manager/speed_limit
+      force_algo_topic: /track_manager/forced_algo
+      section_override_timeout_ms: 500

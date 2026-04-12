@@ -179,7 +179,7 @@ void ReactiveGapFollow::lidar_CB(sensor_msgs::msg::LaserScan::SharedPtr scanMsg_
     _laserPublisher->publish(processedScan);
 
     // RCLCPP_INFO(this->get_logger(), "Target angle: %.2f degrees, index: %u, distance: %.2f", _targetAngle * 180.0 / M_PI,
-    maxDistanceIndex, ranges[maxDistanceIndex];
+    //             maxDistanceIndex, ranges[maxDistanceIndex]);
 
     ackermann_msgs::msg::AckermannDriveStamped newMsg = ackermann_msgs::msg::AckermannDriveStamped();
 
