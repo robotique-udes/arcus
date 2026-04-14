@@ -65,7 +65,17 @@ void ReactiveGapFollow::preprocess_lidar(std::vector<float> &ranges, float range
         {
             if (ranges[i] > range_max || std::isinf(ranges[i]) || std::isnan(ranges[i]))
             {
-                ranges[i] = range_max + 1.0f;  // Set to a value greater than range_max to indicate invalid reading
+                // If a value is invalid, replace it with adjacent value
+                if (i == 0)
+                {
+                    ranges[i] = ranges[i+1];
+                } else if (i >= ranges.size()-1)
+                {
+                    ranges[i] = ranges[i-1];
+                } else
+                {
+                    ranges[i] = 0.5*(ranges[i+1]+ranges[i-1]);
+                }
             }
             else if (ranges[i] < range_min)
             {
@@ -73,7 +83,13 @@ void ReactiveGapFollow::preprocess_lidar(std::vector<float> &ranges, float range
             }
         }
 
-        // TODO: Remove Lidar point behind car for disparity analysis
+        // Remove Lidar point behind car for disparity analysis
+        int deg90Index = 0;
+        int negDeg90Index = 0;
+        // Erase after the end index first to avoid index shiftings
+        ranges.erase(ranges.begin(), + deg90Index + 1, ranges.end());
+        // Then erase before the beginning index
+        ranges.erase(ranges.begin(), ranges.begin() + negDeg90Index);
 }
 
 // Compute the difference between each points and the previous points
