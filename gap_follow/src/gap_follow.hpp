@@ -20,7 +20,12 @@ class ReactiveGapFollow : public rclcpp::Node
     ReactiveGapFollow();
 
   private:
-    void preprocessLidar(std::vector<float>& ranges_);
+    void preprocess_lidar(std::vector<float>& ranges_, float range_max, float range_min);
+    void get_differences(std::vector<float> &ranges, std::vector<float> &differences);
+    void get_disparities(std::vector<float> &differences, float threshold, std::vector<int> &disparities);
+    int get_num_points(double width, double distance, double angle_inc);
+    void cover_points(std::vector<float> &ranges, int cover_direction, int num_points, int start_index);
+    void extend_disparities(std::vector<float> &ranges, std::vector<int> &disparities, double car_width, int extra_points, double angle_inc);
     void lidar_CB(sensor_msgs::msg::LaserScan::SharedPtr scanMsg_);
     void heartbeat();
 
