@@ -20,6 +20,7 @@ class MasterNode : public rclcpp::Node
     static constexpr const char* DEFAULT_DEADMAN_TOPIC = "/deadman_active";
     static constexpr const char* DEFAULT_NODE_ERROR_TOPIC = "/node_error_code";
     static constexpr const char* DEFAULT_MASTER_ERROR_TOPIC = "/master_error_code";
+    static constexpr const char* DEFAULT_MASTER_HEARTBEAT_TOPIC = "/master_heartbeat";
     static constexpr const char* DEFAULT_SPEED_LIMIT_TOPIC = "/track_manager/speed_limit";
     static constexpr const char* DEFAULT_FORCE_ALGO_TOPIC = "/track_manager/forced_algo";
 
@@ -71,6 +72,7 @@ class MasterNode : public rclcpp::Node
     std::string _deadmanTopic = DEFAULT_DEADMAN_TOPIC;
     std::string _nodeErrorTopic = DEFAULT_NODE_ERROR_TOPIC;
     std::string _masterErrorTopic = DEFAULT_MASTER_ERROR_TOPIC;
+    std::string _masterHeartbeatTopic = DEFAULT_MASTER_HEARTBEAT_TOPIC;
     std::string _speedLimitTopic = DEFAULT_SPEED_LIMIT_TOPIC;
     std::string _forceAlgoTopic = DEFAULT_FORCE_ALGO_TOPIC;
 
@@ -93,6 +95,7 @@ class MasterNode : public rclcpp::Node
     void forceAlgoCallback(const std_msgs::msg::String::SharedPtr msg);
 
     rclcpp::Publisher<ackermann_msgs::msg::AckermannDriveStamped>::SharedPtr _drivePublisher;
+    rclcpp::Publisher<std_msgs::msg::Bool>::SharedPtr _masterHeartbeatPublisher;
 
     rclcpp::Subscription<ackermann_msgs::msg::AckermannDriveStamped>::SharedPtr _disparityDriveSubscriber;
     rclcpp::Subscription<ackermann_msgs::msg::AckermannDriveStamped>::SharedPtr _safetyDriveSubscriber;

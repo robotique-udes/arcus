@@ -368,6 +368,8 @@ void PurePursuit::calculateSpeed(void)
 
 void PurePursuit::initRosElements(void)
 {
+    const auto odom_qos = rclcpp::QoS(rclcpp::KeepLast(DEFAULT_QOS)).best_effort();
+
     _loopTimer = this->create_wall_timer(std::chrono::milliseconds(static_cast<size_t>(1000 / LOOP_FREQUENCY_HZ)),
                                          [this](void)
                                          {
@@ -375,7 +377,7 @@ void PurePursuit::initRosElements(void)
                                          });
 
     _positionSubscriber = this->create_subscription<nav_msgs::msg::Odometry>(_positionTopic,
-                                                                             DEFAULT_QOS,
+                                                                             odom_qos,
                                                                              [this](const nav_msgs::msg::Odometry& msg)
                                                                              {
                                                                                  this->CB_positionSubscriber(msg);

@@ -51,6 +51,8 @@ MasterNode::MasterNode():
 
     _drivePublisher = this->create_publisher<ackermann_msgs::msg::AckermannDriveStamped>(_driveTopic, 10);
 
+    _masterHeartbeatPublisher = this->create_publisher<std_msgs::msg::Bool>(_masterHeartbeatTopic, 10);
+
     _disparityDriveSubscriber = this->create_subscription<ackermann_msgs::msg::AckermannDriveStamped>(
         _disparityDriveTopic,
         10,
@@ -392,5 +394,7 @@ void MasterNode::mainLoop()
     }
 
     _lastPublishedNoErrors = noErrors;
+
+    _masterHeartbeatPublisher->publish(std_msgs::msg::Bool().set__data(true));
 }
 #endif  // MASTER_NODE_CPP
