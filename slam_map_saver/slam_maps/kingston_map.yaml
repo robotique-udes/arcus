@@ -1,4 +1,4 @@
-image: slam_map_20260328_045902.pgm
+image: kingston_map.pgm
 mode: trinary
 resolution: 0.03
 origin: [-7.43, -4.05, 0]

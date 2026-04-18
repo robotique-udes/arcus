@@ -87,7 +87,7 @@ void ReactiveGapFollow::preprocess_lidar(std::vector<float> &ranges, float range
         int deg90Index = 0;
         int negDeg90Index = 0;
         // Erase after the end index first to avoid index shiftings
-        ranges.erase(ranges.begin(), + deg90Index + 1, ranges.end());
+        ranges.erase(ranges.begin() + deg90Index + 1, ranges.end());
         // Then erase before the beginning index
         ranges.erase(ranges.begin(), ranges.begin() + negDeg90Index);
 }
