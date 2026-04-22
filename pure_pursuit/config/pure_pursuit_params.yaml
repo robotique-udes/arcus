@@ -1,6 +1,7 @@
 # config/pure_pursuit_params.yaml
 /arcus/pure_pursuit:
   ros__parameters:
+    position_topic: /pf/pose/odom
 
     max_lookahead_distance_m: 3.5
     min_lookahead_distance_m: 0.15

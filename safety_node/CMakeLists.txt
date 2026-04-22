@@ -65,6 +65,11 @@ IF (IS_PACKAGE_EXECUTABLE)
     DIRECTORY launch
     DESTINATION share/${PROJECT_NAME}
   )
+
+  install(
+    DIRECTORY config
+    DESTINATION share/${PROJECT_NAME}
+  )
 ENDIF()
 
 ament_package()

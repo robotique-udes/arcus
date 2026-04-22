@@ -8,8 +8,6 @@
 #include "ackermann_msgs/msg/ackermann_drive_stamped.hpp"
 #include "nav_msgs/msg/path.hpp"
 #include "arcus_msgs/msg/error_code.hpp"
-#include <tf2_ros/buffer.h>
-#include <tf2_ros/transform_listener.h>
 
 #include <fstream>
 #include <string>
@@ -50,7 +48,7 @@ class PurePursuit : public rclcpp::Node
     static constexpr const uint8_t DEFAULT_QOS = 1;
     static constexpr const char* DEFAULT_DRIVE_CMD_TOPIC = "/pure_pursuit/drive";
     static constexpr const char* TARGET_WAYPOINT_TOPIC = "/target_waypoint";
-    static constexpr const char* DEFAULT_POSITION_TOPIC = "/odometry/filtered";
+    static constexpr const char* DEFAULT_POSITION_TOPIC = "/pf/pose/odom";
     static constexpr const char* DEFAULT_WAYPOINTS_CSV_FILE_NAME = "/home/arcus/arcus/resources/waypoints/waypoints.csv";
 
   public:
@@ -95,8 +93,6 @@ class PurePursuit : public rclcpp::Node
     rclcpp::TimerBase::SharedPtr _heartbeatTimer;
     rclcpp::Publisher<arcus_msgs::msg::ErrorCode>::SharedPtr _errorPublisher;
 
-    std::shared_ptr<tf2_ros::Buffer> _tfBuffer;
-    std::shared_ptr<tf2_ros::TransformListener> _tfListener;
 };
 
 #endif  // PURE_PURSUIT_HPP

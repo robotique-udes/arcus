@@ -12,18 +12,36 @@ int main(int argc, char** argv)
 ReactiveGapFollow::ReactiveGapFollow():
     Node("reactive_node")
 {
-    _directionPublisher = this->create_publisher<ackermann_msgs::msg::AckermannDriveStamped>(DRIVE_TOPIC, DEFAULT_QOS);
+    _overshootFactor = this->declare_parameter<double>("overshoot_factor", 0.56);
+    _bubbleRadius = this->declare_parameter<double>("bubble_radius", 0.25);
+    _speedDistanceFactor = this->declare_parameter<double>("speed_distance_factor", 0.8);
+    _maxSpeed = this->declare_parameter<double>("max_speed", 20.0);
+    _disparityThreshold = this->declare_parameter<double>("disparity_threshold", 0.1);
+    _defaultQos = static_cast<uint16_t>(this->declare_parameter<int>("default_qos", 1));
+    _rollingAverageWindow = static_cast<uint16_t>(this->declare_parameter<int>("rolling_average_window", 3));
+    _debug = this->declare_parameter<bool>("debug", false);
+    _lidarScanTopic = this->declare_parameter<std::string>("lidar_scan_topic", "/scan");
+    _driveTopic = this->declare_parameter<std::string>("drive_topic", "/disparity/drive");
+
+    if (_rollingAverageWindow == 0U)
+    {
+        RCLCPP_WARN(this->get_logger(), "rolling_average_window cannot be 0, forcing to 1");
+        _rollingAverageWindow = 1U;
+    }
+
+    _directionPublisher = this->create_publisher<ackermann_msgs::msg::AckermannDriveStamped>(_driveTopic,
+                                                                                               _defaultQos);
 
     _error_publisher = this->create_publisher<arcus_msgs::msg::ErrorCode>("/node_error_code", 10);
     _timer = this->create_wall_timer(std::chrono::milliseconds(50), std::bind(&ReactiveGapFollow::heartbeat, this));
-    _laserPublisher = this->create_publisher<sensor_msgs::msg::LaserScan>("processed_scan", DEFAULT_QOS);
+    _laserPublisher = this->create_publisher<sensor_msgs::msg::LaserScan>("processed_scan", _defaultQos);
 
-    _targetWaypointPublisher = this->create_publisher<geometry_msgs::msg::PointStamped>("target_waypoint", DEFAULT_QOS);
-    _vectorPublisher = this->create_publisher<geometry_msgs::msg::PoseStamped>("vector", DEFAULT_QOS);
+    _targetWaypointPublisher = this->create_publisher<geometry_msgs::msg::PointStamped>("target_waypoint", _defaultQos);
+    _vectorPublisher = this->create_publisher<geometry_msgs::msg::PoseStamped>("vector", _defaultQos);
 
     _laserScanSubscriber
-        = this->create_subscription<sensor_msgs::msg::LaserScan>(LIDAR_SCAN_TOPIC,
-                                                                 DEFAULT_QOS,
+        = this->create_subscription<sensor_msgs::msg::LaserScan>(_lidarScanTopic,
+                                                                 _defaultQos,
                                                                  [this](const sensor_msgs::msg::LaserScan::SharedPtr msg)
                                                                  {
                                                                      this->lidar_CB(msg);
@@ -84,10 +102,10 @@ void ReactiveGapFollow::lidar_CB(sensor_msgs::msg::LaserScan::SharedPtr scanMsg_
         }
         _processedRanges[i] = ranges[i];
 
-        if (std::abs(ranges[i] - old_distance) > DISPARITY_THRESHOLD)
+        if (std::abs(ranges[i] - old_distance) > _disparityThreshold)
         {
             float closer_distance = std::min(ranges[i], old_distance);
-            uint32_t bubble_distance = static_cast<uint32_t>(std::atan2(BUBBLE_RADIUS, closer_distance) * inv_angle_inc);
+            uint32_t bubble_distance = static_cast<uint32_t>(std::atan2(_bubbleRadius, closer_distance) * inv_angle_inc);
             for (int32_t j = -static_cast<int32_t>(bubble_distance); j <= static_cast<int32_t>(bubble_distance); j++)
             {
                 int32_t index;
@@ -161,36 +179,39 @@ void ReactiveGapFollow::lidar_CB(sensor_msgs::msg::LaserScan::SharedPtr scanMsg_
     _laserPublisher->publish(processedScan);
 
     // RCLCPP_INFO(this->get_logger(), "Target angle: %.2f degrees, index: %u, distance: %.2f", _targetAngle * 180.0 / M_PI,
-    maxDistanceIndex, ranges[maxDistanceIndex];
+    //             maxDistanceIndex, ranges[maxDistanceIndex]);
 
     ackermann_msgs::msg::AckermannDriveStamped newMsg = ackermann_msgs::msg::AckermannDriveStamped();
 
-    newMsg.drive.steering_angle = _targetAngle * OVERSHOOT_FACTOR;
+    newMsg.drive.steering_angle = _targetAngle * _overshootFactor;
     float targetSpeed = setSpeedFromDistance(extendedRanges[size / 2], _targetAngle);
     // RCLCPP_INFO(this->get_logger(), "Speed: %0.2f, from distance: %0.2f", targetSpeed, extendedRanges[size / 2]);
     newMsg.drive.speed = targetSpeed;
 
     _directionPublisher->publish(newMsg);
 
-    geometry_msgs::msg::PoseStamped vectorMsg;
-    vectorMsg.header = scanMsg_->header;
-    vectorMsg.pose.position.x = 0.0f;
-    vectorMsg.pose.position.y = 0.0f;
-    vectorMsg.pose.position.z = 0.0f;
-    vectorMsg.pose.orientation.x = std::cos(_targetAngle / 2);
-    vectorMsg.pose.orientation.y = std::sin(_targetAngle / 2);
-    vectorMsg.pose.orientation.z = 0.0f;
-    vectorMsg.pose.orientation.w = 0.0f;
-    _vectorPublisher->publish(vectorMsg);
+    if (_debug)
+    {
+        geometry_msgs::msg::PoseStamped vectorMsg;
+        vectorMsg.header = scanMsg_->header;
+        vectorMsg.pose.position.x = 0.0f;
+        vectorMsg.pose.position.y = 0.0f;
+        vectorMsg.pose.position.z = 0.0f;
+        vectorMsg.pose.orientation.x = std::cos(_targetAngle / 2);
+        vectorMsg.pose.orientation.y = std::sin(_targetAngle / 2);
+        vectorMsg.pose.orientation.z = 0.0f;
+        vectorMsg.pose.orientation.w = 0.0f;
+        _vectorPublisher->publish(vectorMsg);
+    }
 };
 
 float ReactiveGapFollow::setSpeedFromDistance(float distance_, float steeringAngle_)
 {
-    float speed = distance_ * SPEED_DISTANCE_FACTOR
+    float speed = distance_ * _speedDistanceFactor
                   / (1.0f + (std::abs(steeringAngle_) / 4));  // Reduce speed when steering angle is large
-    if (speed > MAX_SPEED)
+    if (speed > _maxSpeed)
     {
-        speed = MAX_SPEED;
+        speed = _maxSpeed;
     }
     return speed;
 }
@@ -199,7 +220,7 @@ float ReactiveGapFollow::computeRollingAverage(float newValue_)
 {
     _targetAngleWindow.push_back(newValue_);
     _rollingSum += newValue_;
-    if (_targetAngleWindow.size() > ROLLING_AVERAGE_WINDOW)
+    if (_targetAngleWindow.size() > _rollingAverageWindow)
     {
         _rollingSum -= _targetAngleWindow.front();
         _targetAngleWindow.pop_front();

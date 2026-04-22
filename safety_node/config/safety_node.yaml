@@ -1,0 +1,14 @@
+arcus:
+  safety_node:
+    ros__parameters:
+      ttc_threshold_s: 0.7
+      min_range_rate_ms: 0.0
+      qos: 1
+      drive_cmd_topic: /safety/drive
+      brake_cmd_topic: /commands/motor/brake
+      lidar_scan_topic: /scan
+      position_topic: /odometry/filtered
+      fov_rad: 0.035
+      brake_force: 10.0
+      spam_stop_period_ms: 5
+      heartbeat_period_ms: 50
