@@ -1,0 +1,18 @@
+costmap_maker:
+  ros__parameters:
+    scan_topic: "/scan"
+    costmap_topic: "/local_costmap"
+    robot_frame: "ego_racecar/base_link"
+
+    resolution_m: 0.05
+    cone_range_m: 7.0
+    cone_fov_deg: 90.0
+
+    update_rate_hz: 30.0
+
+    obstacle_range_m: 8.0
+    min_valid_range_m: 0.05
+
+    inflation_radius_m: 0.30
+    inscribed_radius_m: 0.14
+    cost_scaling_factor: 10.0
