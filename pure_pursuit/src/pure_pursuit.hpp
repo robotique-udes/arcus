@@ -31,7 +31,6 @@ class PurePursuit : public rclcpp::Node
     double MAX_LOOKAHEAD_M = 3.5;
     double MIN_LOOKAHEAD_M = 0.2;
     double LOOKAHEAD_GAIN = 0.5;
-    double TRAJECTORY_RISK_LOOKAHEAD_MULTIPLIER = 1.0;
     double MAX_LOOKAHEAD_FRACTION = 0.05;
     double LOOP_FREQUENCY_HZ = 38.0;
     double WHEELBASE_M = 0.325;
@@ -41,6 +40,10 @@ class PurePursuit : public rclcpp::Node
     double A_ACCEL_MAX = 4.0;
     double A_BRAKE_MAX = 3.0;
     double SPEED_EPS = 1.0e-6;
+
+    double RISK_LOOKAHEAD_GAIN = 1.0;
+    double TTC_DECAY_RATE = 1.0;
+    double MIN_TTC_SPEED_MS = 0.3;
 
     double PI = 3.14159;
     double RECOVERY_TRIGGER_SPEED_MS = 0.06;

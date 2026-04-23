@@ -27,7 +27,7 @@ void PurePursuit::CB_publishDriveCmd(void)
 
     double lookAheadDistance = LOOKAHEAD_GAIN * _currentSpeed;
     double clippedLookAheadDistance = this->clipLookaheadDistance(lookAheadDistance);
-    double riskLookaheadDistance = clippedLookAheadDistance * TRAJECTORY_RISK_LOOKAHEAD_MULTIPLIER;
+    double riskLookaheadDistance = RISK_LOOKAHEAD_GAIN * _currentSpeed;
 
     Waypoint lookaheadPoint = this->getLookaheadPoint(clippedLookAheadDistance);
     this->CB_publishTargetWaypoint(lookaheadPoint.point);  // For visualization purposes only
@@ -183,7 +183,9 @@ void PurePursuit::handleRosParam(void)
     this->declare_parameter("max_lookahead_distance_m", MAX_LOOKAHEAD_M);
     this->declare_parameter("min_lookahead_distance_m", MIN_LOOKAHEAD_M);
     this->declare_parameter("lookahead_distance_gain", LOOKAHEAD_GAIN);
-    this->declare_parameter("trajectory_risk_lookahead_multiplier", TRAJECTORY_RISK_LOOKAHEAD_MULTIPLIER);
+    this->declare_parameter("risk_lookahead_gain", RISK_LOOKAHEAD_GAIN);
+    this->declare_parameter("ttc_decay_rate", TTC_DECAY_RATE);
+    this->declare_parameter("min_ttc_speed_mps", MIN_TTC_SPEED_MS);
     this->declare_parameter("max_lookahead_fraction_of_path", MAX_LOOKAHEAD_FRACTION);
     this->declare_parameter("loop_frequency_hz", LOOP_FREQUENCY_HZ);
     this->declare_parameter("wheelbase_m", WHEELBASE_M);
@@ -207,7 +209,9 @@ void PurePursuit::handleRosParam(void)
         MAX_LOOKAHEAD_M = this->get_parameter("max_lookahead_distance_m").as_double();
         MIN_LOOKAHEAD_M = this->get_parameter("min_lookahead_distance_m").as_double();
         LOOKAHEAD_GAIN = this->get_parameter("lookahead_distance_gain").as_double();
-        TRAJECTORY_RISK_LOOKAHEAD_MULTIPLIER = this->get_parameter("trajectory_risk_lookahead_multiplier").as_double();
+        RISK_LOOKAHEAD_GAIN = this->get_parameter("risk_lookahead_gain").as_double();
+        TTC_DECAY_RATE = this->get_parameter("ttc_decay_rate").as_double();
+        MIN_TTC_SPEED_MS = this->get_parameter("min_ttc_speed_mps").as_double();
         MAX_LOOKAHEAD_FRACTION = this->get_parameter("max_lookahead_fraction_of_path").as_double();
         LOOP_FREQUENCY_HZ = this->get_parameter("loop_frequency_hz").as_double();
         WHEELBASE_M = this->get_parameter("wheelbase_m").as_double();
@@ -227,7 +231,9 @@ void PurePursuit::handleRosParam(void)
     RCLCPP_INFO(this->get_logger(), "  max_lookahead_distance_m:       %.3f", MAX_LOOKAHEAD_M);
     RCLCPP_INFO(this->get_logger(), "  min_lookahead_distance_m:       %.3f", MIN_LOOKAHEAD_M);
     RCLCPP_INFO(this->get_logger(), "  lookahead_distance_gain:        %.3f", LOOKAHEAD_GAIN);
-    RCLCPP_INFO(this->get_logger(), "  trajectory_risk_lookahead_multiplier: %.3f", TRAJECTORY_RISK_LOOKAHEAD_MULTIPLIER);
+    RCLCPP_INFO(this->get_logger(), "  risk_lookahead_gain:            %.3f", RISK_LOOKAHEAD_GAIN);
+    RCLCPP_INFO(this->get_logger(), "  ttc_decay_rate:                 %.3f", TTC_DECAY_RATE);
+    RCLCPP_INFO(this->get_logger(), "  min_ttc_speed_mps:              %.3f", MIN_TTC_SPEED_MS);
     RCLCPP_INFO(this->get_logger(), "  max_lookahead_fraction_of_path: %.3f", MAX_LOOKAHEAD_FRACTION);
     RCLCPP_INFO(this->get_logger(), "  loop_frequency_hz:              %.1f", LOOP_FREQUENCY_HZ);
     RCLCPP_INFO(this->get_logger(), "  wheelbase_m:                    %.3f", WHEELBASE_M);
@@ -497,7 +503,7 @@ PurePursuit::Waypoint PurePursuit::getLookaheadPoint(const double lookAheadDista
     return _waypoints.at(bestIndex);
 }
 
-double PurePursuit::calculateTrajectoryRisk(double lookaheadDistance)
+double PurePursuit::calculateTrajectoryRisk(double riskLookaheadDistance)
 {
     std::lock_guard<std::mutex> lock(_costmapMutex);
 
@@ -507,9 +513,11 @@ double PurePursuit::calculateTrajectoryRisk(double lookaheadDistance)
     }
 
     // Check waypoints along the raceline within lookahead distance
-    int occupancySum = 0;
+    double riskSum = 0;
     int waypointsChecked = 0;
     double cumulativeDistance = 0.0;
+    double prevX = _currentX;
+    double prevY = _currentY;
 
     for (size_t i = 0; i < _waypoints.size(); i++)
     {
@@ -519,13 +527,13 @@ double PurePursuit::calculateTrajectoryRisk(double lookaheadDistance)
         double wpX = waypoint.point.pose.position.x;
         double wpY = waypoint.point.pose.position.y;
 
-        double dx = wpX - _currentX;
-        double dy = wpY - _currentY;
-        double distance = std::sqrt(dx * dx + dy * dy);
+        double dx = wpX - prevX;
+        double dy = wpY - prevY;
+        double segmentLength = std::sqrt(dx * dx + dy * dy);
 
-        cumulativeDistance += distance;
+        cumulativeDistance += segmentLength;
 
-        if (cumulativeDistance > lookaheadDistance)
+        if (cumulativeDistance > riskLookaheadDistance)
         {
             break;
         }
@@ -540,20 +548,27 @@ double PurePursuit::calculateTrajectoryRisk(double lookaheadDistance)
             int idx = gridY * _costmapWidth + gridX;
             if (idx >= 0 && idx < static_cast<int>(_costmapData.size()))
             {
-                int8_t occupancy = _costmapData[idx];
-                if (occupancy >= 0)  // -1 = unknown
+                int8_t cost = _costmapData[idx];
+                if (cost >= 0)  // -1 = unknown
                 {
-                    occupancySum += occupancy;
+                    // Time-to-collision weighting: same distance gets higher risk at higher speed.
+                    double closingSpeed = std::max(std::abs(_currentSpeed), MIN_TTC_SPEED_MS);
+                    double ttc = cumulativeDistance / closingSpeed;
+                    double weight = std::exp(-TTC_DECAY_RATE * ttc);
+                    riskSum += weight * static_cast<double>(cost) * segmentLength;
                     waypointsChecked++;
                 }
             }
         }
+
+        prevX = wpX;
+        prevY = wpY;
     }
 
     // Return average occupancy (0-100)
     if (waypointsChecked > 0)
     {
-        return static_cast<double>(occupancySum) / waypointsChecked;
+        return static_cast<double>(riskSum) / waypointsChecked;
     }
 
     return 0.0;
