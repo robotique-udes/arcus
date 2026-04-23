@@ -1,11 +1,18 @@
 # config/pure_pursuit_params.yaml
 /arcus/pure_pursuit:
   ros__parameters:
+    waypoints_file_path: /sim_ws/src/arcus/resources/waypoints/waypoints.csv
+    drive_command_topic: /pure_pursuit/drive
     position_topic: /pf/pose/odom
+    target_waypoint_topic: /target_waypoint
+    costmap_topic: /local_costmap
+    trajectory_risk_topic: /pure_pursuit/trajectory_risk
+    error_topic: /node_error_code
 
     max_lookahead_distance_m: 3.5
     min_lookahead_distance_m: 0.15
     lookahead_distance_gain: 0.40
+    trajectory_risk_lookahead_multiplier: 1.50
 
     max_lookahead_fraction_of_path: 0.05
     loop_frequency_hz: 38.0

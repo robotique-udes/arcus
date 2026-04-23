@@ -27,9 +27,16 @@ void PurePursuit::CB_publishDriveCmd(void)
 
     double lookAheadDistance = LOOKAHEAD_GAIN * _currentSpeed;
     double clippedLookAheadDistance = this->clipLookaheadDistance(lookAheadDistance);
+    double riskLookaheadDistance = clippedLookAheadDistance * TRAJECTORY_RISK_LOOKAHEAD_MULTIPLIER;
 
     Waypoint lookaheadPoint = this->getLookaheadPoint(clippedLookAheadDistance);
     this->CB_publishTargetWaypoint(lookaheadPoint.point);  // For visualization purposes only
+
+    // Calculate and publish trajectory risk
+    double trajectoryRisk = this->calculateTrajectoryRisk(riskLookaheadDistance);
+    std_msgs::msg::Float32 riskMsg;
+    riskMsg.data = static_cast<float>(trajectoryRisk);
+    _trajectoryRiskPublisher->publish(riskMsg);
 
     /* RCLCPP_DEBUG(this->get_logger(),
                  "Lookahead Point: (%.2f, %.2f), Current Position: (%.2f, %.2f), Lookahead Distance: %.2f",
@@ -140,6 +147,17 @@ void PurePursuit::CB_positionSubscriber(const nav_msgs::msg::Odometry& msg)
     }
 }
 
+void PurePursuit::CB_costmapSubscriber(const nav_msgs::msg::OccupancyGrid& msg)
+{
+    std::lock_guard<std::mutex> lock(_costmapMutex);
+    _costmapData = msg.data;
+    _costmapWidth = msg.info.width;
+    _costmapHeight = msg.info.height;
+    _costmapResolution = msg.info.resolution;
+    _costmapOriginX = msg.info.origin.position.x;
+    _costmapOriginY = msg.info.origin.position.y;
+}
+
 void PurePursuit::CB_publishTargetWaypoint(const geometry_msgs::msg::PoseStamped& msg)
 {
     double x = msg.pose.position.x;
@@ -157,10 +175,15 @@ void PurePursuit::handleRosParam(void)
     this->declare_parameter<std::string>("waypoints_file_path", DEFAULT_WAYPOINTS_CSV_FILE_NAME);
     this->declare_parameter<std::string>("position_topic", DEFAULT_POSITION_TOPIC);
     this->declare_parameter<std::string>("drive_command_topic", DEFAULT_DRIVE_CMD_TOPIC);
+    this->declare_parameter<std::string>("target_waypoint_topic", TARGET_WAYPOINT_TOPIC);
+    this->declare_parameter<std::string>("costmap_topic", DEFAULT_COSTMAP_TOPIC);
+    this->declare_parameter<std::string>("trajectory_risk_topic", DEFAULT_TRAJECTORY_RISK_TOPIC);
+    this->declare_parameter<std::string>("error_topic", DEFAULT_ERROR_TOPIC);
 
     this->declare_parameter("max_lookahead_distance_m", MAX_LOOKAHEAD_M);
     this->declare_parameter("min_lookahead_distance_m", MIN_LOOKAHEAD_M);
     this->declare_parameter("lookahead_distance_gain", LOOKAHEAD_GAIN);
+    this->declare_parameter("trajectory_risk_lookahead_multiplier", TRAJECTORY_RISK_LOOKAHEAD_MULTIPLIER);
     this->declare_parameter("max_lookahead_fraction_of_path", MAX_LOOKAHEAD_FRACTION);
     this->declare_parameter("loop_frequency_hz", LOOP_FREQUENCY_HZ);
     this->declare_parameter("wheelbase_m", WHEELBASE_M);
@@ -174,12 +197,17 @@ void PurePursuit::handleRosParam(void)
     _waypointsFilePath = this->get_parameter("waypoints_file_path").as_string();
     _positionTopic = this->get_parameter("position_topic").as_string();
     _driveCmdTopic = this->get_parameter("drive_command_topic").as_string();
+    _targetWaypointTopic = this->get_parameter("target_waypoint_topic").as_string();
+    _costmapTopic = this->get_parameter("costmap_topic").as_string();
+    _trajectoryRiskTopic = this->get_parameter("trajectory_risk_topic").as_string();
+    _errorTopic = this->get_parameter("error_topic").as_string();
 
     try
     {
         MAX_LOOKAHEAD_M = this->get_parameter("max_lookahead_distance_m").as_double();
         MIN_LOOKAHEAD_M = this->get_parameter("min_lookahead_distance_m").as_double();
         LOOKAHEAD_GAIN = this->get_parameter("lookahead_distance_gain").as_double();
+        TRAJECTORY_RISK_LOOKAHEAD_MULTIPLIER = this->get_parameter("trajectory_risk_lookahead_multiplier").as_double();
         MAX_LOOKAHEAD_FRACTION = this->get_parameter("max_lookahead_fraction_of_path").as_double();
         LOOP_FREQUENCY_HZ = this->get_parameter("loop_frequency_hz").as_double();
         WHEELBASE_M = this->get_parameter("wheelbase_m").as_double();
@@ -199,6 +227,7 @@ void PurePursuit::handleRosParam(void)
     RCLCPP_INFO(this->get_logger(), "  max_lookahead_distance_m:       %.3f", MAX_LOOKAHEAD_M);
     RCLCPP_INFO(this->get_logger(), "  min_lookahead_distance_m:       %.3f", MIN_LOOKAHEAD_M);
     RCLCPP_INFO(this->get_logger(), "  lookahead_distance_gain:        %.3f", LOOKAHEAD_GAIN);
+    RCLCPP_INFO(this->get_logger(), "  trajectory_risk_lookahead_multiplier: %.3f", TRAJECTORY_RISK_LOOKAHEAD_MULTIPLIER);
     RCLCPP_INFO(this->get_logger(), "  max_lookahead_fraction_of_path: %.3f", MAX_LOOKAHEAD_FRACTION);
     RCLCPP_INFO(this->get_logger(), "  loop_frequency_hz:              %.1f", LOOP_FREQUENCY_HZ);
     RCLCPP_INFO(this->get_logger(), "  wheelbase_m:                    %.3f", WHEELBASE_M);
@@ -212,6 +241,10 @@ void PurePursuit::handleRosParam(void)
     RCLCPP_INFO(this->get_logger(), "Waypoints file path: %s", _waypointsFilePath.c_str());
     RCLCPP_INFO(this->get_logger(), "Position topic: %s", _positionTopic.c_str());
     RCLCPP_INFO(this->get_logger(), "Drive command topic: %s", _driveCmdTopic.c_str());
+    RCLCPP_INFO(this->get_logger(), "Target waypoint topic: %s", _targetWaypointTopic.c_str());
+    RCLCPP_INFO(this->get_logger(), "Costmap topic: %s", _costmapTopic.c_str());
+    RCLCPP_INFO(this->get_logger(), "Trajectory risk topic: %s", _trajectoryRiskTopic.c_str());
+    RCLCPP_INFO(this->get_logger(), "Error topic: %s", _errorTopic.c_str());
 }
 
 void PurePursuit::loadWaypointsFromCSV(void)
@@ -383,10 +416,19 @@ void PurePursuit::initRosElements(void)
                                                                                  this->CB_positionSubscriber(msg);
                                                                              });
 
-    _driveCmdPublisher = this->create_publisher<ackermann_msgs::msg::AckermannDriveStamped>(_driveCmdTopic, DEFAULT_QOS);
-    _targetWaypointPublisher = this->create_publisher<geometry_msgs::msg::PointStamped>(TARGET_WAYPOINT_TOPIC, DEFAULT_QOS);
+    _costmapSubscriber = this->create_subscription<nav_msgs::msg::OccupancyGrid>(
+        _costmapTopic,
+        rclcpp::SensorDataQoS(),
+        [this](const nav_msgs::msg::OccupancyGrid& msg)
+        {
+            this->CB_costmapSubscriber(msg);
+        });
 
-    _errorPublisher = this->create_publisher<arcus_msgs::msg::ErrorCode>("/node_error_code", 10);
+    _driveCmdPublisher = this->create_publisher<ackermann_msgs::msg::AckermannDriveStamped>(_driveCmdTopic, DEFAULT_QOS);
+    _targetWaypointPublisher = this->create_publisher<geometry_msgs::msg::PointStamped>(_targetWaypointTopic, DEFAULT_QOS);
+    _trajectoryRiskPublisher = this->create_publisher<std_msgs::msg::Float32>(_trajectoryRiskTopic, DEFAULT_QOS);
+
+    _errorPublisher = this->create_publisher<arcus_msgs::msg::ErrorCode>(_errorTopic, 10);
 
     _heartbeatTimer = this->create_wall_timer(std::chrono::milliseconds(50), std::bind(&PurePursuit::heartbeat, this));
 }
@@ -453,4 +495,66 @@ PurePursuit::Waypoint PurePursuit::getLookaheadPoint(const double lookAheadDista
 
     _previousWaypointIndex = bestIndex;
     return _waypoints.at(bestIndex);
+}
+
+double PurePursuit::calculateTrajectoryRisk(double lookaheadDistance)
+{
+    std::lock_guard<std::mutex> lock(_costmapMutex);
+
+    if (_costmapData.empty() || _costmapWidth == 0 || _costmapHeight == 0)
+    {
+        return 0.0;  // No costmap data yet
+    }
+
+    // Check waypoints along the raceline within lookahead distance
+    int occupancySum = 0;
+    int waypointsChecked = 0;
+    double cumulativeDistance = 0.0;
+
+    for (size_t i = 0; i < _waypoints.size(); i++)
+    {
+        size_t waypointIdx = (_previousWaypointIndex + i) % _waypoints.size();
+        const auto& waypoint = _waypoints[waypointIdx];
+
+        double wpX = waypoint.point.pose.position.x;
+        double wpY = waypoint.point.pose.position.y;
+
+        double dx = wpX - _currentX;
+        double dy = wpY - _currentY;
+        double distance = std::sqrt(dx * dx + dy * dy);
+
+        cumulativeDistance += distance;
+
+        if (cumulativeDistance > lookaheadDistance)
+        {
+            break;
+        }
+
+        // Transform waypoint to costmap grid coordinates
+        int gridX = static_cast<int>(std::round((wpX - _costmapOriginX) / _costmapResolution));
+        int gridY = static_cast<int>(std::round((wpY - _costmapOriginY) / _costmapResolution));
+
+        // Check bounds
+        if (gridX >= 0 && gridX < _costmapWidth && gridY >= 0 && gridY < _costmapHeight)
+        {
+            int idx = gridY * _costmapWidth + gridX;
+            if (idx >= 0 && idx < static_cast<int>(_costmapData.size()))
+            {
+                int8_t occupancy = _costmapData[idx];
+                if (occupancy >= 0)  // -1 = unknown
+                {
+                    occupancySum += occupancy;
+                    waypointsChecked++;
+                }
+            }
+        }
+    }
+
+    // Return average occupancy (0-100)
+    if (waypointsChecked > 0)
+    {
+        return static_cast<double>(occupancySum) / waypointsChecked;
+    }
+
+    return 0.0;
 }

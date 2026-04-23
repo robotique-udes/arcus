@@ -14,7 +14,8 @@ arcus:
       deadman_topic: /deadman_active
       node_error_topic: /node_error_code
       master_error_topic: /master_error_code
-
+      trajectory_risk_topic: /pure_pursuit/trajectory_risk
       speed_limit_topic: /track_manager/speed_limit
       force_algo_topic: /track_manager/forced_algo
       section_override_timeout_ms: 500
+      max_accepted_risk: 0.1

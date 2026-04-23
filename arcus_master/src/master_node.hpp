@@ -23,6 +23,9 @@ class MasterNode : public rclcpp::Node
     static constexpr const char* DEFAULT_MASTER_HEARTBEAT_TOPIC = "/master_heartbeat";
     static constexpr const char* DEFAULT_SPEED_LIMIT_TOPIC = "/track_manager/speed_limit";
     static constexpr const char* DEFAULT_FORCE_ALGO_TOPIC = "/track_manager/forced_algo";
+    static constexpr const char* DEFAULT_TRAJECTORY_RISK_TOPIC = "/pure_pursuit/trajectory_risk";
+
+    double MAX_ACCEPTED_RISK = 0.1f;
 
   public:
     MasterNode();
@@ -75,7 +78,7 @@ class MasterNode : public rclcpp::Node
     std::string _masterHeartbeatTopic = DEFAULT_MASTER_HEARTBEAT_TOPIC;
     std::string _speedLimitTopic = DEFAULT_SPEED_LIMIT_TOPIC;
     std::string _forceAlgoTopic = DEFAULT_FORCE_ALGO_TOPIC;
-
+    std::string _trajectoryRiskTopic = DEFAULT_TRAJECTORY_RISK_TOPIC;
     int _sectionOverrideTimeoutMs = 500;
     double _forcedMaxSpeed = 0.0;
     std::string _forcedAlgo;
@@ -85,6 +88,7 @@ class MasterNode : public rclcpp::Node
     bool emergencyBrakeEngaged = false;
     bool ppRecoveryEngaged = false;
     bool _deadmanActive = false;
+    bool _riskTresholdExceeded = false;
 
     void disparityDriveCallback(const ackermann_msgs::msg::AckermannDriveStamped::SharedPtr msg);
     void safetyDriveCallback(const ackermann_msgs::msg::AckermannDriveStamped::SharedPtr msg);
@@ -104,4 +108,5 @@ class MasterNode : public rclcpp::Node
     rclcpp::Subscription<std_msgs::msg::Bool>::SharedPtr _deadmanSubscriber;
     rclcpp::Subscription<std_msgs::msg::Float64>::SharedPtr _speedLimitSubscriber;
     rclcpp::Subscription<std_msgs::msg::String>::SharedPtr _forceAlgoSubscriber;
+    rclcpp::Subscription<std_msgs::msg::Float32>::SharedPtr _trajectoryRiskSubscriber;
 };

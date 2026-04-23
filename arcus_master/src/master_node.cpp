@@ -32,7 +32,9 @@ MasterNode::MasterNode():
     _masterErrorTopic = this->declare_parameter<std::string>("master_error_topic", DEFAULT_MASTER_ERROR_TOPIC);
     _speedLimitTopic = this->declare_parameter<std::string>("speed_limit_topic", DEFAULT_SPEED_LIMIT_TOPIC);
     _forceAlgoTopic = this->declare_parameter<std::string>("force_algo_topic", DEFAULT_FORCE_ALGO_TOPIC);
+    _trajectoryRiskTopic = this->declare_parameter<std::string>("trajectory_risk_topic", DEFAULT_TRAJECTORY_RISK_TOPIC);
     _sectionOverrideTimeoutMs = this->declare_parameter<int>("section_override_timeout_ms", 500);
+    MAX_ACCEPTED_RISK = this->declare_parameter<double>("max_accepted_risk", 0.1);
 
     if (_sectionOverrideTimeoutMs < 0)
     {
@@ -87,6 +89,11 @@ MasterNode::MasterNode():
         _forceAlgoTopic,
         10,
         std::bind(&MasterNode::forceAlgoCallback, this, std::placeholders::_1));
+
+    _trajectoryRiskSubscriber = this->create_subscription<std_msgs::msg::Float32>(
+        _trajectoryRiskTopic,
+        10,
+        std::bind(&MasterNode::trajectoryRiskCallback, this, std::placeholders::_1));
 }
 
 void MasterNode::errorCodeCallback(const arcus_msgs::msg::ErrorCode::SharedPtr msg)
@@ -165,6 +172,15 @@ void MasterNode::forceAlgoCallback(const std_msgs::msg::String::SharedPtr msg)
     _lastForceAlgoNs = static_cast<uint64_t>(this->now().nanoseconds());
 }
 
+void MasterNode::trajectoryRiskCallback(const std_msgs::msg::Float32::SharedPtr msg)
+{
+    if (msg->data >= MAX_ACCEPTED_RISK)
+    {
+        RCLCPP_WARN(this->get_logger(), "Received high trajectory risk: %.2f, switching to disparity", msg->data);
+        _riskTresholdExceeded = true;
+    }
+}
+
 bool MasterNode::forcedAlgoToState(const std::string& algo, DriveState& state) const
 {
     if (algo == "controller")
@@ -239,6 +255,11 @@ MasterNode::DriveState MasterNode::determineDriveState() const
     const uint64_t now_ns = static_cast<uint64_t>(this->now().nanoseconds());
     const uint64_t override_timeout_ns = static_cast<uint64_t>(_sectionOverrideTimeoutMs) * 1000000ULL;
     const bool force_algo_active = (now_ns - _lastForceAlgoNs) <= override_timeout_ns;
+
+    if (_riskTresholdExceeded && disparity_ready)
+    {
+        return DriveState::DISPARITY;
+    }
 
     if (force_algo_active)
     {
