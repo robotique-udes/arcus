@@ -3,6 +3,7 @@
 #include "ackermann_msgs/msg/ackermann_drive_stamped.hpp"
 #include "std_msgs/msg/bool.hpp"
 #include "std_msgs/msg/float64.hpp"
+#include "std_msgs/msg/float32.hpp"
 #include "std_msgs/msg/string.hpp"
 #include <array>
 #include <string>
@@ -80,10 +81,12 @@ class MasterNode : public rclcpp::Node
     std::string _forceAlgoTopic = DEFAULT_FORCE_ALGO_TOPIC;
     std::string _trajectoryRiskTopic = DEFAULT_TRAJECTORY_RISK_TOPIC;
     int _sectionOverrideTimeoutMs = 500;
+    int _disparityCooldownMs = 500;
     double _forcedMaxSpeed = 0.0;
     std::string _forcedAlgo;
     uint64_t _lastSpeedLimitNs = 0U;
     uint64_t _lastForceAlgoNs = 0U;
+    uint64_t _disparityHoldUntilNs = 0U;
 
     bool emergencyBrakeEngaged = false;
     bool ppRecoveryEngaged = false;
@@ -97,6 +100,7 @@ class MasterNode : public rclcpp::Node
     void deadmanCallback(const std_msgs::msg::Bool::SharedPtr msg);
     void speedLimitCallback(const std_msgs::msg::Float64::SharedPtr msg);
     void forceAlgoCallback(const std_msgs::msg::String::SharedPtr msg);
+    void trajectoryRiskCallback(const std_msgs::msg::Float32::SharedPtr msg);
 
     rclcpp::Publisher<ackermann_msgs::msg::AckermannDriveStamped>::SharedPtr _drivePublisher;
     rclcpp::Publisher<std_msgs::msg::Bool>::SharedPtr _masterHeartbeatPublisher;

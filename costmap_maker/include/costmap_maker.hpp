@@ -4,6 +4,7 @@
 #include <rclcpp/rclcpp.hpp>
 
 #include <nav_msgs/msg/occupancy_grid.hpp>
+#include <nav_msgs/msg/odometry.hpp>
 #include <sensor_msgs/msg/laser_scan.hpp>
 
 #include <cstdint>
@@ -20,48 +21,62 @@ private:
     static constexpr std::size_t DEFAULT_QOS_DEPTH = 10;
 
     // Parameters (defaults before parameter load)
-    std::string scan_topic_ = "/scan";
-    std::string costmap_topic_ = "/local_costmap";
-    std::string robot_frame_ = "ego_racecar/base_link";
+    std::string _scanTopic = "/scan";
+    std::string _costmapTopic = "/local_costmap";
+    std::string _robotFrame = "ego_racecar/base_link";
+    std::string _globalMapTopic = "/map";
+    std::string _poseTopic = "/pf/pose/odom";
 
-    double resolution_m_ = 0.05;
-    double cone_range_m_ = 7.0;
-    double update_rate_hz_ = 30.0;
+    double _resolutionM = 0.05;
+    double _coneRangeM = 7.0;
+    double _updateRateHz = 30.0;
 
-    double obstacle_range_m_ = 5.0;
-    double min_valid_range_m_ = 0.05;
-    double cone_fov_deg_ = 90.0;
+    double _minValidRangeM = 0.05;
+    double _coneFovDeg = 90.0;
 
-    double inflation_radius_m_ = 0.30;
-    double inscribed_radius_m_ = 0.18;
-    double cost_scaling_factor_ = 10.0;
+    double _inflationRadiusM = 0.30;
+    double _inscribedRadiusM = 0.18;
+    double _costScalingFactor = 10.0;
+    bool _onlyUnmappedObstacles = true;
+    double _globalObstacleNeighborhoodRadiusM = 0.20;
 
-    int8_t unknown_cost_ = -1;
-    int8_t free_cost_ = 0;
-    int8_t lethal_cost_ = 100;
+    int8_t _unknownCost = -1;
+    int8_t _freeCost = 0;
+    int8_t _lethalCost = 100;
+    int8_t _globalObstacleThreshold = 65;
 
     // ROS interfaces
-    rclcpp::Subscription<sensor_msgs::msg::LaserScan>::SharedPtr scan_sub_;
-    rclcpp::Publisher<nav_msgs::msg::OccupancyGrid>::SharedPtr costmap_pub_;
-    rclcpp::TimerBase::SharedPtr update_timer_;
+    rclcpp::Subscription<sensor_msgs::msg::LaserScan>::SharedPtr _scanSub;
+    rclcpp::Subscription<nav_msgs::msg::OccupancyGrid>::SharedPtr _globalMapSub;
+    rclcpp::Subscription<nav_msgs::msg::Odometry>::SharedPtr _poseSub;
+    rclcpp::Publisher<nav_msgs::msg::OccupancyGrid>::SharedPtr _costmapPub;
+    rclcpp::TimerBase::SharedPtr _updateTimer;
 
     // Shared runtime state from callbacks
-    std::mutex data_mutex_;
-    sensor_msgs::msg::LaserScan latest_scan_;
-    bool has_scan_ = false;
+    std::mutex _dataMutex;
+    sensor_msgs::msg::LaserScan _latestScan;
+    nav_msgs::msg::OccupancyGrid _globalMap;
+    bool _hasScan = false;
+    bool _hasGlobalMap = false;
+    bool _hasPose = false;
+    double _robotX = 0.0;
+    double _robotY = 0.0;
+    double _robotYaw = 0.0;
 
     // Costmap storage and metadata
-    nav_msgs::msg::OccupancyGrid grid_msg_;
-    std::vector<int8_t> costmap_data_;
-    std::vector<int> obstacle_indices_;
-    double width_m_ = 0.0;
-    double height_m_ = 0.0;
-    int width_cells_ = 0;
-    int height_cells_ = 0;
-    double origin_x_ = 0.0;
-    double origin_y_ = 0.0;
+    nav_msgs::msg::OccupancyGrid _gridMsg;
+    std::vector<int8_t> _costmapData;
+    std::vector<int> _obstacleIndices;
+    double _widthM = 0.0;
+    double _heightM = 0.0;
+    int _widthCells = 0;
+    int _heightCells = 0;
+    double _originX = 0.0;
+    double _originY = 0.0;
 
     void scanCallback(const sensor_msgs::msg::LaserScan::SharedPtr msg);
+    void globalMapCallback(const nav_msgs::msg::OccupancyGrid::SharedPtr msg);
+    void poseCallback(const nav_msgs::msg::Odometry::SharedPtr msg);
     void updateTimerCallback();
 
     void declareAndLoadParameters();
@@ -70,9 +85,24 @@ private:
     bool localToMap(double local_x, double local_y, int& mx, int& my) const;
     bool beamInsideForwardCone(double scan_angle) const;
     void setCell(int mx, int my, int8_t value);
-    void markObstaclesFromScan(const sensor_msgs::msg::LaserScan& scan);
+    void markObstaclesFromScan(const sensor_msgs::msg::LaserScan& scan,
+                               const nav_msgs::msg::OccupancyGrid* globalMap,
+                               double robotX,
+                               double robotY,
+                               double robotYaw);
     void inflateObstacles();
     int8_t distanceToCost(double distance_m) const;
+    bool worldToGlobalMap(const nav_msgs::msg::OccupancyGrid& globalMap,
+                          double worldX,
+                          double worldY,
+                          int& mx,
+                          int& my) const;
+    bool shouldKeepObstacle(double localX,
+                            double localY,
+                            const nav_msgs::msg::OccupancyGrid* globalMap,
+                            double robotX,
+                            double robotY,
+                            double robotYaw) const;
     void publishCostmap();
 };
 

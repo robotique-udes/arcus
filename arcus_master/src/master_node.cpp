@@ -34,6 +34,7 @@ MasterNode::MasterNode():
     _forceAlgoTopic = this->declare_parameter<std::string>("force_algo_topic", DEFAULT_FORCE_ALGO_TOPIC);
     _trajectoryRiskTopic = this->declare_parameter<std::string>("trajectory_risk_topic", DEFAULT_TRAJECTORY_RISK_TOPIC);
     _sectionOverrideTimeoutMs = this->declare_parameter<int>("section_override_timeout_ms", 500);
+    _disparityCooldownMs = this->declare_parameter<int>("disparity_cooldown_ms", 500);
     MAX_ACCEPTED_RISK = this->declare_parameter<double>("max_accepted_risk", 0.1);
 
     if (_sectionOverrideTimeoutMs < 0)
@@ -174,11 +175,24 @@ void MasterNode::forceAlgoCallback(const std_msgs::msg::String::SharedPtr msg)
 
 void MasterNode::trajectoryRiskCallback(const std_msgs::msg::Float32::SharedPtr msg)
 {
+    const uint64_t now_ns = static_cast<uint64_t>(this->now().nanoseconds());
+
     if (msg->data >= MAX_ACCEPTED_RISK)
     {
         RCLCPP_WARN(this->get_logger(), "Received high trajectory risk: %.2f, switching to disparity", msg->data);
         _riskTresholdExceeded = true;
+        _disparityHoldUntilNs = now_ns + static_cast<uint64_t>(_disparityCooldownMs) * 1000000ULL;
+        return;
     }
+
+    if (_riskTresholdExceeded)
+    {
+        RCLCPP_INFO(this->get_logger(),
+                    "Trajectory risk back below threshold: %.2f, pure pursuit will resume after hold time expires",
+                    msg->data);
+    }
+
+    _riskTresholdExceeded = false;
 }
 
 bool MasterNode::forcedAlgoToState(const std::string& algo, DriveState& state) const
@@ -256,10 +270,7 @@ MasterNode::DriveState MasterNode::determineDriveState() const
     const uint64_t override_timeout_ns = static_cast<uint64_t>(_sectionOverrideTimeoutMs) * 1000000ULL;
     const bool force_algo_active = (now_ns - _lastForceAlgoNs) <= override_timeout_ns;
 
-    if (_riskTresholdExceeded && disparity_ready)
-    {
-        return DriveState::DISPARITY;
-    }
+    const bool disparity_hold_active = now_ns < _disparityHoldUntilNs;
 
     if (force_algo_active)
     {
@@ -274,7 +285,7 @@ MasterNode::DriveState MasterNode::determineDriveState() const
             {
                 return DriveState::SAFETY_OVERRIDE;
             }
-            if (forced_state == DriveState::PURE_PURSUIT && pp_ready)
+            if (forced_state == DriveState::PURE_PURSUIT && pp_ready && !_riskTresholdExceeded && !disparity_hold_active)
             {
                 return DriveState::PURE_PURSUIT;
             }
@@ -303,7 +314,7 @@ MasterNode::DriveState MasterNode::determineDriveState() const
         found = true;
     }
 
-    if (pp_ready && (!found || _priorityPurePursuit < best_priority))
+    if (pp_ready && (!found || _priorityPurePursuit < best_priority) && !_riskTresholdExceeded && !disparity_hold_active)
     {
         best_priority = _priorityPurePursuit;
         best_state = DriveState::PURE_PURSUIT;

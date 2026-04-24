@@ -13,7 +13,7 @@
     min_lookahead_distance_m: 0.15
     lookahead_distance_gain: 0.40
     
-    risk_lookahead_gain: 1.50
+    risk_lookahead_gain: 0.6
     ttc_decay_rate: 1.0
     min_ttc_speed_mps: 0.30
 

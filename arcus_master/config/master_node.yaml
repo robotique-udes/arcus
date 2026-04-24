@@ -18,4 +18,5 @@ arcus:
       speed_limit_topic: /track_manager/speed_limit
       force_algo_topic: /track_manager/forced_algo
       section_override_timeout_ms: 500
+      disparity_cooldown_ms: 500
       max_accepted_risk: 0.1
