@@ -13,7 +13,8 @@ int main(int argc, char** argv)
 ReactiveGapFollow::ReactiveGapFollow():
     Node("reactive_node")
 {
-    _overshootFactor = this->declare_parameter<double>("overshoot_factor", 0.56);
+    _frictionCoeff = this->declare_parameter<double>("static_friction_coeff", 0.75);
+    _wheelBase = this->declare_parameter<double>("wheel_base", 0.324);
     _bubbleRadius = this->declare_parameter<double>("bubble_radius", 0.25);
     _speedDistanceFactor = this->declare_parameter<double>("speed_distance_factor", 0.8);
     _maxSpeed = this->declare_parameter<double>("max_speed", 20.0);
@@ -59,7 +60,7 @@ void ReactiveGapFollow::heartbeat()
 }
 
 // Preprocess lidar points to remove invalid points
-void ReactiveGapFollow::preprocess_lidar(std::vector<float> &ranges, float range_max, float range_min)
+void ReactiveGapFollow::preprocess_lidar(std::vector<float> &ranges, float range_max, float range_min, float angle_min, float angle_inc)
 {
         for(size_t i = 0; i < ranges.size(); i++)
         {
@@ -84,8 +85,8 @@ void ReactiveGapFollow::preprocess_lidar(std::vector<float> &ranges, float range
         }
 
         // Remove Lidar point behind car for disparity analysis
-        int deg90Index = 0;
-        int negDeg90Index = 0;
+        int deg90Index = static_cast<int>((M_PI/2.0-angle_min)/angle_inc);
+        int negDeg90Index = static_cast<int>((-M_PI/2.0-angle_min)/angle_inc);
         // Erase after the end index first to avoid index shiftings
         ranges.erase(ranges.begin() + deg90Index + 1, ranges.end());
         // Then erase before the beginning index
@@ -117,7 +118,7 @@ void ReactiveGapFollow::get_disparities(std::vector<float> &differences, float t
 // Compute the number of points representing a certain width at a certain distance frome the car
 int ReactiveGapFollow::get_num_points(double width, double distance, double angle_inc)
 {
-    double angle = std::atan2(width, 2.0*distance);
+    double angle = std::atan2(width, distance);
     return std::ceil(angle/angle_inc);
 }
 
@@ -125,7 +126,7 @@ int ReactiveGapFollow::get_num_points(double width, double distance, double angl
 void ReactiveGapFollow::cover_points(std::vector<float> &ranges, int cover_direction, int num_points, int start_index)
 {
     double new_distance = ranges[start_index];
-    if (cover_direction > 0)
+    if (cover_direction < 0)
     {
         for (int i = 0; i < num_points; i++)
         {
@@ -192,7 +193,7 @@ void ReactiveGapFollow::lidar_CB(sensor_msgs::msg::LaserScan::SharedPtr scanMsg_
     const float range_min = scanMsg_->range_min;
     
 
-    this->preprocess_lidar(ranges, range_max, range_min);
+    this->preprocess_lidar(ranges, range_max, range_min, angle_min, angle_inc);
     std::vector<float> differences;
     std::vector<int> disparities;
     this->get_differences(ranges, differences);
@@ -202,10 +203,11 @@ void ReactiveGapFollow::lidar_CB(sensor_msgs::msg::LaserScan::SharedPtr scanMsg_
     ackermann_msgs::msg::AckermannDriveStamped newMsg = ackermann_msgs::msg::AckermannDriveStamped();
 
     int maxDistanceIndex = std::distance(ranges.begin(), std::max_element(ranges.begin(), ranges.end()));
-    _targetAngle = angle_min + maxDistanceIndex*angle_inc;
+    _targetAngle = -M_PI/2.0 + maxDistanceIndex*angle_inc;
+    _targetAngle = this->computeRollingAverage(_targetAngle);
 
     newMsg.drive.steering_angle = _targetAngle;
-    float targetSpeed = setSpeedFromDistance(ranges[ranges.size() / 2.0], _targetAngle);
+    float targetSpeed = setSpeedFromDistance(ranges[ranges.size() / 2], _targetAngle);
     // RCLCPP_INFO(this->get_logger(), "Speed: %0.2f, from distance: %0.2f", targetSpeed, extendedRanges[size / 2]);
     newMsg.drive.speed = targetSpeed;
 
@@ -223,18 +225,29 @@ void ReactiveGapFollow::lidar_CB(sensor_msgs::msg::LaserScan::SharedPtr scanMsg_
         vectorMsg.pose.orientation.z = 0.0f;
         vectorMsg.pose.orientation.w = 0.0f;
         _vectorPublisher->publish(vectorMsg);
+
+
+        sensor_msgs::msg::LaserScan laser_msg = *scanMsg_;
+        laser_msg.ranges = ranges;
+        laser_msg.angle_min = -M_PI/2.0;
+        laser_msg.angle_max = M_PI/2.0;
+        _laserPublisher->publish(laser_msg);
+
+        geometry_msgs::msg::PointStamped targetWaypointMsg;
+        targetWaypointMsg.header = scanMsg_->header;
+        targetWaypointMsg.point.x = ranges[maxDistanceIndex] * std::cos(_targetAngle);
+        targetWaypointMsg.point.y = ranges[maxDistanceIndex] * std::sin(_targetAngle);
+        _targetWaypointPublisher->publish(targetWaypointMsg);
     }
 };
 
 float ReactiveGapFollow::setSpeedFromDistance(float distance_, float steeringAngle_)
 {
-    float speed = distance_ * _speedDistanceFactor
-                  / (1.0f + (std::abs(steeringAngle_) / 4));  // Reduce speed when steering angle is large
-    if (speed > _maxSpeed)
-    {
-        speed = _maxSpeed;
-    }
-    return speed;
+    float speed = distance_ * _speedDistanceFactor; // Basic proportionnal speed gain
+    float turn_radius = _wheelBase/std::sin(steeringAngle_);
+    float max_turning_speed = std::sqrt(turn_radius*9.81*_frictionCoeff);
+    speed = std::min(speed, max_turning_speed); // Limit max speed in turn based on turn radius, acceleration and friction coefficient
+    return std::min(speed, _maxSpeed);
 }
 
 float ReactiveGapFollow::computeRollingAverage(float newValue_)

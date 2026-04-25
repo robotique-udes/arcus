@@ -20,7 +20,7 @@ class ReactiveGapFollow : public rclcpp::Node
     ReactiveGapFollow();
 
   private:
-    void preprocess_lidar(std::vector<float>& ranges_, float range_max, float range_min);
+    void preprocess_lidar(std::vector<float>& ranges_, float range_max, float range_min, float angle_min, float angle_inc);
     void get_differences(std::vector<float> &ranges, std::vector<float> &differences);
     void get_disparities(std::vector<float> &differences, float threshold, std::vector<int> &disparities);
     int get_num_points(double width, double distance, double angle_inc);
@@ -34,8 +34,8 @@ class ReactiveGapFollow : public rclcpp::Node
     float computeRollingAverage(float newValue_);
 
     float _targetAngle = 0.0f;
-
-    float _overshootFactor = 0.56f;
+    float _wheelBase = 0.324;
+    float _frictionCoeff = 0.75;
     float _bubbleRadius = 0.25f;
     float _speedDistanceFactor = 0.8f;
     float _maxSpeed = 20.0f;
