@@ -4,10 +4,10 @@ arcus:
       overshoot_factor: 0.56
       bubble_radius: 0.25
       speed_distance_factor: 0.8
-      max_speed: 20.0
+      max_speed: 0.1
       disparity_threshold: 0.1
       default_qos: 1
       rolling_average_window: 3
-      debug: false
+      debug: true
       lidar_scan_topic: /scan
       drive_topic: /disparity/drive
