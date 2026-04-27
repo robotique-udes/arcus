@@ -1,0 +1,8 @@
+arcus:
+  track_zone_manager:
+    ros__parameters:
+      odom_topic: /pf/pose/odom
+      speed_limit_topic: /track_manager/speed_limit
+      force_algo_topic: /track_manager/forced_algo
+      speed_zones_csv_path: /home/arcus/arcus/resources/speed_zones.csv
+      algos_csv_path: /home/arcus/arcus/resources/algos.csv

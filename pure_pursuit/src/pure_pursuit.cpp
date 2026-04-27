@@ -111,27 +111,11 @@ void PurePursuit::CB_publishDriveCmd(void)
 
 void PurePursuit::CB_positionSubscriber(const nav_msgs::msg::Odometry& msg)
 {
-    ///
-    geometry_msgs::msg::TransformStamped tf;
+    _currentX = msg.pose.pose.position.x;
+    _currentY = msg.pose.pose.position.y;
 
-    try
-    {
-        tf = _tfBuffer->lookupTransform("map",                    // target frame
-                                        "ego_racecar/base_link",  // source frame
-                                        tf2::TimePointZero);
-    }
-    catch (const tf2::TransformException& ex)
-    {
-        RCLCPP_WARN(this->get_logger(), "TF lookup failed: %s", ex.what());
-        return;
-    }
-
-    // Position
-    _currentX = tf.transform.translation.x;
-    _currentY = tf.transform.translation.y;
-
-    // Orientation (quaternion → yaw)
-    const auto& q = tf.transform.rotation;
+    // Orientation (quaternion -> yaw)
+    const auto& q = msg.pose.pose.orientation;
 
     _currentYaw = std::atan2(2.0 * (q.w * q.z + q.x * q.y), 1.0 - 2.0 * (q.y * q.y + q.z * q.z));
     _currentSpeed = msg.twist.twist.linear.x;
@@ -384,6 +368,8 @@ void PurePursuit::calculateSpeed(void)
 
 void PurePursuit::initRosElements(void)
 {
+    const auto odom_qos = rclcpp::QoS(rclcpp::KeepLast(DEFAULT_QOS)).best_effort();
+
     _loopTimer = this->create_wall_timer(std::chrono::milliseconds(static_cast<size_t>(1000 / LOOP_FREQUENCY_HZ)),
                                          [this](void)
                                          {
@@ -391,7 +377,7 @@ void PurePursuit::initRosElements(void)
                                          });
 
     _positionSubscriber = this->create_subscription<nav_msgs::msg::Odometry>(_positionTopic,
-                                                                             DEFAULT_QOS,
+                                                                             odom_qos,
                                                                              [this](const nav_msgs::msg::Odometry& msg)
                                                                              {
                                                                                  this->CB_positionSubscriber(msg);
@@ -403,8 +389,6 @@ void PurePursuit::initRosElements(void)
     _errorPublisher = this->create_publisher<arcus_msgs::msg::ErrorCode>("/node_error_code", 10);
 
     _heartbeatTimer = this->create_wall_timer(std::chrono::milliseconds(50), std::bind(&PurePursuit::heartbeat, this));
-    _tfBuffer = std::make_shared<tf2_ros::Buffer>(this->get_clock());
-    _tfListener = std::make_shared<tf2_ros::TransformListener>(*_tfBuffer);
 }
 
 void PurePursuit::heartbeat()

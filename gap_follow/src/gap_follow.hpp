@@ -16,22 +16,6 @@
 
 class ReactiveGapFollow : public rclcpp::Node
 {
-    static constexpr float OVERSHOOT_FACTOR = 0.56f;
-    static constexpr uint16_t ELIMINATE_EXTREMES_POSITION = 4U;
-
-    static constexpr float BUBBLE_RADIUS = 0.45f;
-    static constexpr float SPEED_DISTANCE_FACTOR = 0.7f;
-    static constexpr float MAX_SPEED = 5.0f;
-    static constexpr float DISPARITY_THRESHOLD = 0.1;
-    static constexpr float SAFE_TURNING_DISTANCE = 0.1f;
-
-    static constexpr const char* LIDAR_SCAN_TOPIC = "/scan";
-    static constexpr const char* DRIVE_TOPIC = "/disparity/drive";
-
-    static constexpr uint16_t DEFAULT_QOS = 1U;
-
-    static constexpr uint16_t ROLLING_AVERAGE_WINDOW = 3U;
-
   public:
     ReactiveGapFollow();
 
@@ -45,6 +29,17 @@ class ReactiveGapFollow : public rclcpp::Node
     float computeRollingAverage(float newValue_);
 
     float _targetAngle = 0.0f;
+
+    float _overshootFactor = 0.56f;
+    float _bubbleRadius = 0.25f;
+    float _speedDistanceFactor = 0.8f;
+    float _maxSpeed = 20.0f;
+    float _disparityThreshold = 0.1f;
+    uint16_t _defaultQos = 1U;
+    uint16_t _rollingAverageWindow = 3U;
+    bool _debug = false;
+    std::string _lidarScanTopic = "/scan";
+    std::string _driveTopic = "/disparity/drive";
 
     uint32_t _targetIndex = 0;
     uint32_t _maxGapStartingIndex = 0;
