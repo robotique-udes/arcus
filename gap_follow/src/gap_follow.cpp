@@ -36,10 +36,10 @@ ReactiveGapFollow::ReactiveGapFollow():
 
     _error_publisher = this->create_publisher<arcus_msgs::msg::ErrorCode>("/node_error_code", 10);
     _timer = this->create_wall_timer(std::chrono::milliseconds(50), std::bind(&ReactiveGapFollow::heartbeat, this));
-    _laserPublisher = this->create_publisher<sensor_msgs::msg::LaserScan>("processed_scan", _defaultQos);
+    _laserPublisher = this->create_publisher<sensor_msgs::msg::LaserScan>("/processed_scan", _defaultQos);
 
-    _targetWaypointPublisher = this->create_publisher<geometry_msgs::msg::PointStamped>("target_waypoint", _defaultQos);
-    _vectorPublisher = this->create_publisher<geometry_msgs::msg::PoseStamped>("vector", _defaultQos);
+    _targetWaypointPublisher = this->create_publisher<geometry_msgs::msg::PointStamped>("/target_waypoint", _defaultQos);
+    _vectorPublisher = this->create_publisher<geometry_msgs::msg::PoseStamped>("/vector", _defaultQos);
 
     _laserScanSubscriber
         = this->create_subscription<sensor_msgs::msg::LaserScan>(_lidarScanTopic,
