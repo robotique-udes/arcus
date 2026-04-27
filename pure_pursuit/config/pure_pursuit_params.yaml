@@ -12,7 +12,7 @@
     wheelbase_m: 0.325
     
     speed_min: 0.3
-    speed_max: 8.0
+    speed_max: 5.0
     a_lat_max: 2.4
     a_accel_max: 9.0
     a_brake_max: 7.5

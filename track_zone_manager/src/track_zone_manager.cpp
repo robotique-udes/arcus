@@ -35,10 +35,12 @@ class TrackZoneManager : public rclcpp::Node
 
         loadSpeedZones(speed_zones_csv_path_);
         loadAlgoZones(algos_csv_path_);
+        
+        const auto odom_qos = rclcpp::QoS(rclcpp::KeepLast(1)).best_effort();
 
         odom_sub_ = this->create_subscription<nav_msgs::msg::Odometry>(
             odom_topic_,
-            10,
+            odom_qos,
             std::bind(&TrackZoneManager::odomCallback, this, std::placeholders::_1));
 
         RCLCPP_INFO(this->get_logger(), "TrackZoneManager ready. Odom topic: %s", odom_topic_.c_str());
@@ -128,7 +130,6 @@ class TrackZoneManager : public rclcpp::Node
                 inside = !inside;
             }
         }
-
         return inside;
     }
 
