@@ -13,6 +13,7 @@ PurePursuit::PurePursuit():
 {
     this->handleRosParam();
     this->initRosElements();
+    this->initParamCallbackHandle();
     this->loadWaypointsFromCSV();
     this->calculateSpeed();
 }
@@ -389,6 +390,53 @@ void PurePursuit::initRosElements(void)
     _errorPublisher = this->create_publisher<arcus_msgs::msg::ErrorCode>("/node_error_code", 10);
 
     _heartbeatTimer = this->create_wall_timer(std::chrono::milliseconds(50), std::bind(&PurePursuit::heartbeat, this));
+}
+
+void PurePursuit::initParamCallbackHandle(void) {
+        
+    _paramCallbackHandle = this->add_on_set_parameters_callback(
+        [this](const std::vector<rclcpp::Parameter>& params)
+        {
+            rcl_interfaces::msg::SetParametersResult result;
+            result.successful = true;
+
+            bool needsSpeedRecalc = false;
+
+            for (const auto& param : params)
+            {
+                const std::string& name = param.get_name();
+
+                if (name == "max_lookahead_distance_m")
+                    MAX_LOOKAHEAD_M = param.as_double();
+                else if (name == "min_lookahead_distance_m")
+                    MIN_LOOKAHEAD_M = param.as_double();
+                else if (name == "lookahead_distance_gain")
+                    LOOKAHEAD_GAIN = param.as_double();
+                else if (name == "max_lookahead_fraction_of_path")
+                    MAX_LOOKAHEAD_FRACTION = param.as_double();
+                else if (name == "wheelbase_m")
+                    WHEELBASE_M = param.as_double();
+
+                else if (name == "speed_min")       { SPEED_MIN = param.as_double();    needsSpeedRecalc = true; }
+                else if (name == "speed_max")       { SPEED_MAX = param.as_double();    needsSpeedRecalc = true; }
+                else if (name == "a_lat_max")       { A_LAT_MAX = param.as_double();    needsSpeedRecalc = true; }
+                else if (name == "a_accel_max")     { A_ACCEL_MAX = param.as_double();  needsSpeedRecalc = true; }
+                else if (name == "a_brake_max")     { A_BRAKE_MAX = param.as_double();  needsSpeedRecalc = true; }
+                else if (name == "speed_eps")       { SPEED_EPS = param.as_double();    needsSpeedRecalc = true; }
+
+                RCLCPP_INFO(this->get_logger(), "Parameter updated: %s", name.c_str());
+            }
+
+            if (needsSpeedRecalc)
+            {
+                RCLCPP_INFO(this->get_logger(), "Speed profile parameters changed, recalculating...");
+                this->calculateSpeed();
+            }
+
+            return result;
+        }
+    );
+
 }
 
 void PurePursuit::heartbeat()

@@ -63,6 +63,7 @@ class PurePursuit : public rclcpp::Node
     void loadWaypointsFromCSV(void);
     void calculateSpeed(void);
     void initRosElements(void);
+    void initParamCallbackHandle(void);
     void heartbeat();
 
     double clipLookaheadDistance(double lookAheadDistance_) const;
@@ -92,6 +93,8 @@ class PurePursuit : public rclcpp::Node
     rclcpp::Publisher<geometry_msgs::msg::PointStamped>::SharedPtr _targetWaypointPublisher;
     rclcpp::TimerBase::SharedPtr _heartbeatTimer;
     rclcpp::Publisher<arcus_msgs::msg::ErrorCode>::SharedPtr _errorPublisher;
+
+    rclcpp::node_interfaces::OnSetParametersCallbackHandle::SharedPtr _paramCallbackHandle;
 
 };
 
