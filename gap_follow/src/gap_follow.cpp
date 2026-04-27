@@ -169,6 +169,8 @@ void ReactiveGapFollow::extend_disparities(std::vector<float> &ranges, std::vect
 
         int num_points = this->get_num_points(car_width, close_distance, angle_inc);
         int direction = close_index - far_index;
+
+
         this->cover_points(ranges, direction, num_points + extra_points, close_index);
     }
 }

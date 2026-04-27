@@ -1,14 +1,14 @@
 arcus:
   gap_follow:
     ros__parameters:
-      static_friction_coeff: 0.75
+      static_friction_coeff: 0.7
       wheel_base: 0.324
       bubble_radius: 0.3
-      speed_distance_factor: 0.8
-      max_speed: 10.0
+      speed_distance_factor: 2.0
+      max_speed: 20.0
       disparity_threshold: 0.15
       default_qos: 1
-      rolling_average_window: 3
+      rolling_average_window: 1
       debug: true
       lidar_scan_topic: /scan
       drive_topic: /drive
