@@ -62,6 +62,7 @@ class PurePursuit : public rclcpp::Node
     static constexpr const char* DEFAULT_TRAJECTORY_RISK_TOPIC = "/pure_pursuit/trajectory_risk";
     static constexpr const char* DEFAULT_ERROR_TOPIC = "/node_error_code";
     static constexpr const char* DEFAULT_WAYPOINTS_CSV_FILE_NAME = "/home/arcus/arcus/resources/waypoints/waypoints.csv";
+    static constexpr const char* DEFAULT_RISK_PATH_TOPIC = "/pure_pursuit/risk_path_segment";
 
   public:
     PurePursuit();
@@ -82,6 +83,7 @@ class PurePursuit : public rclcpp::Node
     double clipLookaheadDistance(double lookAheadDistance_) const;
     Waypoint getLookaheadPoint(const double lookAheadDistance);
     double calculateTrajectoryRisk(double lookaheadDistance);
+    void publishRiskPathSegment();
     void evaluatePointRisk(double x, double y, double cumulativeDistance, double distanceMultiplier,
                                    double& riskSum);
 
@@ -92,6 +94,7 @@ class PurePursuit : public rclcpp::Node
     std::string _costmapTopic = DEFAULT_COSTMAP_TOPIC;
     std::string _trajectoryRiskTopic = DEFAULT_TRAJECTORY_RISK_TOPIC;
     std::string _errorTopic = DEFAULT_ERROR_TOPIC;
+    std::string _riskPathTopic = DEFAULT_RISK_PATH_TOPIC;
 
     double _currentSpeed = 0.0;
     double _currentX = 0.0;
@@ -103,9 +106,11 @@ class PurePursuit : public rclcpp::Node
     bool _recoveryActive = false;
     bool _recoveryArmed = false;
     bool _carHasEverMoved = false;
+    bool _debug = false;
     double _recoverySteeringAngle = 0.0;
 
     std::vector<Waypoint> _waypoints;
+    std::vector<geometry_msgs::msg::PoseStamped> _riskPathWaypoints;
 
     rclcpp::Subscription<nav_msgs::msg::Odometry>::SharedPtr _positionSubscriber;
     rclcpp::Subscription<nav_msgs::msg::OccupancyGrid>::SharedPtr _costmapSubscriber;
@@ -113,6 +118,7 @@ class PurePursuit : public rclcpp::Node
     rclcpp::Publisher<ackermann_msgs::msg::AckermannDriveStamped>::SharedPtr _driveCmdPublisher;
     rclcpp::Publisher<geometry_msgs::msg::PointStamped>::SharedPtr _targetWaypointPublisher;
     rclcpp::Publisher<std_msgs::msg::Float32>::SharedPtr _trajectoryRiskPublisher;
+    rclcpp::Publisher<nav_msgs::msg::Path>::SharedPtr _riskPathPublisher;
     rclcpp::TimerBase::SharedPtr _heartbeatTimer;
     rclcpp::Publisher<arcus_msgs::msg::ErrorCode>::SharedPtr _errorPublisher;
 

@@ -42,6 +42,12 @@ void PurePursuit::CB_publishDriveCmd(void)
         _trajectoryRiskPublisher->publish(riskMsg);
     }
 
+    // Publish the path segment used for risk calculation (debug only)
+    if (_debug)
+    {
+        this->publishRiskPathSegment();
+    }
+
     /* RCLCPP_DEBUG(this->get_logger(),
                  "Lookahead Point: (%.2f, %.2f), Current Position: (%.2f, %.2f), Lookahead Distance: %.2f",
                  lookaheadPoint.pose.position.x,
@@ -183,6 +189,8 @@ void PurePursuit::handleRosParam(void)
     this->declare_parameter<std::string>("costmap_topic", DEFAULT_COSTMAP_TOPIC);
     this->declare_parameter<std::string>("trajectory_risk_topic", DEFAULT_TRAJECTORY_RISK_TOPIC);
     this->declare_parameter<std::string>("error_topic", DEFAULT_ERROR_TOPIC);
+    this->declare_parameter<std::string>("risk_path_topic", DEFAULT_RISK_PATH_TOPIC);
+    this->declare_parameter("debug", _debug);
 
     this->declare_parameter("max_lookahead_distance_m", MAX_LOOKAHEAD_M);
     this->declare_parameter("min_lookahead_distance_m", MIN_LOOKAHEAD_M);
@@ -209,6 +217,8 @@ void PurePursuit::handleRosParam(void)
     _costmapTopic = this->get_parameter("costmap_topic").as_string();
     _trajectoryRiskTopic = this->get_parameter("trajectory_risk_topic").as_string();
     _errorTopic = this->get_parameter("error_topic").as_string();
+    _riskPathTopic = this->get_parameter("risk_path_topic").as_string();
+    _debug = this->get_parameter("debug").as_bool();
 
     try
     {
@@ -259,7 +269,9 @@ void PurePursuit::handleRosParam(void)
     RCLCPP_INFO(this->get_logger(), "Target waypoint topic: %s", _targetWaypointTopic.c_str());
     RCLCPP_INFO(this->get_logger(), "Costmap topic: %s", _costmapTopic.c_str());
     RCLCPP_INFO(this->get_logger(), "Trajectory risk topic: %s", _trajectoryRiskTopic.c_str());
+    RCLCPP_INFO(this->get_logger(), "Risk path topic: %s", _riskPathTopic.c_str());
     RCLCPP_INFO(this->get_logger(), "Error topic: %s", _errorTopic.c_str());
+    RCLCPP_INFO(this->get_logger(), "Debug mode: %s", _debug ? "enabled" : "disabled");
 }
 
 void PurePursuit::loadWaypointsFromCSV(void)
@@ -442,6 +454,7 @@ void PurePursuit::initRosElements(void)
     _driveCmdPublisher = this->create_publisher<ackermann_msgs::msg::AckermannDriveStamped>(_driveCmdTopic, DEFAULT_QOS);
     _targetWaypointPublisher = this->create_publisher<geometry_msgs::msg::PointStamped>(_targetWaypointTopic, DEFAULT_QOS);
     _trajectoryRiskPublisher = this->create_publisher<std_msgs::msg::Float32>(_trajectoryRiskTopic, DEFAULT_QOS);
+    _riskPathPublisher = this->create_publisher<nav_msgs::msg::Path>(_riskPathTopic, DEFAULT_QOS);
 
     _errorPublisher = this->create_publisher<arcus_msgs::msg::ErrorCode>(_errorTopic, 10);
 
@@ -487,6 +500,7 @@ void PurePursuit::initParamCallbackHandle(void) {
                 else if (name == "a_accel_max")     { A_ACCEL_MAX = param.as_double();  needsSpeedRecalc = true; }
                 else if (name == "a_brake_max")     { A_BRAKE_MAX = param.as_double();  needsSpeedRecalc = true; }
                 else if (name == "speed_eps")       { SPEED_EPS = param.as_double();    needsSpeedRecalc = true; }
+                else if (name == "debug")           { _debug = param.as_bool(); }
 
                 RCLCPP_INFO(this->get_logger(), "Parameter updated: %s", name.c_str());
             }
@@ -601,6 +615,22 @@ double PurePursuit::calculateTrajectoryRisk(double riskLookaheadDistance)
         return 0.0;  // No costmap data yet
     }
 
+    // Clear and populate risk path waypoints only in debug mode
+    _riskPathWaypoints.clear();
+    geometry_msgs::msg::PoseStamped currentPose;
+    
+    if (_debug)
+    {
+        // Add starting position (current vehicle position)
+        currentPose.header.frame_id = "map";
+        currentPose.header.stamp = this->get_clock()->now();
+        currentPose.pose.position.x = _currentX;
+        currentPose.pose.position.y = _currentY;
+        currentPose.pose.position.z = 0.0;
+        currentPose.pose.orientation.w = 1.0;
+        _riskPathWaypoints.push_back(currentPose);
+    }
+
     // Check waypoints along the raceline within lookahead distance
     double riskSum = 0;
     double cumulativeDistance = 0.0;
@@ -637,11 +667,22 @@ double PurePursuit::calculateTrajectoryRisk(double riskLookaheadDistance)
                     break;
                 }
 
+                // Add interpolated point to risk path (debug only)
+                if (_debug)
+                {
+                    geometry_msgs::msg::PoseStamped pose;
+                    pose.header.frame_id = "map";
+                    pose.header.stamp = this->get_clock()->now();
+                    pose.pose.position.x = interpX;
+                    pose.pose.position.y = interpY;
+                    pose.pose.position.z = 0.0;
+                    pose.pose.orientation.w = 1.0;
+                    _riskPathWaypoints.push_back(pose);
+                }
+
                 this->evaluatePointRisk(interpX, interpY, cumulativeDistance, RISK_INTERPOLATION_STEP_M,
                                        riskSum);
             }
-
-            cumulativeDistance += segmentLength;
             prevX = wpX;
             prevY = wpY;
             continue;
@@ -654,6 +695,19 @@ double PurePursuit::calculateTrajectoryRisk(double riskLookaheadDistance)
             break;
         }
 
+        // Add waypoint to risk path (debug only)
+        if (_debug)
+        {
+            geometry_msgs::msg::PoseStamped pose;
+            pose.header.frame_id = "map";
+            pose.header.stamp = this->get_clock()->now();
+            pose.pose.position.x = wpX;
+            pose.pose.position.y = wpY;
+            pose.pose.position.z = 0.0;
+            pose.pose.orientation.w = 1.0;
+            _riskPathWaypoints.push_back(pose);
+        }
+
         this->evaluatePointRisk(wpX, wpY, cumulativeDistance, segmentLength, riskSum);
 
         prevX = wpX;
@@ -664,4 +718,15 @@ double PurePursuit::calculateTrajectoryRisk(double riskLookaheadDistance)
 
     return static_cast<double>(riskSum) / cumulativeDistance;
 
+}
+
+void PurePursuit::publishRiskPathSegment()
+{
+    // Create and publish the path message from pre-collected waypoints
+    nav_msgs::msg::Path pathMsg;
+    pathMsg.header.frame_id = "map";
+    pathMsg.header.stamp = this->get_clock()->now();
+    pathMsg.poses = _riskPathWaypoints;
+    RCLCPP_INFO(this->get_logger(), "path lenght: %d", _riskPathWaypoints.size());
+    _riskPathPublisher->publish(pathMsg);
 }
