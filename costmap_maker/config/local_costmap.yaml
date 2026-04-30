@@ -4,7 +4,7 @@ costmap_maker:
     costmap_topic: "/local_costmap"
     robot_frame: "ego_racecar/base_link"
     global_map_topic: "/map"
-    pose_topic: "/ego_racecar/odom"
+    pose_topic: "/pf/pose/odom"
 
     # Local costmap geometry
     resolution_m: 0.05                           # Cell size in meters
@@ -23,6 +23,6 @@ costmap_maker:
     cost_scaling_factor: 10.0                    # Exponential falloff strength
 
     # Optional global-map filtering (keep only likely new/unmapped obstacles)
-    only_unmapped_obstacles: true                # If true, suppress hits that match known global obstacles
+    only_unmapped_obstacles: True                # If true, suppress hits that match known global obstacles
     global_obstacle_threshold: 50                # Global map occupancy value treated as obstacle
     global_obstacle_neighborhood_radius_m: 0.10  # Match radius in meters for global obstacle lookup

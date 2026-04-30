@@ -1,3 +1,4 @@
+
 #ifndef GAP_FOLLOW_HPP
 #define GAP_FOLLOW_HPP
 
@@ -8,6 +9,7 @@
 #include "arcus_msgs/msg/error_code.hpp"
 #include "geometry_msgs/msg/point_stamped.hpp"
 #include "geometry_msgs/msg/pose_stamped.hpp"
+#include "std_msgs/msg/float32.hpp"
 
 #include <string>
 #include <vector>
@@ -31,6 +33,7 @@ class ReactiveGapFollow : public rclcpp::Node
 
     bool _straight = false;
     float setSpeedFromDistance(float distance_, float steeringAngle_);
+    float setRiskFromSpeed(float speed_);
     float computeRollingAverage(float newValue_);
 
     float _targetAngle = 0.0f;
@@ -38,6 +41,7 @@ class ReactiveGapFollow : public rclcpp::Node
     float _frictionCoeff = 0.75;
     float _bubbleRadius = 0.25f;
     float _speedDistanceFactor = 0.8f;
+    float _riskSpeedFactor = 0.8f;
     float _maxSpeed = 20.0f;
     float _disparityThreshold = 0.1f;
     uint16_t _defaultQos = 1U;
@@ -45,6 +49,7 @@ class ReactiveGapFollow : public rclcpp::Node
     bool _debug = false;
     std::string _lidarScanTopic = "/scan";
     std::string _driveTopic = "/disparity/drive";
+    std::string _riskTopic = "/disparity/risk";
 
     uint32_t _targetIndex = 0;
     uint32_t _maxGapStartingIndex = 0;
@@ -63,6 +68,7 @@ class ReactiveGapFollow : public rclcpp::Node
     rclcpp::Subscription<sensor_msgs::msg::LaserScan>::SharedPtr _laserScanSubscriber;
     rclcpp::Publisher<geometry_msgs::msg::PointStamped>::SharedPtr _targetWaypointPublisher;
     rclcpp::Publisher<geometry_msgs::msg::PoseStamped>::SharedPtr _vectorPublisher;
+    rclcpp::Publisher<std_msgs::msg::Float32>::SharedPtr _riskPublisher;
 };
 
 #endif  // GAP_FOLLOW_HPP

@@ -5,10 +5,10 @@ arcus:
       wheel_base: 0.324
       bubble_radius: 0.35
       speed_distance_factor: 2.0
-      max_speed: 5.0
+      max_speed: 2.0
       disparity_threshold: 0.15
       default_qos: 1
       rolling_average_window: 1
-      debug: true
+      debug: false
       lidar_scan_topic: /scan
       drive_topic: /disparity/drive

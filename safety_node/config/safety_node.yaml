@@ -1,7 +1,7 @@
 arcus:
   safety_node:
     ros__parameters:
-      ttc_threshold_s: 0.7
+      ttc_threshold_s: 0.4
       min_range_rate_ms: 0.0
       qos: 1
       drive_cmd_topic: /safety/drive
