@@ -118,7 +118,7 @@ void CostmapMaker::declareAndLoadParameters()
 {
 	declare_parameter<std::string>("scan_topic", _scanTopic);
 	declare_parameter<std::string>("costmap_topic", _costmapTopic);
-	declare_parameter<std::string>("robot_frame", _robotFrame);
+	declare_parameter<std::string>("lidar_frame", _lidarFrame);
 	declare_parameter<std::string>("global_map_topic", _globalMapTopic);
 	declare_parameter<std::string>("pose_topic", _poseTopic);
 
@@ -139,7 +139,7 @@ void CostmapMaker::declareAndLoadParameters()
 
 	get_parameter("scan_topic", _scanTopic);
 	get_parameter("costmap_topic", _costmapTopic);
-	get_parameter("robot_frame", _robotFrame);
+	get_parameter("robot_frame", _lidarFrame);
 	get_parameter("global_map_topic", _globalMapTopic);
 	get_parameter("pose_topic", _poseTopic);
 
@@ -189,7 +189,7 @@ void CostmapMaker::initializeGrid()
 	_gridMsg.info.origin.position.x = _originX;
 	_gridMsg.info.origin.position.y = _originY;
 	_gridMsg.info.origin.orientation.w = 1.0;
-	_gridMsg.header.frame_id = _robotFrame;
+	_gridMsg.header.frame_id = _lidarFrame;
 
 	_costmapData.assign(static_cast<std::size_t>(_widthCells * _heightCells), _unknownCost);
 }
@@ -410,7 +410,7 @@ int8_t CostmapMaker::distanceToCost(double distance_m) const
 void CostmapMaker::publishCostmap()
 {
 	_gridMsg.header.stamp = now();
-	_gridMsg.header.frame_id = _robotFrame;
+	_gridMsg.header.frame_id = _lidarFrame;
 	_gridMsg.data = _costmapData;
 	_costmapPub->publish(_gridMsg);
 }

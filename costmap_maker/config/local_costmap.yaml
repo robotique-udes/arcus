@@ -2,14 +2,14 @@ costmap_maker:
   ros__parameters:
     scan_topic: "/scan"
     costmap_topic: "/local_costmap"
-    robot_frame: "ego_racecar/base_link"
+    lidar_frame: "ego_racecar/laser"
     global_map_topic: "/map"
     pose_topic: "/pf/pose/odom"
 
     # Local costmap geometry
     resolution_m: 0.05                           # Cell size in meters
     cone_range_m: 7.0                            # Forward lookahead distance and max obstacle acceptance range
-    cone_fov_deg: 90.0                           # Angular width of the local cone
+    cone_fov_deg: 120.0                           # Angular width of the local cone
 
     # Update frequency
     update_rate_hz: 30.0                         # Costmap publish/update rate
@@ -18,9 +18,9 @@ costmap_maker:
     min_valid_range_m: 0.05                      # Ignore readings below this range
 
     # Inflation cost model
-    inflation_radius_m: 0.30                     # Max inflation distance around obstacles
+    inflation_radius_m: 0.40                     # Max inflation distance around obstacles
     inscribed_radius_m: 0.14                     # Radius treated as lethal cost
-    cost_scaling_factor: 10.0                    # Exponential falloff strength
+    cost_scaling_factor: 9.0                    # Exponential falloff strength
 
     # Optional global-map filtering (keep only likely new/unmapped obstacles)
     only_unmapped_obstacles: True                # If true, suppress hits that match known global obstacles

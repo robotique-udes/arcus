@@ -198,7 +198,6 @@ void PurePursuit::handleRosParam(void)
     this->declare_parameter("risk_lookahead_gain", RISK_LOOKAHEAD_GAIN);
     this->declare_parameter("ttc_decay_rate", TTC_DECAY_RATE);
     this->declare_parameter("min_ttc_speed_mps", MIN_TTC_SPEED_MS);
-    this->declare_parameter("ttc_weight_scale", TTC_WEIGHT_SCALE);
     this->declare_parameter("risk_interpolation_step_m", RISK_INTERPOLATION_STEP_M);
     this->declare_parameter("max_lookahead_fraction_of_path", MAX_LOOKAHEAD_FRACTION);
     this->declare_parameter("loop_frequency_hz", LOOP_FREQUENCY_HZ);
@@ -228,7 +227,6 @@ void PurePursuit::handleRosParam(void)
         RISK_LOOKAHEAD_GAIN = this->get_parameter("risk_lookahead_gain").as_double();
         TTC_DECAY_RATE = this->get_parameter("ttc_decay_rate").as_double();
         MIN_TTC_SPEED_MS = this->get_parameter("min_ttc_speed_mps").as_double();
-        TTC_WEIGHT_SCALE = this->get_parameter("ttc_weight_scale").as_double();
         RISK_INTERPOLATION_STEP_M = this->get_parameter("risk_interpolation_step_m").as_double();
         MAX_LOOKAHEAD_FRACTION = this->get_parameter("max_lookahead_fraction_of_path").as_double();
         LOOP_FREQUENCY_HZ = this->get_parameter("loop_frequency_hz").as_double();
@@ -252,7 +250,6 @@ void PurePursuit::handleRosParam(void)
     RCLCPP_INFO(this->get_logger(), "  risk_lookahead_gain:            %.3f", RISK_LOOKAHEAD_GAIN);
     RCLCPP_INFO(this->get_logger(), "  ttc_decay_rate:                 %.3f", TTC_DECAY_RATE);
     RCLCPP_INFO(this->get_logger(), "  min_ttc_speed_mps:              %.3f", MIN_TTC_SPEED_MS);
-    RCLCPP_INFO(this->get_logger(), "  ttc_weight_scale:               %.3f", TTC_WEIGHT_SCALE);
     RCLCPP_INFO(this->get_logger(), "  max_lookahead_fraction_of_path: %.3f", MAX_LOOKAHEAD_FRACTION);
     RCLCPP_INFO(this->get_logger(), "  loop_frequency_hz:              %.1f", LOOP_FREQUENCY_HZ);
     RCLCPP_INFO(this->get_logger(), "  wheelbase_m:                    %.3f", WHEELBASE_M);
@@ -581,7 +578,7 @@ PurePursuit::Waypoint PurePursuit::getLookaheadPoint(const double lookAheadDista
     return _waypoints.at(bestIndex);
 }
 
-void PurePursuit::evaluatePointRisk(double x, double y, double cumulativeDistance, double distanceMultiplier,
+void PurePursuit::evaluatePointRisk(double x, double y, double cumulativeDistance, double deltaDistance,
                                    double& riskSum)
 {
     // Transform point to costmap grid coordinates
@@ -599,8 +596,8 @@ void PurePursuit::evaluatePointRisk(double x, double y, double cumulativeDistanc
             {
                 double closingSpeed = std::max(std::abs(_currentSpeed), MIN_TTC_SPEED_MS);
                 double ttc = cumulativeDistance / closingSpeed;
-                double weight = TTC_WEIGHT_SCALE * std::exp(-TTC_DECAY_RATE * ttc);
-                riskSum += weight * static_cast<double>(cost) * distanceMultiplier;
+                double weight = std::exp(-ttc/TTC_DECAY_RATE);
+                riskSum += weight * static_cast<double>(cost) * deltaDistance;
             }
         }
     }
@@ -632,7 +629,7 @@ double PurePursuit::calculateTrajectoryRisk(double riskLookaheadDistance)
     }
 
     // Check waypoints along the raceline within lookahead distance
-    double riskSum = 0;
+    double riskSum = 0.0;
     double cumulativeDistance = 0.0;
     double prevX = _currentX;
     double prevY = _currentY;
@@ -649,66 +646,46 @@ double PurePursuit::calculateTrajectoryRisk(double riskLookaheadDistance)
         double dy = wpY - prevY;
         double segmentLength = std::sqrt(dx * dx + dy * dy);
 
-        // For the first segment (robot to first waypoint), add interpolated points
-        if (i == 0)
+        double stepDistance = RISK_INTERPOLATION_STEP_M;
+        int numSamples = std::max(1, static_cast<int>(std::ceil(segmentLength / stepDistance)));
+        double sampleDelta = segmentLength / static_cast<double>(numSamples);
+
+        for (int sampleIndex = 1; sampleIndex <= numSamples; sampleIndex++)
         {
-            int numIntermediatePoints = static_cast<int>(segmentLength / RISK_INTERPOLATION_STEP_M);
-            for (int j = 0; j <= numIntermediatePoints; j++)
+            double t = static_cast<double>(sampleIndex) / static_cast<double>(numSamples);
+            double sampleX = prevX + t * (wpX - prevX);
+            double sampleY = prevY + t * (wpY - prevY);
+            cumulativeDistance += sampleDelta;
+
+            if (cumulativeDistance > riskLookaheadDistance)
             {
-                double t = (numIntermediatePoints > 0) ? static_cast<double>(j) / numIntermediatePoints : 0.0;
-                double interpX = prevX + t * (wpX - prevX);
-                double interpY = prevY + t * (wpY - prevY);
-                double interpDistance = t * segmentLength;
-
-                cumulativeDistance = interpDistance;
-
-                if (cumulativeDistance > riskLookaheadDistance)
-                {
-                    break;
-                }
-
-                // Add interpolated point to risk path (debug only)
-                if (_debug)
-                {
-                    geometry_msgs::msg::PoseStamped pose;
-                    pose.header.frame_id = "map";
-                    pose.header.stamp = this->get_clock()->now();
-                    pose.pose.position.x = interpX;
-                    pose.pose.position.y = interpY;
-                    pose.pose.position.z = 0.0;
-                    pose.pose.orientation.w = 1.0;
-                    _riskPathWaypoints.push_back(pose);
-                }
-
-                this->evaluatePointRisk(interpX, interpY, cumulativeDistance, RISK_INTERPOLATION_STEP_M,
-                                       riskSum);
+                break;
             }
-            prevX = wpX;
-            prevY = wpY;
-            continue;
-        }
 
-        cumulativeDistance += segmentLength;
+            // Add sampled point to risk path (debug only)
+            if (_debug)
+            {
+                geometry_msgs::msg::PoseStamped pose;
+                pose.header.frame_id = "map";
+                pose.header.stamp = this->get_clock()->now();
+                pose.pose.position.x = sampleX;
+                pose.pose.position.y = sampleY;
+                pose.pose.position.z = 0.0;
+                pose.pose.orientation.w = 1.0;
+                _riskPathWaypoints.push_back(pose);
+            }
+
+            this->evaluatePointRisk(sampleX,
+                                    sampleY,
+                                    cumulativeDistance,
+                                    sampleDelta,
+                                    riskSum);
+        }
 
         if (cumulativeDistance > riskLookaheadDistance)
         {
             break;
         }
-
-        // Add waypoint to risk path (debug only)
-        if (_debug)
-        {
-            geometry_msgs::msg::PoseStamped pose;
-            pose.header.frame_id = "map";
-            pose.header.stamp = this->get_clock()->now();
-            pose.pose.position.x = wpX;
-            pose.pose.position.y = wpY;
-            pose.pose.position.z = 0.0;
-            pose.pose.orientation.w = 1.0;
-            _riskPathWaypoints.push_back(pose);
-        }
-
-        this->evaluatePointRisk(wpX, wpY, cumulativeDistance, segmentLength, riskSum);
 
         prevX = wpX;
         prevY = wpY;
@@ -716,7 +693,13 @@ double PurePursuit::calculateTrajectoryRisk(double riskLookaheadDistance)
 
     // Return average occupancy (0-100)
 
-    return static_cast<double>(riskSum) / cumulativeDistance;
+    if (cumulativeDistance <= 1e-9)
+    {
+        return 0.0;
+    }
+
+    double risk = riskSum / cumulativeDistance;
+    return std::clamp(risk, 0.0, 100.0);
 
 }
 
@@ -727,6 +710,6 @@ void PurePursuit::publishRiskPathSegment()
     pathMsg.header.frame_id = "map";
     pathMsg.header.stamp = this->get_clock()->now();
     pathMsg.poses = _riskPathWaypoints;
-    RCLCPP_INFO(this->get_logger(), "path lenght: %d", _riskPathWaypoints.size());
+    RCLCPP_INFO(this->get_logger(), "path length: %d", _riskPathWaypoints.size());
     _riskPathPublisher->publish(pathMsg);
 }
