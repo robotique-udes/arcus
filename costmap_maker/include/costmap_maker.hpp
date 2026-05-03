@@ -23,7 +23,7 @@ private:
     // Parameters (defaults before parameter load)
     std::string _scanTopic = "/scan";
     std::string _costmapTopic = "/local_costmap";
-    std::string _robotFrame = "ego_racecar/base_link";
+    std::string _lidarFrame = "ego_racecar/laser";
     std::string _globalMapTopic = "/map";
     std::string _poseTopic = "/pf/pose/odom";
 

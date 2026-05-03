@@ -1,4 +1,5 @@
 #include "pure_pursuit.hpp"
+#include "tf2/exceptions.h"
 
 int main(int argc, char** argv)
 {
@@ -9,7 +10,9 @@ int main(int argc, char** argv)
 }
 
 PurePursuit::PurePursuit():
-    Node("pure_pursuit")
+    Node("pure_pursuit"),
+    _tfBuffer(this->get_clock()),
+    _tfListener(_tfBuffer)
 {
     this->handleRosParam();
     this->initRosElements();
@@ -35,11 +38,13 @@ void PurePursuit::CB_publishDriveCmd(void)
 
     // Calculate and publish trajectory risk
     double trajectoryRisk = this->calculateTrajectoryRisk(riskLookaheadDistance);
-    if (trajectoryRisk > 0.0)
+    if (!_hasLastTrajectoryRisk || std::abs(trajectoryRisk - _lastTrajectoryRisk) > 1.0e-6)
     {
         std_msgs::msg::Float32 riskMsg;
         riskMsg.data = static_cast<float>(trajectoryRisk);
         _trajectoryRiskPublisher->publish(riskMsg);
+        _lastTrajectoryRisk = trajectoryRisk;
+        _hasLastTrajectoryRisk = true;
     }
 
     // Publish the path segment used for risk calculation (debug only)
@@ -166,6 +171,7 @@ void PurePursuit::CB_costmapSubscriber(const nav_msgs::msg::OccupancyGrid& msg)
     _costmapResolution = msg.info.resolution;
     _costmapOriginX = msg.info.origin.position.x;
     _costmapOriginY = msg.info.origin.position.y;
+    _costmapFrameId = msg.header.frame_id;
 }
 
 void PurePursuit::CB_publishTargetWaypoint(const geometry_msgs::msg::PoseStamped& msg)
@@ -612,6 +618,26 @@ double PurePursuit::calculateTrajectoryRisk(double riskLookaheadDistance)
         return 0.0;  // No costmap data yet
     }
 
+    if (_costmapFrameId.empty())
+    {
+        RCLCPP_WARN_THROTTLE(this->get_logger(), *this->get_clock(), 5000,
+                             "Costmap frame_id is empty; cannot transform risk samples.");
+        return 0.0;
+    }
+
+    geometry_msgs::msg::TransformStamped mapToCostmap;
+    try
+    {
+        mapToCostmap = _tfBuffer.lookupTransform(_costmapFrameId, "map", tf2::TimePointZero);
+    }
+    catch (const tf2::TransformException& ex)
+    {
+        RCLCPP_WARN_THROTTLE(this->get_logger(), *this->get_clock(), 2000,
+                             "TF lookup failed (map -> %s): %s",
+                             _costmapFrameId.c_str(), ex.what());
+        return 0.0;
+    }
+
     // Clear and populate risk path waypoints only in debug mode
     _riskPathWaypoints.clear();
     geometry_msgs::msg::PoseStamped currentPose;
@@ -675,8 +701,16 @@ double PurePursuit::calculateTrajectoryRisk(double riskLookaheadDistance)
                 _riskPathWaypoints.push_back(pose);
             }
 
-            this->evaluatePointRisk(sampleX,
-                                    sampleY,
+            geometry_msgs::msg::PointStamped mapPoint;
+            geometry_msgs::msg::PointStamped costmapPoint;
+            mapPoint.header.frame_id = "map";
+            mapPoint.point.x = sampleX;
+            mapPoint.point.y = sampleY;
+            mapPoint.point.z = 0.0;
+            tf2::doTransform(mapPoint, costmapPoint, mapToCostmap);
+
+            this->evaluatePointRisk(costmapPoint.point.x,
+                                    costmapPoint.point.y,
                                     cumulativeDistance,
                                     sampleDelta,
                                     riskSum);
@@ -710,6 +744,5 @@ void PurePursuit::publishRiskPathSegment()
     pathMsg.header.frame_id = "map";
     pathMsg.header.stamp = this->get_clock()->now();
     pathMsg.poses = _riskPathWaypoints;
-    RCLCPP_INFO(this->get_logger(), "path length: %d", _riskPathWaypoints.size());
     _riskPathPublisher->publish(pathMsg);
 }

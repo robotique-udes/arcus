@@ -10,6 +10,9 @@
 #include "nav_msgs/msg/path.hpp"
 #include "arcus_msgs/msg/error_code.hpp"
 #include "std_msgs/msg/float32.hpp"
+#include "tf2_ros/transform_listener.h"
+#include "tf2_ros/buffer.h"
+#include "tf2_geometry_msgs/tf2_geometry_msgs.hpp"
 
 #include <fstream>
 #include <string>
@@ -108,6 +111,8 @@ class PurePursuit : public rclcpp::Node
     bool _carHasEverMoved = false;
     bool _debug = false;
     double _recoverySteeringAngle = 0.0;
+    bool _hasLastTrajectoryRisk = false;
+    double _lastTrajectoryRisk = 0.0;
 
     std::vector<Waypoint> _waypoints;
     std::vector<geometry_msgs::msg::PoseStamped> _riskPathWaypoints;
@@ -122,6 +127,9 @@ class PurePursuit : public rclcpp::Node
     rclcpp::TimerBase::SharedPtr _heartbeatTimer;
     rclcpp::Publisher<arcus_msgs::msg::ErrorCode>::SharedPtr _errorPublisher;
 
+    tf2_ros::Buffer _tfBuffer;
+    tf2_ros::TransformListener _tfListener;
+
     rclcpp::node_interfaces::OnSetParametersCallbackHandle::SharedPtr _paramCallbackHandle;
 
     // Costmap data
@@ -131,6 +139,7 @@ class PurePursuit : public rclcpp::Node
     double _costmapResolution = 0.05;
     double _costmapOriginX = 0.0;
     double _costmapOriginY = 0.0;
+    std::string _costmapFrameId;
     std::mutex _costmapMutex;
 
 };

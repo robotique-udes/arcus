@@ -18,6 +18,7 @@ set(DEPENDENCY_LIST
   "arcus_msgs"
   "tf2"
   "tf2_ros"
+  "tf2_geometry_msgs"
   )
 
   set(MSGS
