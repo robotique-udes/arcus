@@ -1,2 +1,2 @@
 # arcus
-[Documentation ici](./documentation/main.md)
+[Documentation ici](https://github.com/robotique-udes/arcus-documentation)
