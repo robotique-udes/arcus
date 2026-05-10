@@ -48,6 +48,8 @@ ReactiveGapFollow::ReactiveGapFollow():
                                                                  {
                                                                      this->lidar_CB(msg);
                                                                  });
+
+    this->initParamCallbackHandle();
 }
 
 void ReactiveGapFollow::heartbeat()
@@ -264,3 +266,33 @@ float ReactiveGapFollow::computeRollingAverage(float newValue_)
 
     return _rollingSum / _targetAngleWindow.size();
 }
+
+void ReactiveGapFollow::initParamCallbackHandle(void) {
+
+    _paramCallbackHandle = this->add_on_set_parameters_callback(
+        [this](const std::vector<rclcpp::Parameter>& params)
+        {
+            rcl_interfaces::msg::SetParametersResult result;
+            result.successful = true;
+
+            for (const auto& param : params)
+            {
+                const std::string& name = param.get_name();
+
+                if (name == "max_speed")
+                   _maxSpeed = param.as_double();
+                else if (name == "speed_distance_factor")
+                    _speedDistanceFactor = param.as_double();
+                else if (name == "bubble_radius")
+                   _bubbleRadius = param.as_double();
+                else if (name == "static_friction_coeff")
+                    _frictionCoeff = param.as_double();
+
+                RCLCPP_INFO(this->get_logger(), "Parameter updated: %s", name.c_str());
+            }
+
+            return result;
+        }
+    );
+}
+

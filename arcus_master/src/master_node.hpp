@@ -46,6 +46,9 @@ class MasterNode : public rclcpp::Node
     void refreshOnlineStatus();
     void errorCodeCallback(const arcus_msgs::msg::ErrorCode::SharedPtr msg);
     void tryPublishDriveCommand();
+
+    void initParamCallbackHandle(void);
+
     DriveState determineDriveState() const;
     bool forcedAlgoToState(const std::string& algo, DriveState& state) const;
     bool hasCommand(const ackermann_msgs::msg::AckermannDriveStamped& cmd) const;
@@ -113,4 +116,6 @@ class MasterNode : public rclcpp::Node
     rclcpp::Subscription<std_msgs::msg::Float64>::SharedPtr _speedLimitSubscriber;
     rclcpp::Subscription<std_msgs::msg::String>::SharedPtr _forceAlgoSubscriber;
     rclcpp::Subscription<std_msgs::msg::Float32>::SharedPtr _trajectoryRiskSubscriber;
+
+    rclcpp::node_interfaces::OnSetParametersCallbackHandle::SharedPtr _paramCallbackHandle;
 };

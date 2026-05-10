@@ -95,6 +95,8 @@ MasterNode::MasterNode():
         _trajectoryRiskTopic,
         10,
         std::bind(&MasterNode::trajectoryRiskCallback, this, std::placeholders::_1));
+
+    this->initParamCallbackHandle();
 }
 
 void MasterNode::errorCodeCallback(const arcus_msgs::msg::ErrorCode::SharedPtr msg)
@@ -285,15 +287,15 @@ MasterNode::DriveState MasterNode::determineDriveState() const
             {
                 return DriveState::SAFETY_OVERRIDE;
             }
-            if (forced_state == DriveState::PURE_PURSUIT && pp_ready && !_riskTresholdExceeded && !disparity_hold_active)
-            {
-                return DriveState::PURE_PURSUIT;
-            }
-            if (forced_state == DriveState::PURE_PURSUIT && _riskTresholdExceeded && safety_ready)
+            if (forced_state == DriveState::PURE_PURSUIT && _riskTresholdExceeded)
             {
                 RCLCPP_WARN(this->get_logger(),
                             "Risk threshold exceeded, cannot force pure pursuit. Falling back to safety emergency if available.");
                 return DriveState::SAFETY_EMERGENCY;
+            }
+            if (forced_state == DriveState::PURE_PURSUIT && pp_ready && !_riskTresholdExceeded && !disparity_hold_active)
+            {
+                return DriveState::PURE_PURSUIT;
             }
             if (forced_state == DriveState::DISPARITY && disparity_ready)
             {
@@ -435,4 +437,30 @@ void MasterNode::mainLoop()
 
     _masterHeartbeatPublisher->publish(std_msgs::msg::Bool().set__data(true));
 }
+
+void MasterNode::initParamCallbackHandle(void) {
+        
+    _paramCallbackHandle = this->add_on_set_parameters_callback(
+        [this](const std::vector<rclcpp::Parameter>& params)
+        {
+            rcl_interfaces::msg::SetParametersResult result;
+            result.successful = true;
+
+            for (const auto& param : params)
+            {
+                const std::string& name = param.get_name();
+
+                if (name == "max_accepted_risk")
+                    MAX_ACCEPTED_RISK = param.as_double();
+
+                RCLCPP_INFO(this->get_logger(), "Parameter updated: %s", name.c_str());
+            }
+
+            return result;
+        }
+    );
+
+}
+
+
 #endif  // MASTER_NODE_CPP
