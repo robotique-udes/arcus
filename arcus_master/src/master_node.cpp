@@ -289,6 +289,12 @@ MasterNode::DriveState MasterNode::determineDriveState() const
             {
                 return DriveState::PURE_PURSUIT;
             }
+            if (forced_state == DriveState::PURE_PURSUIT && _riskTresholdExceeded && safety_ready)
+            {
+                RCLCPP_WARN(this->get_logger(),
+                            "Risk threshold exceeded, cannot force pure pursuit. Falling back to safety emergency if available.");
+                return DriveState::SAFETY_EMERGENCY;
+            }
             if (forced_state == DriveState::DISPARITY && disparity_ready)
             {
                 return DriveState::DISPARITY;

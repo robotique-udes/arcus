@@ -584,8 +584,7 @@ PurePursuit::Waypoint PurePursuit::getLookaheadPoint(const double lookAheadDista
     return _waypoints.at(bestIndex);
 }
 
-void PurePursuit::evaluatePointRisk(double x, double y, double cumulativeDistance, double deltaDistance,
-                                   double& riskSum)
+void PurePursuit::evaluatePointRisk(double x, double y, double cumulativeDistance, double& riskMax)
 {
     // Transform point to costmap grid coordinates
     int gridX = static_cast<int>(std::round((x - _costmapOriginX) / _costmapResolution));
@@ -603,11 +602,13 @@ void PurePursuit::evaluatePointRisk(double x, double y, double cumulativeDistanc
                 double closingSpeed = std::max(std::abs(_currentSpeed), MIN_TTC_SPEED_MS);
                 double ttc = cumulativeDistance / closingSpeed;
                 double weight = std::exp(-ttc/TTC_DECAY_RATE);
-                riskSum += weight * static_cast<double>(cost) * deltaDistance;
+                double weightedRisk = weight * static_cast<double>(cost);
+                riskMax = std::max(riskMax, weightedRisk);
             }
         }
     }
 }
+
 
 double PurePursuit::calculateTrajectoryRisk(double riskLookaheadDistance)
 {
@@ -655,7 +656,7 @@ double PurePursuit::calculateTrajectoryRisk(double riskLookaheadDistance)
     }
 
     // Check waypoints along the raceline within lookahead distance
-    double riskSum = 0.0;
+    double riskMax = 0.0;
     double cumulativeDistance = 0.0;
     double prevX = _currentX;
     double prevY = _currentY;
@@ -712,8 +713,7 @@ double PurePursuit::calculateTrajectoryRisk(double riskLookaheadDistance)
             this->evaluatePointRisk(costmapPoint.point.x,
                                     costmapPoint.point.y,
                                     cumulativeDistance,
-                                    sampleDelta,
-                                    riskSum);
+                                    riskMax);
         }
 
         if (cumulativeDistance > riskLookaheadDistance)
@@ -725,15 +725,13 @@ double PurePursuit::calculateTrajectoryRisk(double riskLookaheadDistance)
         prevY = wpY;
     }
 
-    // Return average occupancy (0-100)
-
+    // Return max weighted occupancy (0-100)
     if (cumulativeDistance <= 1e-9)
     {
         return 0.0;
     }
 
-    double risk = riskSum / cumulativeDistance;
-    return std::clamp(risk, 0.0, 100.0);
+    return std::clamp(riskMax, 0.0, 100.0);
 
 }
 
