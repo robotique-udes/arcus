@@ -25,4 +25,4 @@ costmap_maker:
     # Optional global-map filtering (keep only likely new/unmapped obstacles)
     only_unmapped_obstacles: True                # If true, suppress hits that match known global obstacles
     global_obstacle_threshold: 50                # Global map occupancy value treated as obstacle
-    global_obstacle_neighborhood_radius_m: 0.10  # Match radius in meters for global obstacle lookup
+    global_obstacle_neighborhood_radius_m: 0.20  # Match radius in meters for global obstacle lookup
