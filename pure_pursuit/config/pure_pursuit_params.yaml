@@ -15,8 +15,8 @@
     lookahead_distance_gain: 0.40
     
     risk_lookahead_gain: 1.5
-    ttc_decay_rate: 1.8
-    min_ttc_speed_mps: 0.30
+    ttc_decay_rate: 3.0
+    min_ttc_speed_mps: 0.70
     risk_interpolation_step_m: 0.028
 
     max_lookahead_fraction_of_path: 0.05
