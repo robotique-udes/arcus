@@ -18,7 +18,7 @@ costmap_maker:
     min_valid_range_m: 0.05                      # Ignore readings below this range
 
     # Inflation cost model
-    inflation_radius_m: 0.40                     # Max inflation distance around obstacles
+    inflation_radius_m: 0.15                     # Max inflation distance around obstacles
     inscribed_radius_m: 0.14                     # Radius treated as lethal cost
     cost_scaling_factor: 9.0                    # Exponential falloff strength
 

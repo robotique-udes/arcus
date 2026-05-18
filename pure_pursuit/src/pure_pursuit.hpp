@@ -28,6 +28,7 @@ class PurePursuit : public rclcpp::Node
     {
         geometry_msgs::msg::PoseStamped point;
         double speed;
+      double speed_factor;
     };
 
     // fallback constants and also holds constants after param loaded

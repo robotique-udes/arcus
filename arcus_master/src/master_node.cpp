@@ -243,21 +243,7 @@ bool MasterNode::hasCommand(const ackermann_msgs::msg::AckermannDriveStamped& cm
 
 MasterNode::DriveState MasterNode::determineDriveState() const
 {
-    if (!_deadmanActive)
-    {
-        return DriveState::SAFETY_EMERGENCY;
-    }
-
-    if (ppRecoveryEngaged && _nodeOnline[arcus_msgs::msg::ErrorCode::PURE_PURSUIT]
-        && hasCommand(driveCommands[arcus_msgs::msg::ErrorCode::PURE_PURSUIT]))
-    {
-        return DriveState::PURE_PURSUIT;
-    }
-
-    if (emergencyBrakeEngaged && _nodeOnline[arcus_msgs::msg::ErrorCode::SAFETY])
-    {
-        return DriveState::SAFETY_EMERGENCY;
-    }
+    
 
     const bool controller_ready = _nodeOnline[arcus_msgs::msg::ErrorCode::CONTROLLER]
                                   && hasCommand(driveCommands[arcus_msgs::msg::ErrorCode::CONTROLLER]);
@@ -273,6 +259,27 @@ MasterNode::DriveState MasterNode::determineDriveState() const
     const bool force_algo_active = (now_ns - _lastForceAlgoNs) <= override_timeout_ns;
 
     const bool disparity_hold_active = now_ns < _disparityHoldUntilNs;
+
+    if (!_deadmanActive)
+    {
+        return DriveState::SAFETY_EMERGENCY;
+    }
+
+    if (ppRecoveryEngaged && _nodeOnline[arcus_msgs::msg::ErrorCode::PURE_PURSUIT]
+        && hasCommand(driveCommands[arcus_msgs::msg::ErrorCode::PURE_PURSUIT]) && !controller_ready)
+    {
+        return DriveState::PURE_PURSUIT;
+    }
+
+    if (emergencyBrakeEngaged && _nodeOnline[arcus_msgs::msg::ErrorCode::SAFETY])
+    {
+        return DriveState::SAFETY_EMERGENCY;
+    }
+
+    if (force_algo_active && controller_ready)
+    {
+        return DriveState::CONTROLLER;
+    }
 
     if (force_algo_active)
     {

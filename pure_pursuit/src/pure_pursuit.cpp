@@ -302,11 +302,11 @@ void PurePursuit::loadWaypointsFromCSV(void)
 
         std::string xPos;
         std::string yPos;
-        // std::string speed;
+        std::string speedFactorStr;
 
         std::getline(ss, xPos, ',');
         std::getline(ss, yPos, ',');
-        // std::getline(ss, speed, ',');
+        std::getline(ss, speedFactorStr, ',');
 
         geometry_msgs::msg::PoseStamped poseStamped;
         poseStamped.pose.position.x = std::stod(xPos);
@@ -316,9 +316,24 @@ void PurePursuit::loadWaypointsFromCSV(void)
         poseStamped.header.frame_id = "map";
         poseStamped.header.stamp = this->now();
 
-        // double speedDouble = std::stod(speed);
+        double speedFactor = 1.0;
+        if (!speedFactorStr.empty())
+        {
+            try
+            {
+                speedFactor = std::stod(speedFactorStr);
+            }
+            catch (const std::exception& ex)
+            {
+                RCLCPP_WARN(this->get_logger(),
+                            "Invalid speed factor '%s' in waypoints CSV, using 1.0: %s",
+                            speedFactorStr.c_str(),
+                            ex.what());
+                speedFactor = 1.0;
+            }
+        }
 
-        Waypoint pointRead = {poseStamped, 0.f};
+        Waypoint pointRead = {poseStamped, 0.f, speedFactor};
         _waypoints.push_back(pointRead);
     }
     inputFile.close();
@@ -352,7 +367,8 @@ void PurePursuit::calculateSpeed(void)
     {
         for (size_t i = 0; i < n; i++)
         {
-            _waypoints[i].speed = SPEED_MIN;
+            double scaledSpeed = SPEED_MIN * _waypoints[i].speed_factor;
+            _waypoints[i].speed = std::clamp(scaledSpeed, (double)SPEED_MIN, (double)SPEED_MAX);
         }
         return;
     }
@@ -418,7 +434,8 @@ void PurePursuit::calculateSpeed(void)
     // unroll + assign
     for (size_t i = 0; i < n; i++)
     {
-        double v_final = std::clamp(v[i], (double)SPEED_MIN, (double)SPEED_MAX);
+        double scaledSpeed = v[i] * _waypoints[(i + anchor) % n].speed_factor;
+        double v_final = std::clamp(scaledSpeed, (double)SPEED_MIN, (double)SPEED_MAX);
         size_t idx = (i + anchor) % n;
         _waypoints[idx].speed = static_cast<float>(v_final);
         /*if (idx % 10 == 0) {
