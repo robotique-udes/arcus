@@ -205,6 +205,7 @@ void PurePursuit::handleRosParam(void)
     this->declare_parameter("ttc_decay_rate", TTC_DECAY_RATE);
     this->declare_parameter("min_ttc_speed_mps", MIN_TTC_SPEED_MS);
     this->declare_parameter("risk_interpolation_step_m", RISK_INTERPOLATION_STEP_M);
+    this->declare_parameter("reloc_distance_m", RELOCALIZE_DISTANCE_M);
     this->declare_parameter("max_lookahead_fraction_of_path", MAX_LOOKAHEAD_FRACTION);
     this->declare_parameter("loop_frequency_hz", LOOP_FREQUENCY_HZ);
     this->declare_parameter("wheelbase_m", WHEELBASE_M);
@@ -234,6 +235,7 @@ void PurePursuit::handleRosParam(void)
         TTC_DECAY_RATE = this->get_parameter("ttc_decay_rate").as_double();
         MIN_TTC_SPEED_MS = this->get_parameter("min_ttc_speed_mps").as_double();
         RISK_INTERPOLATION_STEP_M = this->get_parameter("risk_interpolation_step_m").as_double();
+        RELOCALIZE_DISTANCE_M = this->get_parameter("reloc_distance_m").as_double();
         MAX_LOOKAHEAD_FRACTION = this->get_parameter("max_lookahead_fraction_of_path").as_double();
         LOOP_FREQUENCY_HZ = this->get_parameter("loop_frequency_hz").as_double();
         WHEELBASE_M = this->get_parameter("wheelbase_m").as_double();
@@ -256,6 +258,7 @@ void PurePursuit::handleRosParam(void)
     RCLCPP_INFO(this->get_logger(), "  risk_lookahead_gain:            %.3f", RISK_LOOKAHEAD_GAIN);
     RCLCPP_INFO(this->get_logger(), "  ttc_decay_rate:                 %.3f", TTC_DECAY_RATE);
     RCLCPP_INFO(this->get_logger(), "  min_ttc_speed_mps:              %.3f", MIN_TTC_SPEED_MS);
+    RCLCPP_INFO(this->get_logger(), "  reloc_distance_m:               %.3f", RELOCALIZE_DISTANCE_M);
     RCLCPP_INFO(this->get_logger(), "  max_lookahead_fraction_of_path: %.3f", MAX_LOOKAHEAD_FRACTION);
     RCLCPP_INFO(this->get_logger(), "  loop_frequency_hz:              %.1f", LOOP_FREQUENCY_HZ);
     RCLCPP_INFO(this->get_logger(), "  wheelbase_m:                    %.3f", WHEELBASE_M);
@@ -302,11 +305,11 @@ void PurePursuit::loadWaypointsFromCSV(void)
 
         std::string xPos;
         std::string yPos;
-        std::string speedFactorStr;
+        // std::string speed;
 
         std::getline(ss, xPos, ',');
         std::getline(ss, yPos, ',');
-        std::getline(ss, speedFactorStr, ',');
+        // std::getline(ss, speed, ',');
 
         geometry_msgs::msg::PoseStamped poseStamped;
         poseStamped.pose.position.x = std::stod(xPos);
@@ -316,24 +319,9 @@ void PurePursuit::loadWaypointsFromCSV(void)
         poseStamped.header.frame_id = "map";
         poseStamped.header.stamp = this->now();
 
-        double speedFactor = 1.0;
-        if (!speedFactorStr.empty())
-        {
-            try
-            {
-                speedFactor = std::stod(speedFactorStr);
-            }
-            catch (const std::exception& ex)
-            {
-                RCLCPP_WARN(this->get_logger(),
-                            "Invalid speed factor '%s' in waypoints CSV, using 1.0: %s",
-                            speedFactorStr.c_str(),
-                            ex.what());
-                speedFactor = 1.0;
-            }
-        }
+        // double speedDouble = std::stod(speed);
 
-        Waypoint pointRead = {poseStamped, 0.f, speedFactor};
+        Waypoint pointRead = {poseStamped, 0.f};
         _waypoints.push_back(pointRead);
     }
     inputFile.close();
@@ -367,8 +355,7 @@ void PurePursuit::calculateSpeed(void)
     {
         for (size_t i = 0; i < n; i++)
         {
-            double scaledSpeed = SPEED_MIN * _waypoints[i].speed_factor;
-            _waypoints[i].speed = std::clamp(scaledSpeed, (double)SPEED_MIN, (double)SPEED_MAX);
+            _waypoints[i].speed = SPEED_MIN;
         }
         return;
     }
@@ -434,8 +421,7 @@ void PurePursuit::calculateSpeed(void)
     // unroll + assign
     for (size_t i = 0; i < n; i++)
     {
-        double scaledSpeed = v[i] * _waypoints[(i + anchor) % n].speed_factor;
-        double v_final = std::clamp(scaledSpeed, (double)SPEED_MIN, (double)SPEED_MAX);
+        double v_final = std::clamp(v[i], (double)SPEED_MIN, (double)SPEED_MAX);
         size_t idx = (i + anchor) % n;
         _waypoints[idx].speed = static_cast<float>(v_final);
         /*if (idx % 10 == 0) {
@@ -509,6 +495,8 @@ void PurePursuit::initParamCallbackHandle(void) {
                     MIN_TTC_SPEED_MS = param.as_double();
                 else if (name == "ttc_weight_scale")
                     TTC_WEIGHT_SCALE = param.as_double();
+                else if (name == "reloc_distance_m")
+                    RELOCALIZE_DISTANCE_M = param.as_double();
                 else if (name == "max_lookahead_fraction_of_path")
                     MAX_LOOKAHEAD_FRACTION = param.as_double();
                 else if (name == "wheelbase_m")
@@ -571,6 +559,7 @@ double PurePursuit::clipLookaheadDistance(double lookAheadDistance_) const
 PurePursuit::Waypoint PurePursuit::getLookaheadPoint(const double lookAheadDistance_)
 {
     double minDistanceDifference = std::numeric_limits<double>::max();
+    double minDistance = std::numeric_limits<double>::max();
     size_t bestIndex = 0;
 
     size_t maxIterationCount = static_cast<size_t>(_waypoints.size() * MAX_LOOKAHEAD_FRACTION);
@@ -590,10 +579,34 @@ PurePursuit::Waypoint PurePursuit::getLookaheadPoint(const double lookAheadDista
         double distance = std::sqrt(dx * dx + dy * dy);
         double distanceDifference = std::abs(distance - lookAheadDistance_);
 
+        if (distance < minDistance)
+        {
+            minDistance = distance;
+        }
+
         if (distanceDifference <= minDistanceDifference)
         {
             minDistanceDifference = distanceDifference;
             bestIndex = wrappingIndex;
+        }
+    }
+
+    if (minDistance > RELOCALIZE_DISTANCE_M)
+    {
+        minDistanceDifference = std::numeric_limits<double>::max();
+        bestIndex = 0;
+        for (size_t i = 0; i < _waypoints.size(); i++)
+        {
+            double dx = _waypoints[i].point.pose.position.x - _currentX;
+            double dy = _waypoints[i].point.pose.position.y - _currentY;
+            double distance = std::sqrt(dx * dx + dy * dy);
+            double distanceDifference = std::abs(distance - lookAheadDistance_);
+
+            if (distanceDifference <= minDistanceDifference)
+            {
+                minDistanceDifference = distanceDifference;
+                bestIndex = i;
+            }
         }
     }
 

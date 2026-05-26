@@ -357,7 +357,7 @@ void MasterNode::tryPublishDriveCommand()
             selected_cmd = this->driveCommands[arcus_msgs::msg::ErrorCode::SAFETY];
             if (_hasLastNonEmergencySteering)
             {
-                selected_cmd.drive.steering_angle = _lastNonEmergencySteering;
+                selected_cmd.drive.steering_angle = this->driveCommands[arcus_msgs::msg::ErrorCode::PURE_PURSUIT].drive.steering_angle;
             }
             break;
         }

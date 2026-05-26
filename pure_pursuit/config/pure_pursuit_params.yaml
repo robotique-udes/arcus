@@ -18,6 +18,7 @@
     ttc_decay_rate: 3.0
     min_ttc_speed_mps: 0.70
     risk_interpolation_step_m: 0.028
+    reloc_distance_m: 4.0
 
     max_lookahead_fraction_of_path: 0.05
     loop_frequency_hz: 38.0
