@@ -250,8 +250,9 @@ void ReactiveGapFollow::lidar_CB(sensor_msgs::msg::LaserScan::SharedPtr scanMsg_
 float ReactiveGapFollow::setSpeedFromDistance(float distance_, float steeringAngle_)
 {
     float speed = distance_ * _speedDistanceFactor; // Basic proportionnal speed gain
-    float turn_radius = _wheelBase/std::sin(steeringAngle_);
-    float max_turning_speed = std::sqrt(turn_radius*9.81*_frictionCoeff);
+    const float steeringMagnitude = std::max(std::abs(steeringAngle_), 0.05f);
+    float turn_radius = _wheelBase/std::sin(steeringMagnitude);
+    float max_turning_speed = std::sqrt(std::max(turn_radius * 9.81f * _frictionCoeff, 0.0f));
     speed = std::min(speed, max_turning_speed); // Limit max speed in turn based on turn radius, acceleration and friction coefficient
     return std::min(speed, _maxSpeed);
 }
