@@ -89,8 +89,8 @@ class PurePursuit : public rclcpp::Node
     Waypoint getLookaheadPoint(const double lookAheadDistance);
     double calculateTrajectoryRisk(double lookaheadDistance);
     void publishRiskPathSegment();
-    void evaluatePointRisk(double x, double y, double cumulativeDistance, double deltaDistance,
-                double& riskSum);
+    void evaluatePointRisk(double x, double y, double cumulativeDistance,
+                double& riskMax);
 
     std::string _waypointsFilePath = DEFAULT_WAYPOINTS_CSV_FILE_NAME;
     std::string _positionTopic = DEFAULT_POSITION_TOPIC;
