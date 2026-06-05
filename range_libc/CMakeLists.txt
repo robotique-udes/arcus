@@ -8,7 +8,7 @@ find_package(Python3 REQUIRED COMPONENTS Interpreter Development)
 # ───────────────────────────────────────────────
 # Options
 # ───────────────────────────────────────────────
-option(WITH_CUDA "Compile CUDA ray cast variants" OFF)
+option(WITH_CUDA "Compile CUDA ray cast variants" ON)
 
 set(CHUNK_SIZE 262144)
 set(CHUNK_THREADS 256)
