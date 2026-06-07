@@ -29,6 +29,7 @@ class ReactiveGapFollow : public rclcpp::Node
     void cover_points(std::vector<float> &ranges, int cover_direction, int num_points, int start_index);
     void extend_disparities(std::vector<float> &ranges, std::vector<int> &disparities, double car_width, int extra_points, double angle_inc);
     void lidar_CB(sensor_msgs::msg::LaserScan::SharedPtr scanMsg_);
+    void initParamCallbackHandle(void);
     void heartbeat();
 
     bool _straight = false;
@@ -69,6 +70,8 @@ class ReactiveGapFollow : public rclcpp::Node
     rclcpp::Publisher<geometry_msgs::msg::PointStamped>::SharedPtr _targetWaypointPublisher;
     rclcpp::Publisher<geometry_msgs::msg::PoseStamped>::SharedPtr _vectorPublisher;
     rclcpp::Publisher<std_msgs::msg::Float32>::SharedPtr _riskPublisher;
+
+    rclcpp::node_interfaces::OnSetParametersCallbackHandle::SharedPtr _paramCallbackHandle;
 };
 
 #endif  // GAP_FOLLOW_HPP

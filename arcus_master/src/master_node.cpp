@@ -95,6 +95,8 @@ MasterNode::MasterNode():
         _trajectoryRiskTopic,
         10,
         std::bind(&MasterNode::trajectoryRiskCallback, this, std::placeholders::_1));
+
+    this->initParamCallbackHandle();
 }
 
 void MasterNode::errorCodeCallback(const arcus_msgs::msg::ErrorCode::SharedPtr msg)
@@ -241,21 +243,7 @@ bool MasterNode::hasCommand(const ackermann_msgs::msg::AckermannDriveStamped& cm
 
 MasterNode::DriveState MasterNode::determineDriveState() const
 {
-    if (!_deadmanActive)
-    {
-        return DriveState::SAFETY_EMERGENCY;
-    }
-
-    if (ppRecoveryEngaged && _nodeOnline[arcus_msgs::msg::ErrorCode::PURE_PURSUIT]
-        && hasCommand(driveCommands[arcus_msgs::msg::ErrorCode::PURE_PURSUIT]))
-    {
-        return DriveState::PURE_PURSUIT;
-    }
-
-    if (emergencyBrakeEngaged && _nodeOnline[arcus_msgs::msg::ErrorCode::SAFETY])
-    {
-        return DriveState::SAFETY_EMERGENCY;
-    }
+    
 
     const bool controller_ready = _nodeOnline[arcus_msgs::msg::ErrorCode::CONTROLLER]
                                   && hasCommand(driveCommands[arcus_msgs::msg::ErrorCode::CONTROLLER]);
@@ -272,6 +260,27 @@ MasterNode::DriveState MasterNode::determineDriveState() const
 
     const bool disparity_hold_active = now_ns < _disparityHoldUntilNs;
 
+    if (!_deadmanActive)
+    {
+        return DriveState::SAFETY_EMERGENCY;
+    }
+
+    if (ppRecoveryEngaged && _nodeOnline[arcus_msgs::msg::ErrorCode::PURE_PURSUIT]
+        && hasCommand(driveCommands[arcus_msgs::msg::ErrorCode::PURE_PURSUIT]) && !controller_ready)
+    {
+        return DriveState::PURE_PURSUIT;
+    }
+
+    if (emergencyBrakeEngaged && _nodeOnline[arcus_msgs::msg::ErrorCode::SAFETY])
+    {
+        return DriveState::SAFETY_EMERGENCY;
+    }
+
+    if (force_algo_active && controller_ready)
+    {
+        return DriveState::CONTROLLER;
+    }
+
     if (force_algo_active)
     {
         DriveState forced_state;
@@ -285,15 +294,15 @@ MasterNode::DriveState MasterNode::determineDriveState() const
             {
                 return DriveState::SAFETY_OVERRIDE;
             }
-            if (forced_state == DriveState::PURE_PURSUIT && pp_ready && !_riskTresholdExceeded && !disparity_hold_active)
-            {
-                return DriveState::PURE_PURSUIT;
-            }
-            if (forced_state == DriveState::PURE_PURSUIT && _riskTresholdExceeded && safety_ready)
+            if (forced_state == DriveState::PURE_PURSUIT && _riskTresholdExceeded)
             {
                 RCLCPP_WARN(this->get_logger(),
                             "Risk threshold exceeded, cannot force pure pursuit. Falling back to safety emergency if available.");
                 return DriveState::SAFETY_EMERGENCY;
+            }
+            if (forced_state == DriveState::PURE_PURSUIT && pp_ready && !_riskTresholdExceeded && !disparity_hold_active)
+            {
+                return DriveState::PURE_PURSUIT;
             }
             if (forced_state == DriveState::DISPARITY && disparity_ready)
             {
@@ -348,7 +357,7 @@ void MasterNode::tryPublishDriveCommand()
             selected_cmd = this->driveCommands[arcus_msgs::msg::ErrorCode::SAFETY];
             if (_hasLastNonEmergencySteering)
             {
-                selected_cmd.drive.steering_angle = _lastNonEmergencySteering;
+                selected_cmd.drive.steering_angle = this->driveCommands[arcus_msgs::msg::ErrorCode::PURE_PURSUIT].drive.steering_angle;
             }
             break;
         }
@@ -435,4 +444,30 @@ void MasterNode::mainLoop()
 
     _masterHeartbeatPublisher->publish(std_msgs::msg::Bool().set__data(true));
 }
+
+void MasterNode::initParamCallbackHandle(void) {
+        
+    _paramCallbackHandle = this->add_on_set_parameters_callback(
+        [this](const std::vector<rclcpp::Parameter>& params)
+        {
+            rcl_interfaces::msg::SetParametersResult result;
+            result.successful = true;
+
+            for (const auto& param : params)
+            {
+                const std::string& name = param.get_name();
+
+                if (name == "max_accepted_risk")
+                    MAX_ACCEPTED_RISK = param.as_double();
+
+                RCLCPP_INFO(this->get_logger(), "Parameter updated: %s", name.c_str());
+            }
+
+            return result;
+        }
+    );
+
+}
+
+
 #endif  // MASTER_NODE_CPP
