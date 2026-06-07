@@ -283,6 +283,7 @@ void CostmapMaker::markObstaclesFromScan(const sensor_msgs::msg::LaserScan& scan
 	}
 	averageDelta /= obstacleCount;
 	localizationScore = 100.0*std::exp(-_localizationDecayFactor*averageDelta);
+	std::clamp(localizationScore, 0.0, 100.0);
 }
 
 	bool CostmapMaker::worldToGlobalMap(const nav_msgs::msg::OccupancyGrid& globalMap,
