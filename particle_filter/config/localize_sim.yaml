@@ -36,5 +36,5 @@ particle_filter:
 map_server:
   ros__parameters:
     # assuming map file is in particle_filter/maps
-    map: 'slam_map_20260131_173626'
+    map: 'vienne'
 
