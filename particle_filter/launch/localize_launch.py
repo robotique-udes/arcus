@@ -32,7 +32,7 @@ def generate_launch_description():
         'config',
         'localize.yaml'
     )
-    with open(base_config_path, 'r') as f:
+    with open(localize_config_path, 'r') as f:
         localize_config_dict = yaml.safe_load(f)
     
     map_name = localize_config_dict['map_server']['ros__parameters']['map']
