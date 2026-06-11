@@ -3,15 +3,16 @@ particle_filter:
     # topic names
     scan_topic: '/scan'
     odometry_topic: '/odometry/filtered'
+    use_sim_time: true
     # tf params
     publish_map_to_odom: true
     transform_tolerance: 0.5
     # range data downsampling
     angle_step: 18
-    max_particles: 500
+    max_particles: 5000
     squash_factor: 2.2
     # visualization
-    viz: 0
+    viz: 1
     max_viz_particles: 60
     # ray marching method
     range_method: 'glt'
