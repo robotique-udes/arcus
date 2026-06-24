@@ -1,7 +1,7 @@
 # config/pure_pursuit_params.yaml
 /arcus/pure_pursuit:
   ros__parameters:
-    waypoints_file_path: /sim_ws/src/arcus/resources/waypoints/waypoints.csv #/home/arcus/arcus/resources/waypoints/waypoints.csv
+    waypoints_file_path: /sim_ws/src/scripts/map_preparation/saved/waypoints.csv #/home/arcus/arcus/resources/waypoints/waypoints.csv
     drive_command_topic: /drive # /pure_pursuit/drive
     position_topic:  /ego_racecar/odom # /pf/pose/odom
     target_waypoint_topic: /target_waypoint
