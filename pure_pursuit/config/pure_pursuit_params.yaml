@@ -1,9 +1,9 @@
 # config/pure_pursuit_params.yaml
 /arcus/pure_pursuit:
   ros__parameters:
-    waypoints_file_path: /home/arcus/arcus/resources/waypoints/waypoints.csv
-    drive_command_topic: /pure_pursuit/drive
-    position_topic: /pf/pose/odom
+    waypoints_file_path: /sim_ws/src/arcus/resources/waypoints/waypoints.csv #/home/arcus/arcus/resources/waypoints/waypoints.csv
+    drive_command_topic: /drive # /pure_pursuit/drive
+    position_topic:  /ego_racecar/odom # /pf/pose/odom
     target_waypoint_topic: /target_waypoint
     costmap_topic: /local_costmap
     trajectory_risk_topic: /pure_pursuit/trajectory_risk
@@ -29,6 +29,5 @@
     a_lat_max: 2.4
     a_accel_max: 9.0
     a_brake_max: 7.5
-    speed_eps: 1e-6
 
     debug: True

@@ -12,6 +12,7 @@
 #include "std_msgs/msg/float32.hpp"
 #include "tf2_ros/transform_listener.h"
 #include "tf2_ros/buffer.h"
+#include "tf2/exceptions.h"
 #include "tf2_geometry_msgs/tf2_geometry_msgs.hpp"
 
 #include <fstream>
@@ -24,82 +25,80 @@
 
 class PurePursuit : public rclcpp::Node
 {
-    struct Waypoint
+    struct waypoint_t
     {
         geometry_msgs::msg::PoseStamped point;
         double speed;
     };
 
-    // fallback constants and also holds constants after param loaded
-    double MAX_LOOKAHEAD_M = 3.5;
-    double MIN_LOOKAHEAD_M = 0.2;
-    double LOOKAHEAD_GAIN = 0.5;
-    double MAX_LOOKAHEAD_FRACTION = 0.05;
-    double LOOP_FREQUENCY_HZ = 38.0;
-    double WHEELBASE_M = 0.325;
-    double SPEED_MIN = 0.5;
-    double SPEED_MAX = 7.0;
-    double A_LAT_MAX = 2.0;
-    double A_ACCEL_MAX = 4.0;
-    double A_BRAKE_MAX = 3.0;
-    double SPEED_EPS = 1.0e-6;
-
-    double RISK_LOOKAHEAD_GAIN = 1.0;
-    double TTC_DECAY_RATE = 1.0;
-    double MIN_TTC_SPEED_MS = 0.3;
-    double TTC_WEIGHT_SCALE = 3.0;
-    double RISK_INTERPOLATION_STEP_M = 0.1;
-
-    double RELOCALIZE_DISTANCE_M = 4.0;
-
-    double PI = 3.14159;
-    double RECOVERY_TRIGGER_SPEED_MS = 0.06;
-    double RECOVERY_REVERSE_SPEED_MS = 0.7;
-    double RECOVERY_DISENGAGE_STEER_RAD = PI / 12.0;
-    double RECOVERY_REARM_SPEED_MS = 1.0;
-
-    // Topic, input file names and QoS
     static constexpr const uint8_t DEFAULT_QOS = 1;
-    static constexpr const char* DEFAULT_DRIVE_CMD_TOPIC = "/pure_pursuit/drive";
-    static constexpr const char* TARGET_WAYPOINT_TOPIC = "/target_waypoint";
-    static constexpr const char* DEFAULT_POSITION_TOPIC = "/pf/pose/odom";
-    static constexpr const char* DEFAULT_COSTMAP_TOPIC = "/local_costmap";
-    static constexpr const char* DEFAULT_TRAJECTORY_RISK_TOPIC = "/pure_pursuit/trajectory_risk";
-    static constexpr const char* DEFAULT_ERROR_TOPIC = "/node_error_code";
-    static constexpr const char* DEFAULT_WAYPOINTS_CSV_FILE_NAME = "/home/arcus/arcus/resources/waypoints/waypoints.csv";
-    static constexpr const char* DEFAULT_RISK_PATH_TOPIC = "/pure_pursuit/risk_path_segment";
+    static constexpr const double EPS = 1.0e-6;
+    static constexpr const double PI = 3.14159;
+
+    // Fallback values for ROS2 param, will hold param value after it is loaded
+    std::string waypointsFilePath = "/home/arcus/arcus/resources/waypoints/waypoints.csv";
+
+    std::string positionTopic = "/pf/pose/odom";
+    std::string driveCmdTopic = "/pure_pursuit/drive";
+    std::string targetWaypointTopic = "/target_waypoint";
+    std::string costmapTopic = "/local_costmap";
+    std::string trajectoryRiskTopic = "/pure_pursuit/trajectory_risk";
+    std::string errorTopic = "/node_error_code";
+    std::string riskPathTopic = "/pure_pursuit/risk_path_segment";
+
+    double maxLookahead = 3.5;           // Maximum lookahead distance in meters
+    double minLookahead = 0.2;           // Minimum lookahead distance in meters
+    double lookaheadGain = 0.5;          // Gain applied to calculated lookahead distance based on current speed
+    double maxLookaheadFraction = 0.05;  // @TODO REMOVEE!!!
+    double loopFrequency = 38.0;         // Frequency at which the main loop runs, in Hz
+    double wheelbase = 0.325;            // Wheelbase of the vehicle in meters
+    double speedMin = 0.5;               // Minimum speed in meters per second
+    double speedMax = 7.0;               // Maximum speed in meters per second
+    double latAccelMax = 2.0;            // Maximum lateral acceleration in meters per second squared
+    double longAccelMax = 4.0;           // Maximum acceleration in meters per second squared
+    double longBrakeMax = 3.0;           // Maximum braking deceleration in meters per second squared
+
+    double riskLookaheadGain = 1.0;  // Gain applied to calculated risk lookahead distance based on current speed
+    double ttcDecayRate = 1.0;       // Time-to-collision exponential decay rate for risk weighting
+    double ttcMinSpeed = 0.3;  // Minimum speed in meters per second for ttc (will clip to this value if current speed is lower)
+    double riskInterpolationStep
+        = 0.1;  // Step size in meters for interpolating points along the path segment when calculating risk
+
+    double relocalizeDistance = 4.0;  // TODO, might not by needed anymore !!!!!!!!!
+
+    double recoveryTriggerSpeed
+        = 0.06;  // Speed below which recovery mode is triggered (relies on risk mechanism slowing the vehicle down)
+    double recoveryReverseSpeed = 0.7;             // Speed used when reversing during recovery
+    double recoveryDisengageSteerRad = PI / 12.0;  // Steering angle at which to disengage during recovery
+    double recoveryRearmSpeed = 1.0;               // Speed at which to rearm recovery after disengaging
+
+    bool debug = false;
 
   public:
     PurePursuit();
 
   private:
-    void CB_publishDriveCmd(void);
+    void CB_mainDecisionLoop(void);
     void CB_publishTargetWaypoint(const geometry_msgs::msg::PoseStamped& msg_);
+    void CB_publishRiskPathSegment(void);
+    void CB_publishTrajectoryRisk(void);
+
     void CB_positionSubscriber(const nav_msgs::msg::Odometry& msg_);
     void CB_costmapSubscriber(const nav_msgs::msg::OccupancyGrid& msg_);
 
     void handleRosParam(void);
-    void loadWaypointsFromCSV(void);
-    void calculateSpeed(void);
     void initRosElements(void);
     void initParamCallbackHandle(void);
-    void heartbeat();
+    void heartbeat(void);
+
+    void loadWaypointsFromCSV(void);
+    void calculateSpeed(void);
 
     double clipLookaheadDistance(double lookAheadDistance_) const;
-    Waypoint getLookaheadPoint(const double lookAheadDistance);
+    waypoint_t getLookaheadPoint(const double lookAheadDistance);
+    ackermann_msgs::msg::AckermannDriveStamped getPurePursuitDriveCommand(const waypoint_t& _waypoint);
     double calculateTrajectoryRisk(double lookaheadDistance);
-    void publishRiskPathSegment();
-    void evaluatePointRisk(double x, double y, double cumulativeDistance, double deltaDistance,
-                double& riskSum);
-
-    std::string _waypointsFilePath = DEFAULT_WAYPOINTS_CSV_FILE_NAME;
-    std::string _positionTopic = DEFAULT_POSITION_TOPIC;
-    std::string _driveCmdTopic = DEFAULT_DRIVE_CMD_TOPIC;
-    std::string _targetWaypointTopic = TARGET_WAYPOINT_TOPIC;
-    std::string _costmapTopic = DEFAULT_COSTMAP_TOPIC;
-    std::string _trajectoryRiskTopic = DEFAULT_TRAJECTORY_RISK_TOPIC;
-    std::string _errorTopic = DEFAULT_ERROR_TOPIC;
-    std::string _riskPathTopic = DEFAULT_RISK_PATH_TOPIC;
+    void evaluatePointRisk(double x, double y, double cumulativeDistance, double& riskMax);
 
     double _currentSpeed = 0.0;
     double _currentX = 0.0;
@@ -107,32 +106,15 @@ class PurePursuit : public rclcpp::Node
     double _currentYaw = 0.0;
 
     size_t _previousWaypointIndex = 0;
+
     bool _firstTargetWaypointLocked = false;
     bool _recoveryActive = false;
     bool _recoveryArmed = false;
     bool _carHasEverMoved = false;
-    bool _debug = false;
-    double _recoverySteeringAngle = 0.0;
     bool _hasLastTrajectoryRisk = false;
+
+    double _recoverySteeringAngle = 0.0;
     double _lastTrajectoryRisk = 0.0;
-
-    std::vector<Waypoint> _waypoints;
-    std::vector<geometry_msgs::msg::PoseStamped> _riskPathWaypoints;
-
-    rclcpp::Subscription<nav_msgs::msg::Odometry>::SharedPtr _positionSubscriber;
-    rclcpp::Subscription<nav_msgs::msg::OccupancyGrid>::SharedPtr _costmapSubscriber;
-    rclcpp::TimerBase::SharedPtr _loopTimer;
-    rclcpp::Publisher<ackermann_msgs::msg::AckermannDriveStamped>::SharedPtr _driveCmdPublisher;
-    rclcpp::Publisher<geometry_msgs::msg::PointStamped>::SharedPtr _targetWaypointPublisher;
-    rclcpp::Publisher<std_msgs::msg::Float32>::SharedPtr _trajectoryRiskPublisher;
-    rclcpp::Publisher<nav_msgs::msg::Path>::SharedPtr _riskPathPublisher;
-    rclcpp::TimerBase::SharedPtr _heartbeatTimer;
-    rclcpp::Publisher<arcus_msgs::msg::ErrorCode>::SharedPtr _errorPublisher;
-
-    tf2_ros::Buffer _tfBuffer;
-    tf2_ros::TransformListener _tfListener;
-
-    rclcpp::node_interfaces::OnSetParametersCallbackHandle::SharedPtr _paramCallbackHandle;
 
     // Costmap data
     std::vector<int8_t> _costmapData;
@@ -144,6 +126,25 @@ class PurePursuit : public rclcpp::Node
     std::string _costmapFrameId;
     std::mutex _costmapMutex;
 
+    std::vector<waypoint_t> _waypoints;
+    std::vector<geometry_msgs::msg::PoseStamped> _riskPathWaypoints;
+
+    rclcpp::Subscription<nav_msgs::msg::Odometry>::SharedPtr _positionSubscriber;
+    rclcpp::Subscription<nav_msgs::msg::OccupancyGrid>::SharedPtr _costmapSubscriber;
+
+    rclcpp::Publisher<ackermann_msgs::msg::AckermannDriveStamped>::SharedPtr _driveCmdPublisher;
+    rclcpp::Publisher<geometry_msgs::msg::PointStamped>::SharedPtr _targetWaypointPublisher;
+    rclcpp::Publisher<std_msgs::msg::Float32>::SharedPtr _trajectoryRiskPublisher;
+    rclcpp::Publisher<nav_msgs::msg::Path>::SharedPtr _riskPathPublisher;
+    rclcpp::Publisher<arcus_msgs::msg::ErrorCode>::SharedPtr _errorPublisher;
+
+    rclcpp::TimerBase::SharedPtr _loopTimer;
+    rclcpp::TimerBase::SharedPtr _heartbeatTimer;
+
+    tf2_ros::Buffer _tfBuffer;
+    tf2_ros::TransformListener _tfListener;
+
+    rclcpp::node_interfaces::OnSetParametersCallbackHandle::SharedPtr _paramCallbackHandle;
 };
 
 #endif  // PURE_PURSUIT_HPP
