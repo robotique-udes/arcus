@@ -13,16 +13,13 @@ class ParamSaverNode(Node):
     def __init__(self):
         super().__init__('param_saver_node')
         
-        # ReentrantCallbackGroup allows concurrent execution threads
         self.cb_group = ReentrantCallbackGroup()
         
-        # Absolute source repository paths for your YAML files
         self.yaml_mappings = {
             '/arcus/gap_follow': '/sim_ws/src/gap_follow/config/gap_follow.yaml',
             '/arcus/pure_pursuit': '/sim_ws/src/pure_pursuit/config/pure_pursuit_params.yaml'
         }
         
-        # Pre-create all service clients here so the Executor registers them properly
         self.param_clients = {}
         for node_name in self.yaml_mappings.keys():
             self.param_clients[node_name] = {
@@ -30,7 +27,6 @@ class ParamSaverNode(Node):
                 'get': self.create_client(GetParameters, f'{node_name}/get_parameters', callback_group=self.cb_group)
             }
         
-        # Global trigger service entry point
         self.srv = self.create_service(
             Trigger, 
             '/arcus/save_parameters', 
@@ -48,12 +44,10 @@ class ParamSaverNode(Node):
             list_client = self.param_clients[node_name]['list']
             get_client = self.param_clients[node_name]['get']
 
-            # 1. Verify target node parameter services are online (No 'await' here!)
             if not list_client.wait_for_service(timeout_sec=1.0) or not get_client.wait_for_service(timeout_sec=1.0):
                 self.get_logger().warn(f"Skipping {node_name}: Node parameter services are unavailable.")
                 continue
 
-            # 2. Request parameter names list
             req_list = ListParameters.Request()
             try:
                 res_list = await list_client.call_async(req_list)
@@ -67,7 +61,6 @@ class ParamSaverNode(Node):
                 self.get_logger().warn(f"Skipping {node_name}: No user parameters found to save.")
                 continue
 
-            # 3. Request current parameter runtime values
             req_get = GetParameters.Request()
             req_get.names = param_names
             try:
@@ -87,10 +80,8 @@ class ParamSaverNode(Node):
                 failed_nodes.append(node_name)
                 continue
             
-            # 4. Format back into standard ROS 2 nested layout
             yaml_data = self.format_to_ros_yaml(node_name, current_params)
 
-            # 5. Write back to the workspace configuration file safely
             try:
                 os.makedirs(os.path.dirname(yaml_path), exist_ok=True)
                 with open(yaml_path, 'w') as f:
