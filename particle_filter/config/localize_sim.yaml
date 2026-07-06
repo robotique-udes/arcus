@@ -3,18 +3,19 @@ particle_filter:
     # topic names
     scan_topic: '/scan'
     odometry_topic: '/odometry/filtered'
+    use_sim_time: true
     # tf params
     publish_map_to_odom: true
     transform_tolerance: 0.5
     # range data downsampling
-    angle_step: 10
-    max_particles: 2000
+    angle_step: 18
+    max_particles: 5000
     squash_factor: 2.2
     # visualization
-    viz: 0
+    viz: 1
     max_viz_particles: 60
     # ray marching method
-    range_method: 'rmgpu'
+    range_method: 'glt'
     theta_discretization: 112.0
     # range data filtering
     max_range: 10.0
@@ -27,9 +28,9 @@ particle_filter:
     z_hit: 0.75
     sigma_hit: 8.0
     # motion model dispersion constants
-    motion_dispersion_x: 0.15
+    motion_dispersion_x: 0.05
     motion_dispersion_y: 0.025
-    motion_dispersion_theta: 1.4
+    motion_dispersion_theta: 0.25
     # sensor model variant, variant 2 good for rmgpu, 3 doesn't work for rmgpu
     rangelib_variant: 2
 
