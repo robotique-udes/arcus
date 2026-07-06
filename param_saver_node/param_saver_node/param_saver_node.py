@@ -1,10 +1,11 @@
 #!/usr/bin/env python3
 import os
 import yaml
-import rclcpp
-from rclcpp.node import Node
+import rclpy
+from rclpy.node import Node
 from std_srvs.srv import Trigger
 from rcl_interfaces.srv import GetParameters, ListParameters
+from rcl_interfaces.msg import ParameterType
 
 class ParamSaverNode(Node):
     def __init__(self):
@@ -68,11 +69,11 @@ class ParamSaverNode(Node):
         
         req = ListParameters.Request()
         future = client.call_async(req)
-        rclcpp.spin_until_future_complete(self, future, timeout_sec=1.0)
+        rclpy.spin_until_future_complete(self, future, timeout_sec=1.0)
         
         if future.result() is not None:
-            # Filter out read-only/system parameters like 'use_sim_time' if desired
-            return [p for p in future.result().result.names if not p.startswith('qos_overrides')]
+            # Filter out read-only/system parameters like 'qos_overrides'
+            return [p for p in future.result().result.names if not p.startswith('qos_overrides') and p != 'use_sim_time']
         return []
 
     def fetch_param_values(self, node_name, param_names):
@@ -84,18 +85,18 @@ class ParamSaverNode(Node):
         req.names = param_names
         
         future = client.call_async(req)
-        rclcpp.spin_until_future_complete(self, future, timeout_sec=1.0)
+        rclpy.spin_until_future_complete(self, future, timeout_sec=1.0)
         
         params_dict = {}
         if future.result() is not None:
             for name, p_val in zip(param_names, future.result().values):
-                if p_val.type == 1:   # ParameterType.PARAMETER_BOOL
+                if p_val.type == ParameterType.PARAMETER_BOOL:
                     params_dict[name] = p_val.bool_value
-                elif p_val.type == 2: # ParameterType.PARAMETER_INTEGER
+                elif p_val.type == ParameterType.PARAMETER_INTEGER:
                     params_dict[name] = p_val.integer_value
-                elif p_val.type == 3: # ParameterType.PARAMETER_DOUBLE
+                elif p_val.type == ParameterType.PARAMETER_DOUBLE:
                     params_dict[name] = p_val.double_value
-                elif p_val.type == 4: # ParameterType.PARAMETER_STRING
+                elif p_val.type == ParameterType.PARAMETER_STRING:
                     params_dict[name] = p_val.string_value
         return params_dict
 
@@ -108,15 +109,15 @@ class ParamSaverNode(Node):
         return inner_layer
 
 def main(args=None):
-    rclcpp.init(args=args)
+    rclpy.init(args=args)
     node = ParamSaverNode()
     try:
-        rclcpp.spin(node)
+        rclpy.spin(node)
     except KeyboardInterrupt:
         pass
     finally:
         node.destroy_node()
-        rclcpp.shutdown()
+        rclpy.shutdown()
 
 if __name__ == '__main__':
     main()
