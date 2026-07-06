@@ -3,6 +3,8 @@ import os
 import yaml
 import rclpy
 from rclpy.node import Node
+from rclpy.callback_groups import ReentrantCallbackGroup
+from rclpy.executors import MultiThreadedExecutor
 from std_srvs.srv import Trigger
 from rcl_interfaces.srv import GetParameters, ListParameters
 from rcl_interfaces.msg import ParameterType
@@ -11,37 +13,84 @@ class ParamSaverNode(Node):
     def __init__(self):
         super().__init__('param_saver_node')
         
+        # ReentrantCallbackGroup allows concurrent execution threads
+        self.cb_group = ReentrantCallbackGroup()
+        
         # Absolute source repository paths for your YAML files
         self.yaml_mappings = {
             '/arcus/gap_follow': '/sim_ws/src/gap_follow/config/gap_follow.yaml',
             '/arcus/pure_pursuit': '/sim_ws/src/pure_pursuit/config/pure_pursuit_params.yaml'
         }
         
-        self.srv = self.create_service(Trigger, '/arcus/save_parameters', self.save_parameters_callback)
-        self.get_logger().info("Global Parameter Saver Service is online.")
+        # Pre-create all service clients here so the Executor registers them properly
+        self.param_clients = {}
+        for node_name in self.yaml_mappings.keys():
+            self.param_clients[node_name] = {
+                'list': self.create_client(ListParameters, f'{node_name}/list_parameters', callback_group=self.cb_group),
+                'get': self.create_client(GetParameters, f'{node_name}/get_parameters', callback_group=self.cb_group)
+            }
+        
+        # Global trigger service entry point
+        self.srv = self.create_service(
+            Trigger, 
+            '/arcus/save_parameters', 
+            self.save_parameters_callback,
+            callback_group=self.cb_group
+        )
+        self.get_logger().info("Global Parameter Saver Service is online and ready.")
 
-    def save_parameters_callback(self, request, response):
+    async def save_parameters_callback(self, request, response):
         self.get_logger().info("Global save triggered. Processing all tracked nodes...")
         saved_nodes = []
         failed_nodes = []
 
         for node_name, yaml_path in self.yaml_mappings.items():
-            # 1. Dynamically list all current parameters for the given node namespace
-            param_names = self.get_node_param_names(node_name)
-            if not param_names:
-                self.get_logger().warn(f"Skipping {node_name}: Node not running or no parameters found.")
+            list_client = self.param_clients[node_name]['list']
+            get_client = self.param_clients[node_name]['get']
+
+            # 1. Verify target node parameter services are online (No 'await' here!)
+            if not list_client.wait_for_service(timeout_sec=1.0) or not get_client.wait_for_service(timeout_sec=1.0):
+                self.get_logger().warn(f"Skipping {node_name}: Node parameter services are unavailable.")
                 continue
 
-            # 2. Query the live parameter values from the node
-            current_params = self.fetch_param_values(node_name, param_names)
-            if not current_params:
+            # 2. Request parameter names list
+            req_list = ListParameters.Request()
+            try:
+                res_list = await list_client.call_async(req_list)
+                param_names = [p for p in res_list.result.names if not p.startswith('qos_overrides') and p != 'use_sim_time']
+            except Exception as e:
+                self.get_logger().error(f"Failed to retrieve parameter list for {node_name}: {e}")
+                failed_nodes.append(node_name)
+                continue
+
+            if not param_names:
+                self.get_logger().warn(f"Skipping {node_name}: No user parameters found to save.")
+                continue
+
+            # 3. Request current parameter runtime values
+            req_get = GetParameters.Request()
+            req_get.names = param_names
+            try:
+                res_get = await get_client.call_async(req_get)
+                current_params = {}
+                for name, p_val in zip(param_names, res_get.values):
+                    if p_val.type == ParameterType.PARAMETER_BOOL:
+                        current_params[name] = p_val.bool_value
+                    elif p_val.type == ParameterType.PARAMETER_INTEGER:
+                        current_params[name] = p_val.integer_value
+                    elif p_val.type == ParameterType.PARAMETER_DOUBLE:
+                        current_params[name] = p_val.double_value
+                    elif p_val.type == ParameterType.PARAMETER_STRING:
+                        current_params[name] = p_val.string_value
+            except Exception as e:
+                self.get_logger().error(f"Failed to fetch parameter values for {node_name}: {e}")
                 failed_nodes.append(node_name)
                 continue
             
-            # 3. Format back into the exact standard ROS 2 namespace layout
+            # 4. Format back into standard ROS 2 nested layout
             yaml_data = self.format_to_ros_yaml(node_name, current_params)
 
-            # 4. Safely write back to the workspace configuration source file
+            # 5. Write back to the workspace configuration file safely
             try:
                 os.makedirs(os.path.dirname(yaml_path), exist_ok=True)
                 with open(yaml_path, 'w') as f:
@@ -49,7 +98,7 @@ class ParamSaverNode(Node):
                 self.get_logger().info(f"Successfully saved {node_name} -> {yaml_path}")
                 saved_nodes.append(node_name)
             except Exception as e:
-                self.get_logger().error(f"Failed to write configuration for {node_name}: {str(e)}")
+                self.get_logger().error(f"Failed to write configuration file for {node_name}: {str(e)}")
                 failed_nodes.append(node_name)
 
         if failed_nodes:
@@ -61,47 +110,7 @@ class ParamSaverNode(Node):
             
         return response
 
-    def get_node_param_names(self, node_name):
-        # Uses the ROS 2 parameter service to dynamically find what's running
-        client = self.create_client(ListParameters, f'{node_name}/list_parameters')
-        if not client.wait_for_service(timeout_sec=1.0):
-            return []
-        
-        req = ListParameters.Request()
-        future = client.call_async(req)
-        rclpy.spin_until_future_complete(self, future, timeout_sec=1.0)
-        
-        if future.result() is not None:
-            # Filter out read-only/system parameters like 'qos_overrides'
-            return [p for p in future.result().result.names if not p.startswith('qos_overrides') and p != 'use_sim_time']
-        return []
-
-    def fetch_param_values(self, node_name, param_names):
-        client = self.create_client(GetParameters, f'{node_name}/get_parameters')
-        if not client.wait_for_service(timeout_sec=1.0):
-            return {}
-
-        req = GetParameters.Request()
-        req.names = param_names
-        
-        future = client.call_async(req)
-        rclpy.spin_until_future_complete(self, future, timeout_sec=1.0)
-        
-        params_dict = {}
-        if future.result() is not None:
-            for name, p_val in zip(param_names, future.result().values):
-                if p_val.type == ParameterType.PARAMETER_BOOL:
-                    params_dict[name] = p_val.bool_value
-                elif p_val.type == ParameterType.PARAMETER_INTEGER:
-                    params_dict[name] = p_val.integer_value
-                elif p_val.type == ParameterType.PARAMETER_DOUBLE:
-                    params_dict[name] = p_val.double_value
-                elif p_val.type == ParameterType.PARAMETER_STRING:
-                    params_dict[name] = p_val.string_value
-        return params_dict
-
     def format_to_ros_yaml(self, node_name, params_dict):
-        # Breaks down the absolute /ns/node paths to nested YAML dictionaries
         parts = [p for p in node_name.split('/') if p]
         inner_layer = {"ros__parameters": params_dict}
         for part in reversed(parts):
@@ -111,8 +120,12 @@ class ParamSaverNode(Node):
 def main(args=None):
     rclpy.init(args=args)
     node = ParamSaverNode()
+    
+    executor = MultiThreadedExecutor()
+    executor.add_node(node)
+    
     try:
-        rclpy.spin(node)
+        executor.spin()
     except KeyboardInterrupt:
         pass
     finally:
