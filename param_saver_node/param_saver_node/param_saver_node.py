@@ -14,14 +14,16 @@ class ParamSaverNode(Node):
         super().__init__('param_saver_node')
         
         self.cb_group = ReentrantCallbackGroup()
+
+        self.base_path = '/sim_ws/src/arcus'
         
         self.workspace_defaults = {
-            '/arcus/gap_follow': '/sim_ws/src/arcus/gap_follow/config/gap_follow.yaml',
-            '/arcus/pure_pursuit': '/sim_ws/src/arcus/pure_pursuit/config/pure_pursuit_params.yaml',
-            '/master_node': '/sim_ws/src/arcus/arcus_master/config/master_node.yaml'
+            '/arcus/gap_follow': os.path.join(self.base_path, 'gap_follow/config/gap_follow.yaml'),
+            '/arcus/pure_pursuit': os.path.join(self.base_path, 'pure_pursuit/config/pure_pursuit_params.yaml'),
+            '/master_node': os.path.join(self.base_path, 'arcus_master/config/master_node.yaml')
         }
         
-        self.profiles_root = '/sim_ws/src/arcus/config_profiles'
+        self.profiles_root = os.path.join(self.base_path, 'config_profiles')
         self.current_config = 'default'
         
         self.param_clients = {}
