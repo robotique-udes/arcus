@@ -84,7 +84,6 @@ class ParamSaverNode(Node):
 
             if not list_client.wait_for_service(timeout_sec=1.0) or not get_client.wait_for_service(timeout_sec=1.0):
                 self.get_logger().warn(f"Skipping dump for {node_name}: Services unavailable.")
-                overall_success = False
                 continue
 
             req_list = ListParameters.Request()
