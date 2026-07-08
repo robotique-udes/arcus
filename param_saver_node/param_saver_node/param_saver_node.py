@@ -7,7 +7,7 @@ from rclpy.callback_groups import ReentrantCallbackGroup
 from rclpy.executors import MultiThreadedExecutor
 from std_srvs.srv import Trigger
 from rcl_interfaces.srv import GetParameters, ListParameters, SetParameters
-from rcl_interfaces.msg import ParameterType, SetParametersResult, Parameter, ParameterValue
+from rcl_interfaces.msg import ParameterType, SetParametersResult, Parameter, ParameterValue, ParameterDescriptor
 
 class ParamSaverNode(Node):
     def __init__(self):
@@ -43,6 +43,14 @@ class ParamSaverNode(Node):
             self.save_callback,
             callback_group=self.cb_group
         )
+
+        initial_profiles = self.get_available_profile_names()
+        read_only_descriptor = ParameterDescriptor(
+            description="List of available configuration profiles on disk.",
+            read_only=True
+        )
+        self.declare_parameter('available_profiles', initial_profiles, read_only_descriptor)
+
         self.get_logger().info("Global Parameter Saver Service is online and ready.")
 
     def get_profile_dir(self, profile):
@@ -133,6 +141,14 @@ class ParamSaverNode(Node):
                     self.get_logger().error(f"Failed to write configuration file {yaml_path}: {e}")
                     overall_success = False
 
+        self.set_parameters([
+            rclpy.parameter.Parameter(
+                'available_profiles',
+                rclpy.parameter.Parameter.Type.STRING_ARRAY,
+                self.get_available_profile_names()
+            )
+        ])
+
         return overall_success
 
     def execute_load(self, node_name, yaml_path):
@@ -191,6 +207,16 @@ class ParamSaverNode(Node):
         for part in reversed(parts):
             inner_layer = {part: inner_layer}
         return inner_layer
+
+    def get_available_profile_names(self):
+        if not os.path.exists(self.profiles_root):
+            return ['default']
+        try:
+            profiles = [d for d in os.listdir(self.profiles_root) 
+                        if os.path.isdir(os.path.join(self.profiles_root, d))]
+            return profiles if profiles else ['default']
+        except Exception:
+            return ['default']
 
 def main(args=None):
     rclpy.init(args=args)
