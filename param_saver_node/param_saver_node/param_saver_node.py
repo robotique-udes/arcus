@@ -50,7 +50,7 @@ class ParamSaverNode(Node):
 
     def on_profile_switch(self, params):
         for param in params:
-            if param.name == 'config_name' and param.type == ParameterType.PARAMETER_STRING:
+            if param.name == 'config_name' and param.type_ == ParameterType.PARAMETER_STRING:
                 new_profile = str(param.value)
                 profile_dir = self.get_profile_dir(new_profile)
                 self.current_config = new_profile
