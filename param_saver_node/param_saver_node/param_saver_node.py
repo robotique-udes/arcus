@@ -80,7 +80,7 @@ class ParamSaverNode(Node):
     def save_callback(self, request, response):
         success = self.execute_dump(profile=self.current_config)
         response.success = success
-        response.message = f"Profile '{self.current_config}' synced cleanly across configuration matrix."
+        response.message = f"Profile '{self.current_config}' synced across configuration matrix."
         return response
 
     def execute_dump(self, profile):
@@ -193,9 +193,8 @@ class ParamSaverNode(Node):
                     continue
                 req_set.parameters.append(p)
 
-            # Fire off request synchronously safely under the MultiThreadedExecutor
             res = set_client.call(req_set)
-            self.get_logger().info(f"Loaded profile updates cleanly into {node_name}")
+            self.get_logger().info(f"Loaded profile updates into {node_name}")
             return True
 
         except Exception as e:
