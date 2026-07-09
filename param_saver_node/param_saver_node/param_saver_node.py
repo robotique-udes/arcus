@@ -56,6 +56,11 @@ class ParamSaverNode(Node):
         for param in params:
             if param.name == 'config_name':
                 new_profile = str(param.value)
+
+                if new_profile == self.current_config:
+                    self.get_logger().info(f"Profile '{new_profile}' is already active. Skipping redundant reload.")
+                    return SetParametersResult(successful=True)
+
                 profile_dir = self.get_profile_dir(new_profile)
                 self.current_config = new_profile
                 
