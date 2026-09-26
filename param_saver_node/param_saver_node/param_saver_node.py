@@ -38,17 +38,17 @@ class ParamSaverNode(Node):
     2. Switch Active Profile:
     Set the active profile name to automatically switch parameter sets across target nodes:
     
-    $ ros2 param set /param_saver_node config_name "racing"
+    $ ros2 param set /arcus/param_saver_node config_name "racing"
 
     3. Query Active Profile:
     Retrieve the currently active configuration profile name:
    
-    $ ros2 param get /param_saver_node config_name
+    $ ros2 param get /arcus/param_saver_node config_name
 
     4. Query Available Profiles:
     Retrieve the list of detected configuration profile directories:
     
-    $ ros2 param get /param_saver_node available_profiles
+    $ ros2 param get /arcus/param_saver_node available_profiles
     """
     def __init__(self):
         super().__init__('param_saver_node')
