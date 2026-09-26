@@ -40,7 +40,12 @@ class ParamSaverNode(Node):
     
     $ ros2 param set /param_saver_node config_name "racing"
 
-    3. Query Available Profiles:
+    3. Query Active Profile:
+    Retrieve the currently active configuration profile name:
+   
+    $ ros2 param get /param_saver_node config_name
+
+    4. Query Available Profiles:
     Retrieve the list of detected configuration profile directories:
     
     $ ros2 param get /param_saver_node available_profiles
