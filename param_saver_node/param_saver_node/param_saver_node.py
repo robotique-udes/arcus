@@ -65,13 +65,13 @@ class ParamSaverNode(Node):
                 self.current_config = new_profile
                 
                 if os.path.exists(profile_dir) and os.listdir(profile_dir):
-                    self.get_logger().info(f"Loading Profile: {new_profile}")
+                    self.get_logger().info(f"Loading existing profile: {new_profile}")
                     for node in self.workspace_defaults.keys():
                         yaml_file = os.path.join(profile_dir, f"{node.split('/')[-1]}.yaml")
                         if os.path.exists(yaml_file):
                             self.execute_load(node_name=node, yaml_path=yaml_file)
                 else:
-                    self.get_logger().info(f"Profile '{new_profile}' target empty. Snapping active state as baseline...")
+                    self.get_logger().info(f"Creating new profile '{new_profile}', using active state as baseline...")
                     self.execute_dump(profile=new_profile)
                     
                 return SetParametersResult(successful=True)
