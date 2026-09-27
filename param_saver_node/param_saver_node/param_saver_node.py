@@ -109,7 +109,7 @@ class ParamSaverNode(Node):
         Saves the current config_name to the param_saver_node's own YAML file 
         so it persists across reboots.
         """
-        yaml_data = self.format_to_ros_yaml(self.get_name(), {'config_name': profile_name})
+        yaml_data = self.format_to_ros_yaml(self.get_fully_qualified_name(), {'config_name': profile_name})
         try:
             os.makedirs(os.path.dirname(self.node_config_path), exist_ok=True)
             with open(self.node_config_path, 'w') as f:
