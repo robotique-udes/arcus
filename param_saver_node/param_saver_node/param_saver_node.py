@@ -59,7 +59,9 @@ class ParamSaverNode(Node):
         # Adjust base_path and workspace_defaults based on the location of the config files
         # This varies whether you are in simulation or on the car
         self.base_path = '/sim_ws/src/arcus'
-        
+
+        self.node_config_path = os.path.join(self.base_path, 'param_saver_node/config/param_saver_node.yaml')
+
         self.workspace_defaults = {
             '/arcus/gap_follow': os.path.join(self.base_path, 'gap_follow/config/gap_follow.yaml'),
             '/arcus/pure_pursuit': os.path.join(self.base_path, 'pure_pursuit/config/pure_pursuit_params.yaml'),
@@ -102,6 +104,20 @@ class ParamSaverNode(Node):
     def get_profile_dir(self, profile):
         return os.path.join(self.profiles_root, profile)
 
+    def save_node_state(self, profile_name):
+        """
+        Saves the current config_name to the param_saver_node's own YAML file 
+        so it persists across reboots.
+        """
+        yaml_data = self.format_to_ros_yaml(self.get_name(), {'config_name': profile_name})
+        try:
+            os.makedirs(os.path.dirname(self.node_config_path), exist_ok=True)
+            with open(self.node_config_path, 'w') as f:
+                yaml.dump(yaml_data, f, default_flow_style=False)
+            self.get_logger().info(f"Node state updated: saved '{profile_name}' to {self.node_config_path}")
+        except Exception as e:
+            self.get_logger().error(f"Failed to write node configuration file {self.node_config_path}: {e}")
+
     def on_profile_switch(self, params):
         """
         Parameter event callback triggered when the 'config_name' parameter changes.
@@ -135,8 +151,15 @@ class ParamSaverNode(Node):
 
                 profile_dir = self.get_profile_dir(new_profile)
                 self.current_config = new_profile
+
+                self.save_node_state(new_profile)
                 
-                if os.path.exists(profile_dir) and os.listdir(profile_dir):
+                if new_profile == 'default':
+                    self.get_logger().info("Loading default workspace configuration...")
+                    for node, yaml_path in self.workspace_defaults.items():
+                        if os.path.exists(yaml_path):
+                            self.execute_load(node_name=node, yaml_path=yaml_path)
+                elif os.path.exists(profile_dir) and os.listdir(profile_dir):
                     self.get_logger().info(f"Loading existing profile: {new_profile}")
                     for node in self.workspace_defaults.keys():
                         yaml_file = os.path.join(profile_dir, f"{node.split('/')[-1]}.yaml")
@@ -161,7 +184,7 @@ class ParamSaverNode(Node):
 
         Queries target nodes via ListParameters and GetParameters services, formats 
         the retrieved values into ROS 2 standard YAML structures, and writes them 
-        to both the specified profile directory and the workspace default paths.
+        to the specified profile directory.
 
         :param profile: Target profile directory name to write configuration YAMLs to.
         :type profile: str
@@ -207,15 +230,27 @@ class ParamSaverNode(Node):
                         current_params[name] = p_val.double_value
                     elif p_val.type == ParameterType.PARAMETER_STRING:
                         current_params[name] = p_val.string_value
+                    elif p_val.type == ParameterType.PARAMETER_BOOL_ARRAY:
+                        current_params[name] = list(p_val.bool_array_value)
+                    elif p_val.type == ParameterType.PARAMETER_INTEGER_ARRAY:
+                        current_params[name] = list(p_val.integer_array_value)
+                    elif p_val.type == ParameterType.PARAMETER_DOUBLE_ARRAY:
+                        current_params[name] = list(p_val.double_array_value)
+                    elif p_val.type == ParameterType.PARAMETER_STRING_ARRAY:
+                        current_params[name] = list(p_val.string_array_value)
             except Exception as e:
                 self.get_logger().error(f"Failed fetching parameters for {node_name}: {e}")
                 overall_success = False
                 continue
             
             yaml_data = self.format_to_ros_yaml(node_name, current_params)
-            node_filename = f"{node_name.split('/')[-1]}.yaml"
-            paths_to_write = [os.path.join(profile_dir, node_filename), self.workspace_defaults[node_name]]
-            
+
+            if profile == 'default':
+                paths_to_write = [self.workspace_defaults[node_name]]
+            else:
+                node_filename = f"{node_name.split('/')[-1]}.yaml"
+                paths_to_write = [os.path.join(profile_dir, node_filename)]
+
             for yaml_path in paths_to_write:
                 try:
                     os.makedirs(os.path.dirname(yaml_path), exist_ok=True)
@@ -286,6 +321,19 @@ class ParamSaverNode(Node):
                 elif isinstance(val, str):
                     p.value.type = ParameterType.PARAMETER_STRING
                     p.value.string_value = val
+                elif isinstance(val, list):
+                    if all(isinstance(x, bool) for x in val):
+                        p.value.type = ParameterType.PARAMETER_BOOL_ARRAY
+                        p.value.bool_array_value = val
+                    elif all(isinstance(x, int) for x in val):
+                        p.value.type = ParameterType.PARAMETER_INTEGER_ARRAY
+                        p.value.integer_array_value = val
+                    elif all(isinstance(x, float) or isinstance(x, int) for x in val):
+                        p.value.type = ParameterType.PARAMETER_DOUBLE_ARRAY
+                        p.value.double_array_value = [float(x) for x in val]
+                    elif all(isinstance(x, str) for x in val):
+                        p.value.type = ParameterType.PARAMETER_STRING_ARRAY
+                        p.value.string_array_value = val
                 else:
                     continue
                 req_set.parameters.append(p)
