@@ -1,0 +1,16 @@
+<?xml version="1.0"?>
+<package format="3">
+  <name>param_saver_node</name>
+  <version>0.0.0</version>
+  <description>Parameter saving utility</description>
+  <maintainer email="arcus@todo.todo">arcus</maintainer>
+  <license>MIT</license>
+
+  <depend>rclpy</depend>
+  <depend>std_srvs</depend>
+  <depend>rcl_interfaces</depend>
+
+  <export>
+    <build_type>ament_python</build_type>
+  </export>
+</package>
