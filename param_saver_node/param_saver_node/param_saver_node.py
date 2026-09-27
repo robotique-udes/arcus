@@ -71,7 +71,6 @@ class ParamSaverNode(Node):
         self.cb_group = ReentrantCallbackGroup()
         
         self.profiles_root = os.path.join(self.base_path, 'config_profiles')
-        self.current_config = 'default'
         
         self.param_clients = {}
         for node_name in self.workspace_defaults.keys():
@@ -101,6 +100,10 @@ class ParamSaverNode(Node):
             f"profile{'s' if count != 1 else ''}: {profiles_str}."
         )
 
+        initial_profile = self.get_parameter('config_name').value
+        self.get_logger().info(f"Initializing with profile: '{initial_profile}'")
+        self.apply_profile(initial_profile)
+
     def get_profile_dir(self, profile):
         return os.path.join(self.profiles_root, profile)
 
@@ -118,14 +121,12 @@ class ParamSaverNode(Node):
         except Exception as e:
             self.get_logger().error(f"Failed to write node configuration file {self.node_config_path}: {e}")
 
-    def on_profile_switch(self, params):
+    def apply_profile(self, profile_name):
         """
-        Parameter event callback triggered when the 'config_name' parameter changes.
-
         Manages profile lifecycle and runtime transitions according to three scenarios:
         
         1. Redundant Request:
-           If the requested profile matches self.current_config, the switch is ignored
+           If the requested profile matches the current one, the switch is ignored
            to prevent unnecessary I/O and service calls.
         
         2. Existing Profile Switch:
@@ -135,6 +136,27 @@ class ParamSaverNode(Node):
         3. New Profile Creation:
            If the profile directory does not exist, a new profile is created using the 
            active state of target parameters as a baseline configuration dump.
+        """
+        profile_dir = self.get_profile_dir(profile_name)
+
+        if profile_name == 'default':
+            self.get_logger().info("Loading default workspace configuration...")
+            for node, yaml_path in self.workspace_defaults.items():
+                if os.path.exists(yaml_path):
+                    self.execute_load(node_name=node, yaml_path=yaml_path)
+        elif os.path.exists(profile_dir) and os.listdir(profile_dir):
+            self.get_logger().info(f"Loading existing profile: {profile_name}")
+            for node in self.workspace_defaults.keys():
+                yaml_file = os.path.join(profile_dir, f"{node.split('/')[-1]}.yaml")
+                if os.path.exists(yaml_file):
+                    self.execute_load(node_name=node, yaml_path=yaml_file)
+        else:
+            self.get_logger().info(f"Creating new profile '{profile_name}', using active state as baseline...")
+            self.execute_dump(profile=profile_name)
+
+    def on_profile_switch(self, params):
+        """
+        Parameter event callback triggered when the 'config_name' parameter changes.
 
         :param params: List of Parameter objects updated during the parameter event.
         :type params: list[rclpy.parameter.Parameter]
@@ -144,38 +166,23 @@ class ParamSaverNode(Node):
         for param in params:
             if param.name == 'config_name':
                 new_profile = str(param.value)
+                old_profile = self.get_parameter('config_name').value
 
-                if new_profile == self.current_config:
+                if new_profile == old_profile:
                     self.get_logger().info(f"Profile '{new_profile}' is already active. Skipping redundant reload.")
                     return SetParametersResult(successful=True)
 
-                profile_dir = self.get_profile_dir(new_profile)
-                self.current_config = new_profile
-
                 self.save_node_state(new_profile)
-                
-                if new_profile == 'default':
-                    self.get_logger().info("Loading default workspace configuration...")
-                    for node, yaml_path in self.workspace_defaults.items():
-                        if os.path.exists(yaml_path):
-                            self.execute_load(node_name=node, yaml_path=yaml_path)
-                elif os.path.exists(profile_dir) and os.listdir(profile_dir):
-                    self.get_logger().info(f"Loading existing profile: {new_profile}")
-                    for node in self.workspace_defaults.keys():
-                        yaml_file = os.path.join(profile_dir, f"{node.split('/')[-1]}.yaml")
-                        if os.path.exists(yaml_file):
-                            self.execute_load(node_name=node, yaml_path=yaml_file)
-                else:
-                    self.get_logger().info(f"Creating new profile '{new_profile}', using active state as baseline...")
-                    self.execute_dump(profile=new_profile)
-                    
+                self.apply_profile(new_profile)
+
                 return SetParametersResult(successful=True)
         return SetParametersResult(successful=True)
 
     def save_callback(self, request, response):
-        success = self.execute_dump(profile=self.current_config)
+        current_profile = self.get_parameter('config_name').value
+        success = self.execute_dump(profile=current_profile)
         response.success = success
-        response.message = f"Profile '{self.current_config}' synced across configuration matrix."
+        response.message = f"Profile '{current_profile}' synced across configuration matrix."
         return response
 
     def execute_dump(self, profile):
