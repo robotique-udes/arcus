@@ -100,6 +100,10 @@ class ParamSaverNode(Node):
             f"profile{'s' if count != 1 else ''}: {profiles_str}."
         )
 
+        initial_profile = self.get_parameter('config_name').value
+        self.get_logger().info(f"Initializing with profile: '{initial_profile}'")
+        self.apply_profile(initial_profile)
+
     def get_profile_dir(self, profile):
         return os.path.join(self.profiles_root, profile)
 
