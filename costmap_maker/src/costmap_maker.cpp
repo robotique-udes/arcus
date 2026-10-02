@@ -342,17 +342,9 @@ void CostmapMaker::markObstaclesFromScan(const sensor_msgs::msg::LaserScan& scan
 	  const int minY = std::max(0, mapY - neighborhoodCells);
 	  const int maxY = std::min(height - 1, mapY + neighborhoodCells);
 
+	  distanceDelta = std::numeric_limits<double>::infinity();
 	  for (int y = minY; y <= maxY; ++y) {
 		  for (int x = minX; x <= maxX; ++x) {
-			  if (neighborhoodCells > 0) {
-				  const double dx = static_cast<double>(x - mapX) * resolution;
-				  const double dy = static_cast<double>(y - mapY) * resolution;
-				  distanceDelta = std::sqrt(dx * dx + dy * dy);
-				  if (distanceDelta > _globalObstacleNeighborhoodRadiusM) {
-					  continue;
-				  }
-			  }
-
 			  const int index = y * width + x;
 			  if (index < 0 || index >= static_cast<int>(globalMap->data.size())) {
 				  continue;
@@ -360,11 +352,20 @@ void CostmapMaker::markObstaclesFromScan(const sensor_msgs::msg::LaserScan& scan
 
 			  const int8_t globalCost = globalMap->data[static_cast<std::size_t>(index)];
 			  if (globalCost >= _globalObstacleThreshold) {
-				  return false;
+				  const double dx = static_cast<double>(x - mapX) * resolution;
+				  const double dy = static_cast<double>(y - mapY) * resolution;
+				  const double candidateDelta = std::sqrt(dx * dx + dy * dy);
+				  if (candidateDelta <= _globalObstacleNeighborhoodRadiusM) {
+					  distanceDelta = std::min(distanceDelta, candidateDelta);
+				  }
 			  }
 		  }
 	  }
 
+	  if (std::isfinite(distanceDelta)) {
+		  return false;
+	  }
+	  distanceDelta = _globalObstacleNeighborhoodRadiusM;
 	  return true;
 	}
 

@@ -3,6 +3,8 @@
 
 #include "master_node.hpp"
 
+#include <cmath>
+
 int main(int argc, char** argv)
 {
     rclcpp::init(argc, argv);
@@ -36,7 +38,7 @@ MasterNode::MasterNode():
     _sectionOverrideTimeoutMs = this->declare_parameter<int>("section_override_timeout_ms", 500);
     _disparityCooldownMs = this->declare_parameter<int>("disparity_cooldown_ms", 500);
     MAX_ACCEPTED_RISK = this->declare_parameter<double>("max_accepted_risk", 0.1);
-    MIN_ACCEPTED_LOCALIZATION_SCORE = this->declare_parameter<double>("max_accepted_risk", 0.5);
+    MIN_ACCEPTED_LOCALIZATION_SCORE = this->declare_parameter<double>("min_accepted_localization_score", 70.0);
 
     if (_sectionOverrideTimeoutMs < 0)
     {
@@ -207,9 +209,9 @@ void MasterNode::localizationScoreCallback(const std_msgs::msg::Float32::SharedP
 {
     const uint64_t now_ns = static_cast<uint64_t>(this->now().nanoseconds());
 
-    if (msg->data >= MIN_ACCEPTED_LOCALIZATION_SCORE)
+    if (!std::isfinite(msg->data) || msg->data < MIN_ACCEPTED_LOCALIZATION_SCORE)
     {
-        RCLCPP_WARN(this->get_logger(), "Received low localization score: %.2f, switching to disparity", msg->data);
+        RCLCPP_WARN(this->get_logger(), "Localization score below threshold: %.2f, switching to disparity", msg->data);
         _locScoreExceeded = true;
         _disparityHoldUntilNs = now_ns + static_cast<uint64_t>(_disparityCooldownMs) * 1000000ULL;
         return;
@@ -218,7 +220,7 @@ void MasterNode::localizationScoreCallback(const std_msgs::msg::Float32::SharedP
     if (_locScoreExceeded)
     {
         RCLCPP_INFO(this->get_logger(),
-                    "Localization score back above threshold: %.2f, pure pursuit will resume after hold time expires",
+                    "Localization score recovered to %.2f; pure pursuit will resume after hold time expires",
                     msg->data);
     }
 

@@ -28,5 +28,4 @@ costmap_maker:
     global_obstacle_threshold: 50                # Global map occupancy value treated as obstacle
     global_obstacle_neighborhood_radius_m: 0.20  # Match radius in meters for global obstacle lookup
 
-    localization_decay_factor: 1.0               # Exponential decay factor to calculate localization score
-                                                    #from obstacle mismatch distance
+    localization_decay_factor: 5.0               # Exponential decay factor (1/m); score = 100 * exp(-factor * mean mismatch distance)

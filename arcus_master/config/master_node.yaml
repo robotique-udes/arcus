@@ -20,3 +20,4 @@ arcus:
       section_override_timeout_ms: 500
       disparity_cooldown_ms: 500
       max_accepted_risk: 70.0
+      min_accepted_localization_score: 70.0
