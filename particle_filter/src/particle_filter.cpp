@@ -396,7 +396,7 @@ namespace particle_filter
         // https://stackoverflow.com/questions/42926209/equivalent-function-to-numpy-random-choice-in-c
         std::vector<decltype(distribution)::result_type> indices;
         indices.reserve(max_particles_num_);  // reserve to prevent reallocation
-        std::mt19937 generator = rng_.engine();
+        std::mt19937& generator = rng_.engine();
         // use a generator lambda to draw random indices based on distribution
         std::generate_n(back_inserter(indices),
                         max_particles_num_,
@@ -421,7 +421,7 @@ namespace particle_filter
         std::normal_distribution<double> distribution1(0.0, motion_dispersion_x_);
         std::normal_distribution<double> distribution2(0.0, motion_dispersion_y_);
         std::normal_distribution<double> distribution3(0.0, motion_dispersion_theta_);
-        std::mt19937 generator = rng_.engine();
+        std::mt19937& generator = rng_.engine();
 
         for (int i = 0; i < max_particles_num_; i++)
         {
