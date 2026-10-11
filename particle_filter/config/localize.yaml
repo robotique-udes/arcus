@@ -33,6 +33,8 @@ particle_filter:
     motion_dispersion_theta: 1.4
     # sensor model variant, variant 2 good for rmgpu, 3 doesn't work for rmgpu
     rangelib_variant: 2
+    # pose selection method, 'mean' or 'max'
+    pose_selection_method: 'mean'
 
 map_server:
   ros__parameters:

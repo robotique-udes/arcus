@@ -115,7 +115,8 @@ namespace particle_filter
         void motionModel();
         void sensorModel();
         void applyRoughening();
-        void expectedPose();
+        void expectedPoseMean();
+        void getMaxWeightParticle();
         void publishTfOdom();
         void visualize();
 
@@ -212,6 +213,8 @@ namespace particle_filter
         double theta_discretization_;
         double squash_factor_;
         double max_range_;
+
+        std::string pose_selection_method_;
 
         // Timing related variables
         double sensor_model_calc_worst_time_;

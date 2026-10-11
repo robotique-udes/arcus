@@ -28,6 +28,7 @@ namespace particle_filter
         this->declare_parameter("max_particles", 1000);
         this->declare_parameter("max_viz_particles", 60);
         this->declare_parameter("range_method", "rmgpu");
+        this->declare_parameter("pose_selection_method", "mean");
         this->declare_parameter("theta_discretization", 112.0);
         this->declare_parameter("squash_factor", 2.2);
         this->declare_parameter("max_range", 20.0);
@@ -377,8 +378,20 @@ namespace particle_filter
         sensorModel();
         // Apply roughening if sensor information is poor (optional)
         // applyRoughening();
+        if (pose_selection_method_ == "mean")
+        {
+            expectedPoseMean();
+        }
+        else if (pose_selection_method_ == "max")
+        {
+            getMaxWeightParticle();
+        }
+        else
+        {
+            throw std::runtime_error("Invalid pose_selection_method value");
+        }
         // Calculate the average particle
-        expectedPose();
+        expectedPoseMean();
 
         // Publish and visualize info only when expected pose is valid
         if (isnan(expected_pose_.x) || isnan(expected_pose_.y) || isnan(expected_pose_.theta))
@@ -510,7 +523,7 @@ namespace particle_filter
         }
     }
 
-    void ParticleFilter::expectedPose()
+    void ParticleFilter::expectedPoseMean()
     {
         // Expected pose for LiDAR
         expected_pose_.x = 0;
@@ -523,6 +536,27 @@ namespace particle_filter
             expected_pose_.theta += particles_[i].weight * particles_[i].theta;
         }
     }
+
+    void ParticleFilter::getMaxWeightParticle()
+    {
+        expected_pose_.x = 0;
+        expected_pose_.y = 0;
+        expected_pose_.theta = 0;
+        double highest_weight_ = 0.0;
+        int highest_weight_idx = 0;
+        for (int i = 0; i < max_particles_num_; i++)
+        {
+            if (particles_[i].weight > highest_weight_)
+            {
+                highest_weight_ = particles_[i].weight;
+                highest_weight_idx = i;
+            }
+        }
+        expected_pose_.x = particles_[highest_weight_idx].x;
+        expected_pose_.y = particles_[highest_weight_idx].y;
+        expected_pose_.theta = particles_[highest_weight_idx].theta;
+    }
+
 
     void ParticleFilter::publishTfOdom()
     {
