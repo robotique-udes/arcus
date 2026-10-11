@@ -12,6 +12,7 @@ namespace particle_filter
         map_initialized_(false),
         odom_initialized_(false),
         lidar_initialized_(false),
+        last_pose_initialized_(false),
         sensor_model_calc_worst_time_(0.0),
         motion_model_calc_worst_time_(0.0)
     {
@@ -61,6 +62,7 @@ namespace particle_filter
         this->get_parameter("z_rand", z_rand_);
         this->get_parameter("z_hit", z_hit_);
         this->get_parameter("sigma_hit", sigma_hit_);
+        this->get_parameter("lambda_short", lambda_short_);
         this->get_parameter("motion_dispersion_x", motion_dispersion_x_);
         this->get_parameter("motion_dispersion_y", motion_dispersion_y_);
         this->get_parameter("motion_dispersion_theta", motion_dispersion_theta_);
@@ -101,17 +103,25 @@ namespace particle_filter
         // observed range value r
         for (int d = 0; d < table_width; d++)
         {
+            // This beam model is based on Probabilistic Robotics by Thrun, Burgard and Fox, 2005, p.153
+            // We need to normalize p_hit and p_short be cause they are truncated distributions
+            const double p_hit_normalizer = normal_cdf((max_range_px_ - d) / sigma) - normal_cdf(-d / sigma);
+            const double p_short_normalizer = -std::expm1(-lambda_short_ * d);
             double norm = 0.0;
             for (int r = 0; r < table_width; r++)
             {
                 double prob = 0.0;
                 double z = (double)(r - d);
-                prob += z_hit_ * exp(-(z * z) / (2.0 * sigma_hit_ * sigma_hit_)) / (sigma_hit_ * sqrt(M_PI));
-                if (r < d)
-                    prob += 2.0 * z_short_ * (d - r) / (double)(d);
+                // Add p_hit
+                prob += z_hit_ * exp(-(z * z) / (2.0 * sigma_hit_ * sigma_hit_)) / (sigma_hit_ * sqrt(2 * M_PI) * p_hit_normalizer);
+                if (r < d && p_short_normalizer > 0.0)
+                    // p_short
+                    prob += z_short_ * lambda_short_ * std::exp(-lambda_short_ * r) / p_short_normalizer;
                 if (r == max_range_px_)
+                    // p_max
                     prob += z_max_;
                 if (r < max_range_px_)
+                    // p_rand
                     prob += z_rand_ * 1.0 / double(max_range_px_);
 
                 norm += prob;
@@ -290,31 +300,30 @@ namespace particle_filter
 
     void ParticleFilter::odom_cb(const nav_msgs::msg::Odometry::ConstSharedPtr& msg)
     {
-        if (last_pose_.empty())
+        if (!last_pose_initialized_)
         {
             RCLCPP_INFO(this->get_logger(), "...Received first Odometry message");
+            last_pose_initialized_ = true;
         }
         else
         {
-            double dx = msg->pose.pose.position.x - last_pose_[0];
-            double dy = msg->pose.pose.position.y - last_pose_[1];
-            double dtheta = getYaw(msg->pose.pose.orientation) - last_pose_[2];
-            double c = cos(-last_pose_[2]);
-            double s = sin(-last_pose_[2]);
+            double dx = msg->pose.pose.position.x - last_pose_.x;
+            double dy = msg->pose.pose.position.y - last_pose_.y;
+            double dtheta = getYaw(msg->pose.pose.orientation) - last_pose_.theta;
+            double c = cos(-last_pose_.theta);
+            double s = sin(-last_pose_.theta);
             double local_delta_x = dx * c - dy * s;
             double local_delta_y = dx * s + dy * c;
-            odometry_data_.clear();
-            odometry_data_.push_back(local_delta_x);
-            odometry_data_.push_back(local_delta_y);
-            odometry_data_.push_back(dtheta);
+            odometry_data_.x = local_delta_x;
+            odometry_data_.y = local_delta_y;
+            odometry_data_.theta = dtheta;
             odom_initialized_ = true;
         }
         linear_speed = msg->twist.twist.linear.x;
         angular_speed = msg->twist.twist.angular.z;
-        last_pose_.clear();
-        last_pose_.push_back(msg->pose.pose.position.x);
-        last_pose_.push_back(msg->pose.pose.position.y);
-        last_pose_.push_back(getYaw(msg->pose.pose.orientation));
+        last_pose_.x = msg->pose.pose.position.x;
+        last_pose_.y = msg->pose.pose.position.y;
+        last_pose_.theta = getYaw(msg->pose.pose.orientation);
         last_stamp_ = msg->header.stamp;
     }
 
@@ -426,9 +435,9 @@ namespace particle_filter
         for (int i = 0; i < max_particles_num_; i++)
         {
             // Add noise to odometry in local frame
-            double noisy_odom_x = odometry_data_[0] + distribution1(generator);
-            double noisy_odom_y = odometry_data_[1] + distribution2(generator);
-            double noisy_odom_theta = odometry_data_[2] + distribution3(generator);
+            double noisy_odom_x = odometry_data_.x + distribution1(generator);
+            double noisy_odom_y = odometry_data_.y + distribution2(generator);
+            double noisy_odom_theta = odometry_data_.theta + distribution3(generator);
 
             // Transform noisy local odometry to global frame using particle's
             // orientation

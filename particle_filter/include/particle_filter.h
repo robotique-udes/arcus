@@ -44,6 +44,13 @@ namespace particle_filter
     typedef std::recursive_mutex RecursiveMutex;
     typedef std::lock_guard<std::recursive_mutex> RecursiveLock;
 
+    struct Pose2D
+    {
+        double x{0.0};
+        double y{0.0};
+        double theta{0.0};
+    };
+
     typedef std::chrono::high_resolution_clock Clock;
     typedef std::chrono::_V2::system_clock::time_point Time;
     typedef std::chrono::duration<double> Duration;
@@ -145,9 +152,10 @@ namespace particle_filter
         bool map_initialized_;
         bool odom_initialized_;
         bool lidar_initialized_;
+        bool last_pose_initialized_;
         rclcpp::Time last_stamp_;
-        std::vector<double> last_pose_;
-        std::vector<double> odometry_data_;
+        Pose2D last_pose_;
+        Pose2D odometry_data_;
         double linear_speed;
         double angular_speed;
 
@@ -182,6 +190,7 @@ namespace particle_filter
         double z_rand_;
         double z_hit_;
         double sigma_hit_;
+        double lambda_short_;
 
         // motion model dispersion constant
         double motion_dispersion_x_;
