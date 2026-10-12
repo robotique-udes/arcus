@@ -12,7 +12,7 @@ from rclpy.serialization import deserialize_message
 from rosidl_runtime_py.utilities import get_message
 from sensor_msgs.msg import LaserScan
 
-BAG_PATH = "/path/to/your/rosbag"
+BAG_PATH = "/home/charles/Downloads/rosbags_vienne/vienne2"
 SCAN_TOPIC = "/scan"
 MAP_TOPIC = "/map"
 TF_TOPIC = "/tf"
@@ -189,6 +189,13 @@ def estimate_sensor_model(z, z_star, max_range, init=None,
                                      / max(e_hit.sum(), eps)), 1e-3)
         p["lambda_short"] = e_short.sum() / max(np.sum(e_short * z), eps)
 
+        print("Updated sensor model parameters:")
+        print(f"  z_hit    = {p['z_hit']:.6f}")
+        print(f"  z_short  = {p['z_short']:.6f}")
+        print(f"  z_max    = {p['z_max']:.6f}")
+        print(f"  z_rand   = {p['z_rand']:.6f}")
+        print(f"  sigma_hit= {p['sigma_hit']:.6f}")
+
         ll = np.sum(np.log(total))
         if abs(ll - prev_ll) < tol * abs(ll):
             break
@@ -256,7 +263,7 @@ def main():
         init={"z_hit": 0.75, "z_short": 0.1, "z_max": 0.05, "z_rand": 0.1, "sigma_hit": 0.3, "lambda_short": 1.0},
     )
 
-    print("Estimated sensor model parameters:")
+    print("Final estimated sensor model parameters:")
     print(f"  z_hit    = {estimate['z_hit']:.6f}")
     print(f"  z_short  = {estimate['z_short']:.6f}")
     print(f"  z_max    = {estimate['z_max']:.6f}")
