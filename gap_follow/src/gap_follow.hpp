@@ -47,6 +47,7 @@ class ReactiveGapFollow : public rclcpp::Node
     float _disparityThreshold = 0.1f;
     uint16_t _defaultQos = 1U;
     uint16_t _rollingAverageWindow = 3U;
+    float _FOV = 90.0;
     bool _debug = false;
     std::string _lidarScanTopic = "/scan";
     std::string _driveTopic = "/disparity/drive";

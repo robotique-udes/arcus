@@ -24,6 +24,7 @@ ReactiveGapFollow::ReactiveGapFollow():
     _debug = this->declare_parameter<bool>("debug", false);
     _lidarScanTopic = this->declare_parameter<std::string>("lidar_scan_topic", "/scan");
     _driveTopic = this->declare_parameter<std::string>("drive_topic", "/disparity/drive");
+    _FOV = this->declare_parameter<double>("max_fov", 90.0);
 
     if (_rollingAverageWindow == 0U)
     {
@@ -86,13 +87,14 @@ void ReactiveGapFollow::preprocess_lidar(std::vector<float> &ranges, float range
             }
         }
 
+        double rad_fov = (_FOV/180.0)*M_PI;
         // Remove Lidar point behind car for disparity analysis
-        int deg90Index = static_cast<int>((M_PI/2.0-angle_min)/angle_inc);
-        int negDeg90Index = static_cast<int>((-M_PI/2.0-angle_min)/angle_inc);
+        int degFOVIndex = static_cast<int>((rad_fov-angle_min)/angle_inc);
+        int negdegFOVIndex = static_cast<int>((-rad_fov-angle_min)/angle_inc);
         // Erase after the end index first to avoid index shiftings
-        ranges.erase(ranges.begin() + deg90Index + 1, ranges.end());
+        ranges.erase(ranges.begin() + degFOVIndex + 1, ranges.end());
         // Then erase before the beginning index
-        ranges.erase(ranges.begin(), ranges.begin() + negDeg90Index);
+        ranges.erase(ranges.begin(), ranges.begin() + negdegFOVIndex);
 }
 
 // Compute the difference between each points and the previous points
@@ -248,8 +250,9 @@ void ReactiveGapFollow::lidar_CB(sensor_msgs::msg::LaserScan::SharedPtr scanMsg_
 float ReactiveGapFollow::setSpeedFromDistance(float distance_, float steeringAngle_)
 {
     float speed = distance_ * _speedDistanceFactor; // Basic proportionnal speed gain
-    float turn_radius = _wheelBase/std::sin(steeringAngle_);
-    float max_turning_speed = std::sqrt(turn_radius*9.81*_frictionCoeff);
+    const float steeringMagnitude = std::max(std::abs(steeringAngle_), 0.05f);
+    float turn_radius = _wheelBase/std::sin(steeringMagnitude);
+    float max_turning_speed = std::sqrt(std::max(turn_radius * 9.81f * _frictionCoeff, 0.0f));
     speed = std::min(speed, max_turning_speed); // Limit max speed in turn based on turn radius, acceleration and friction coefficient
     return std::min(speed, _maxSpeed);
 }
@@ -287,6 +290,8 @@ void ReactiveGapFollow::initParamCallbackHandle(void) {
                    _bubbleRadius = param.as_double();
                 else if (name == "static_friction_coeff")
                     _frictionCoeff = param.as_double();
+                else if (name == "max_fov")
+                    _FOV = param.as_double();
 
                 RCLCPP_INFO(this->get_logger(), "Parameter updated: %s", name.c_str());
             }
