@@ -12,7 +12,7 @@ if(CMAKE_COMPILER_IS_GNUCXX OR CMAKE_CXX_COMPILER_ID MATCHES "Clang")
   add_compile_options(-Wall -Wextra -Wpedantic)
 endif()
 
-option(WITH_CUDA ON)
+option(WITH_CUDA "Define if particle filter needs to use CUDA" ON)
 
 
 # Add CUDA support definition for range_libc compatibility
