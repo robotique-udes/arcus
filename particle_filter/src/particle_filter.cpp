@@ -4,8 +4,14 @@
 #include <tf2/LinearMath/Quaternion.hpp>
 #include <tf2/time.hpp>
 
+#include <cmath>
+
 namespace particle_filter
 {
+    inline double normal_cdf(double x)
+    {
+        return 0.5 * (1.0 + std::erf(x / std::sqrt(2.0)));
+    }
 
     ParticleFilter::ParticleFilter(const rclcpp::NodeOptions& options):
         Node("particle_filter", options),
@@ -106,7 +112,8 @@ namespace particle_filter
         {
             // This beam model is based on Probabilistic Robotics by Thrun, Burgard and Fox, 2005, p.153
             // We need to normalize p_hit and p_short be cause they are truncated distributions
-            const double p_hit_normalizer = normal_cdf((max_range_px_ - d) / sigma) - normal_cdf(-d / sigma);
+            const double p_hit_normalizer = normal_cdf((max_range_px_ - d) / sigma_hit_)
+                                            - normal_cdf(-d / sigma_hit_);
             const double p_short_normalizer = -std::expm1(-lambda_short_ * d);
             double norm = 0.0;
             for (int r = 0; r < table_width; r++)
