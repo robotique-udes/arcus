@@ -73,6 +73,7 @@ namespace particle_filter
         this->get_parameter("motion_dispersion_x", motion_dispersion_x_);
         this->get_parameter("motion_dispersion_y", motion_dispersion_y_);
         this->get_parameter("motion_dispersion_theta", motion_dispersion_theta_);
+        this->get_parameter("pose_selection_method", pose_selection_method_);
 
         this->declare_parameter("set_initial_pose", false);
         this->declare_parameter("init_pose_x", 0.0);
