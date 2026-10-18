@@ -51,6 +51,9 @@ namespace particle_filter
         double theta{0.0};
     };
 
+    // Pose of `to` expressed in the frame of `from`, heading change wrapped to [-pi, pi]
+    Pose2D relativePose(const Pose2D& from, const Pose2D& to);
+
     typedef std::chrono::high_resolution_clock Clock;
     typedef std::chrono::_V2::system_clock::time_point Time;
     typedef std::chrono::duration<double> Duration;
@@ -153,10 +156,10 @@ namespace particle_filter
         bool map_initialized_;
         bool odom_initialized_;
         bool lidar_initialized_;
-        bool last_pose_initialized_;
         rclcpp::Time last_stamp_;
-        Pose2D last_pose_;
-        Pose2D odometry_data_;
+        Pose2D last_pose_;         // latest odometry pose
+        Pose2D last_update_pose_;  // odometry pose consumed by the previous update
+        Pose2D odometry_data_;     // motion since the previous update, in the robot frame
         double linear_speed;
         double angular_speed;
 

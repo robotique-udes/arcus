@@ -13,12 +13,25 @@ namespace particle_filter
         return 0.5 * (1.0 + std::erf(x / std::sqrt(2.0)));
     }
 
+    Pose2D relativePose(const Pose2D& from, const Pose2D& to)
+    {
+        double dx = to.x - from.x;
+        double dy = to.y - from.y;
+        double c = cos(from.theta);
+        double s = sin(from.theta);
+
+        Pose2D delta;
+        delta.x = c * dx + s * dy;
+        delta.y = -s * dx + c * dy;
+        delta.theta = std::remainder(to.theta - from.theta, 2.0 * M_PI);
+        return delta;
+    }
+
     ParticleFilter::ParticleFilter(const rclcpp::NodeOptions& options):
         Node("particle_filter", options),
         map_initialized_(false),
         odom_initialized_(false),
         lidar_initialized_(false),
-        last_pose_initialized_(false),
         sensor_model_calc_worst_time_(0.0),
         motion_model_calc_worst_time_(0.0)
     {
@@ -310,30 +323,19 @@ namespace particle_filter
 
     void ParticleFilter::odom_cb(const nav_msgs::msg::Odometry::ConstSharedPtr& msg)
     {
-        if (!last_pose_initialized_)
+        RecursiveLock lock(particles_mtx_);
+
+        last_pose_.x = msg->pose.pose.position.x;
+        last_pose_.y = msg->pose.pose.position.y;
+        last_pose_.theta = getYaw(msg->pose.pose.orientation);
+        if (!odom_initialized_)
         {
             RCLCPP_INFO(this->get_logger(), "...Received first Odometry message");
-            last_pose_initialized_ = true;
-        }
-        else
-        {
-            double dx = msg->pose.pose.position.x - last_pose_.x;
-            double dy = msg->pose.pose.position.y - last_pose_.y;
-            double dtheta = getYaw(msg->pose.pose.orientation) - last_pose_.theta;
-            double c = cos(-last_pose_.theta);
-            double s = sin(-last_pose_.theta);
-            double local_delta_x = dx * c - dy * s;
-            double local_delta_y = dx * s + dy * c;
-            odometry_data_.x = local_delta_x;
-            odometry_data_.y = local_delta_y;
-            odometry_data_.theta = dtheta;
+            last_update_pose_ = last_pose_;
             odom_initialized_ = true;
         }
         linear_speed = msg->twist.twist.linear.x;
         angular_speed = msg->twist.twist.angular.z;
-        last_pose_.x = msg->pose.pose.position.x;
-        last_pose_.y = msg->pose.pose.position.y;
-        last_pose_.theta = getYaw(msg->pose.pose.orientation);
         last_stamp_ = msg->header.stamp;
     }
 
@@ -378,6 +380,9 @@ namespace particle_filter
             return;
 
         RecursiveLock lock(particles_mtx_);
+        // Motion since the previous update, so odometry messages between scans are neither lost nor reused
+        odometry_data_ = relativePose(last_update_pose_, last_pose_);
+        last_update_pose_ = last_pose_;
         // MCL algorithm
         // Sampling
         sampling();
