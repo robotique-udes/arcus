@@ -26,6 +26,7 @@ HIT_THRESHOLD = 0.5
 MAX_ITERATIONS = 1000
 SCAN_BEAM_STRIDE = 4
 MAX_SCAN_MESSAGES_TO_USE = 500
+SCAN_MSG_SKIP = 0  # derived after reading bag; 0 = keep every scan
 
 
 class BagReader:
@@ -358,10 +359,18 @@ def main():
         flush=True,
     )
 
+    if MAX_SCAN_MESSAGES_TO_USE > 0 and len(scan_messages) > MAX_SCAN_MESSAGES_TO_USE:
+        global SCAN_MSG_SKIP
+        SCAN_MSG_SKIP = max(0, math.ceil(len(scan_messages) / MAX_SCAN_MESSAGES_TO_USE) - 1)
+        scan_messages = scan_messages[:: SCAN_MSG_SKIP + 1]
+        scan_messages = scan_messages[:MAX_SCAN_MESSAGES_TO_USE]
+        print(
+            f"[offline_sensor_calibration] Downsampled {len(scan_messages)} scans using skip={SCAN_MSG_SKIP} to respect MAX_SCAN_MESSAGES_TO_USE={MAX_SCAN_MESSAGES_TO_USE}",
+            flush=True,
+        )
+
     accumulated_ranges = []
     accumulated_expected = []
-    if MAX_SCAN_MESSAGES_TO_USE > 0:
-        scan_messages = scan_messages[:MAX_SCAN_MESSAGES_TO_USE]
     print(
         f"[offline_sensor_calibration] Computing expected ranges for {len(scan_messages)} scans with beam stride {SCAN_BEAM_STRIDE}...",
         flush=True,
@@ -416,7 +425,7 @@ def main():
     print(f"  z_max    = {estimate['z_max']:.6f}")
     print(f"  z_rand   = {estimate['z_rand']:.6f}")
     print(f"  sigma_hit= {estimate['sigma_hit']:.6f}")
-    print(f"  lambda_short= {p['lambda_short']:.6f}")
+    print(f"  lambda_short= {estimate['lambda_short']:.6f}")
 
 
 
