@@ -47,6 +47,7 @@ namespace particle_filter
         this->declare_parameter("z_rand", 0.025);
         this->declare_parameter("z_hit", 0.85);
         this->declare_parameter("sigma_hit", 8.0);
+        this->declare_parameter("lambda_short", 0.1);
         this->declare_parameter("motion_dispersion_x", 0.05);
         this->declare_parameter("motion_dispersion_y", 0.025);
         this->declare_parameter("motion_dispersion_theta", 0.25);
@@ -176,7 +177,7 @@ namespace particle_filter
             {
                 idx_x = (int)(global_x_dist_(rng_.engine()));
                 idx_y = (int)(global_y_dist_(rng_.engine()));
-                occupied = (idx_x > loaded_map_->info.width || idx_y > loaded_map_->info.height
+                occupied = (idx_x >= loaded_map_->info.width || idx_y >= loaded_map_->info.height
                             || loaded_map_->data[idx_y * loaded_map_->info.width + idx_x]);
             }
             std::vector<unsigned int> idx = {idx_x, idx_y};
@@ -398,8 +399,6 @@ namespace particle_filter
         {
             throw std::runtime_error("Invalid pose_selection_method value");
         }
-        // Calculate the average particle
-        expectedPoseMean();
 
         // Publish and visualize info only when expected pose is valid
         if (isnan(expected_pose_.x) || isnan(expected_pose_.y) || isnan(expected_pose_.theta))
