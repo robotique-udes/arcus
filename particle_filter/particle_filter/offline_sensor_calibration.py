@@ -11,6 +11,7 @@ import range_libc
 from rclpy.serialization import deserialize_message
 from rosbag2_py import ConverterOptions, SequentialReader, StorageOptions
 from rosidl_runtime_py.utilities import get_message
+from scipy.spatial.transform import Rotation, Slerp
 from scipy.special import erf
 
 BAG_PATH = "/sim_ws/src/arcus/resources/rosbag2_2026_10_14-00_33_28"
@@ -20,158 +21,87 @@ TF_TOPIC = "/tf"
 TF_STATIC_TOPIC = "/tf_static"
 MAP_FRAME = "map"
 LASER_FRAME = "ego_racecar/laser"
-MAX_RANGE = 10.0
-MAX_ITERATIONS = 1000
-PRINT_EVERY = 1  # log every EM iteration; 0 disables
+
+MAX_RANGE = 10.0  # use the particle filter's max_range
+THETA_DISCRETIZATION = 112.0  # cddt, pcddt and glt only
 SCAN_BEAM_STRIDE = 4
-MAX_SCAN_MESSAGES_TO_USE = 500  # 0 = keep every scan
-RANGE_METHOD = "rm"  # range_libc method, as in the particle filter: bl, rm, rmgpu, cddt, pcddt, glt
-THETA_DISCRETIZATION = 112.0  # only used by cddt / pcddt / glt
-DEBUG_PLOTS = True  # windows open and block until closed; EM continues afterwards
+MAX_SCAN_MESSAGES_TO_USE = 500  # 0 keeps every scan
+MAX_ITERATIONS = 1000
+DEBUG_PLOTS = True
 
 LOG = "[offline_sensor_calibration]"
+EPS = 1e-12
 
 
-# --------------------------------------------------------------------------
-# Bag reading
-# --------------------------------------------------------------------------
-class BagReader:
-    def __init__(self, bag_path):
-        self.reader = SequentialReader()
-        storage_options = StorageOptions(uri=bag_path, storage_id="sqlite3")
-        converter_options = ConverterOptions(
-            input_serialization_format="cdr",
-            output_serialization_format="cdr",
-        )
-        self.reader.open(storage_options, converter_options)
-        self.topic_types = {}
-        for info in self.reader.get_metadata().topics_with_message_count:
-            self.topic_types[info.topic_metadata.name] = info.topic_metadata.type
-
-    def iter_messages(self):
-        while self.reader.has_next():
-            topic, data, _ = self.reader.read_next()
-            yield topic, data
-
-
-# --------------------------------------------------------------------------
-# Small math helpers
-# --------------------------------------------------------------------------
+# ---------------------------------------------------------------- bag and TF
 def stamp_to_ns(stamp):
     return int(stamp.sec * 1_000_000_000 + stamp.nanosec)
 
 
-def normalize_frame_name(frame_name):
-    return frame_name.lstrip("/")
-
-
-def quaternion_to_matrix(qx, qy, qz, qw):
-    xx, yy, zz = qx * qx, qy * qy, qz * qz
-    xy, xz, yz = qx * qy, qx * qz, qy * qz
-    wx, wy, wz = qw * qx, qw * qy, qw * qz
-    return np.array(
-        [
-            [1.0 - 2.0 * (yy + zz), 2.0 * (xy - wz), 2.0 * (xz + wy)],
-            [2.0 * (xy + wz), 1.0 - 2.0 * (xx + zz), 2.0 * (yz - wx)],
-            [2.0 * (xz - wy), 2.0 * (yz + wx), 1.0 - 2.0 * (xx + yy)],
-        ],
-        dtype=float,
-    )
+def frame_name(name):
+    return name.lstrip("/")
 
 
 def pose_to_matrix(position, quat_xyzw):
-    matrix = np.eye(4, dtype=float)
-    matrix[:3, :3] = quaternion_to_matrix(*quat_xyzw)
+    matrix = np.eye(4)
+    matrix[:3, :3] = Rotation.from_quat(quat_xyzw).as_matrix()
     matrix[:3, 3] = position
     return matrix
 
 
-def matrix_to_yaw(matrix):
-    return math.atan2(matrix[1, 0], matrix[0, 0])
-
-
-def slerp(q0, q1, t):
-    """Spherical interpolation between two unit quaternions (x, y, z, w)."""
-    dot = float(np.dot(q0, q1))
-    if dot < 0.0:  # take the short way around
-        q1, dot = -q1, -dot
-
-    if dot > 0.9995:  # nearly parallel: lerp is stable and accurate
-        q = q0 + t * (q1 - q0)
-    else:
-        theta0 = math.acos(dot)
-        s0 = math.sin((1.0 - t) * theta0) / math.sin(theta0)
-        s1 = math.sin(t * theta0) / math.sin(theta0)
-        q = s0 * q0 + s1 * q1
-    return q / np.linalg.norm(q)
-
-
-# --------------------------------------------------------------------------
-# TF store: interpolated dynamic transforms, always-valid static transforms,
-# and cached frame chains.
-# --------------------------------------------------------------------------
 class TFStore:
-    def __init__(self):
-        self._raw = defaultdict(list)   # key -> [(stamp_ns, pos, quat)]
-        self._dynamic = {}              # key -> (stamps, positions, quats)
-        self._static = {}               # key -> 4x4 matrix
-        self._adjacency = defaultdict(list)
-        self._path_cache = {}
+    """Interpolated /tf, always-valid /tf_static, and chained frame lookups."""
 
-    def add_tf_message(self, msg, is_static):
+    def __init__(self):
+        self.raw = defaultdict(list)  # edge -> [(stamp_ns, position, quat)]
+        self.dynamic = {}  # edge -> (stamps, positions, quats)
+        self.static = {}  # edge -> 4x4 matrix
+        self.neighbors = defaultdict(list)
+        self.paths = {}
+
+    def add(self, msg, is_static):
         for tf in msg.transforms:
-            key = (
-                normalize_frame_name(tf.header.frame_id),
-                normalize_frame_name(tf.child_frame_id),
-            )
+            edge = (frame_name(tf.header.frame_id), frame_name(tf.child_frame_id))
             t, q = tf.transform.translation, tf.transform.rotation
-            position = (t.x, t.y, t.z)
-            quat = (q.x, q.y, q.z, q.w)
+            position, quat = (t.x, t.y, t.z), (q.x, q.y, q.z, q.w)
             if is_static:
-                self._static[key] = pose_to_matrix(position, quat)
+                self.static[edge] = pose_to_matrix(position, quat)
             else:
-                self._raw[key].append((stamp_to_ns(tf.header.stamp), position, quat))
+                self.raw[edge].append((stamp_to_ns(tf.header.stamp), position, quat))
 
     def finalize(self):
-        """Call once after all messages are added: sort, convert, build graph."""
-        for key, entries in self._raw.items():
+        """Call once after all messages are added."""
+        for edge, entries in self.raw.items():
             entries.sort(key=lambda e: e[0])
-            self._dynamic[key] = (
+            self.dynamic[edge] = (
                 np.array([e[0] for e in entries], dtype=np.int64),
-                np.array([e[1] for e in entries], dtype=float),
-                np.array([e[2] for e in entries], dtype=float),
+                np.array([e[1] for e in entries]),
+                np.array([e[2] for e in entries]),
             )
-        self._raw.clear()
+        for parent, child in list(self.dynamic) + list(self.static):
+            self.neighbors[child].append((parent, (parent, child), False))
+            self.neighbors[parent].append((child, (parent, child), True))
 
-        for parent, child in list(self._dynamic) + list(self._static):
-            key = (parent, child)
-            self._adjacency[child].append((parent, key, False))  # child -> parent: direct
-            self._adjacency[parent].append((child, key, True))   # parent -> child: inverse
+    def edge_matrix(self, edge, stamp_ns):
+        if edge not in self.dynamic:
+            return self.static.get(edge)
 
-    def _edge_matrix(self, key, stamp_ns):
-        """4x4 transform (child -> parent) for one edge at stamp_ns."""
-        if key in self._dynamic:
-            stamps, positions, quats = self._dynamic[key]
-            if stamp_ns < stamps[0] or stamp_ns > stamps[-1]:
-                return None  # cannot interpolate outside the recorded range
+        stamps, positions, quats = self.dynamic[edge]
+        if stamp_ns < stamps[0] or stamp_ns > stamps[-1]:
+            return None
+        i1 = min(int(np.searchsorted(stamps, stamp_ns, side="right")), len(stamps) - 1)
+        i0 = max(i1 - 1, 0)
+        if i0 == i1:
+            return pose_to_matrix(positions[i0], quats[i0])
 
-            i1 = int(np.searchsorted(stamps, stamp_ns, side="right"))
-            if i1 == len(stamps):  # stamp equals the last sample exactly
-                return pose_to_matrix(positions[-1], quats[-1])
+        alpha = (stamp_ns - stamps[i0]) / (stamps[i1] - stamps[i0])
+        position = positions[i0] + alpha * (positions[i1] - positions[i0])
+        slerp = Slerp([0.0, 1.0], Rotation.from_quat([quats[i0], quats[i1]]))
+        return pose_to_matrix(position, slerp(alpha).as_quat())
 
-            i0 = i1 - 1
-            alpha = (stamp_ns - stamps[i0]) / (stamps[i1] - stamps[i0])
-            position = positions[i0] + alpha * (positions[i1] - positions[i0])
-            quat = slerp(quats[i0], quats[i1], alpha)
-            return pose_to_matrix(position, quat)
-
-        return self._static.get(key)  # static transforms ignore the stamp
-
-    def _find_path(self, source, target):
-        """BFS over frames; returns [(edge_key, invert)] or None. Cached."""
-        cache_key = (source, target)
-        if cache_key in self._path_cache:
-            return self._path_cache[cache_key]
+    def find_path(self, source, target):
+        if (source, target) in self.paths:
+            return self.paths[(source, target)]
 
         path = None
         visited = {source}
@@ -181,498 +111,319 @@ class TFStore:
             if frame == target:
                 path = steps
                 break
-            for next_frame, key, invert in self._adjacency.get(frame, []):
+            for next_frame, edge, invert in self.neighbors[frame]:
                 if next_frame not in visited:
                     visited.add(next_frame)
-                    queue.append((next_frame, steps + [(key, invert)]))
+                    queue.append((next_frame, steps + [(edge, invert)]))
 
-        self._path_cache[cache_key] = path
+        self.paths[(source, target)] = path
         return path
 
-    def lookup_chain(self, source_frame, target_frame, stamp_ns):
-        """4x4 matrix mapping points in source_frame into target_frame."""
-        source = normalize_frame_name(source_frame)
-        target = normalize_frame_name(target_frame)
-        if source == target:
-            return np.eye(4, dtype=float)
-
-        path = self._find_path(source, target)
+    def lookup(self, source, target, stamp_ns):
+        """4x4 matrix mapping points in the source frame into the target frame."""
+        source, target = frame_name(source), frame_name(target)
+        path = self.find_path(source, target)
         if path is None:
             return None
 
-        result = np.eye(4, dtype=float)
-        for key, invert in path:
-            step = self._edge_matrix(key, stamp_ns)
+        result = np.eye(4)
+        for edge, invert in path:
+            step = self.edge_matrix(edge, stamp_ns)
             if step is None:
                 return None
-            if invert:
-                step = np.linalg.inv(step)
-            result = step @ result
+            result = (np.linalg.inv(step) if invert else step) @ result
         return result
 
 
-# --------------------------------------------------------------------------
-# Expected ranges via ray casting
-# --------------------------------------------------------------------------
-class RangeLibcCaster:
-    """range_libc used the way the particle filter uses it.
+def read_bag(bag_path):
+    reader = SequentialReader()
+    reader.open(
+        StorageOptions(uri=bag_path, storage_id="sqlite3"),
+        ConverterOptions(input_serialization_format="cdr", output_serialization_format="cdr"),
+    )
+    types = {t.topic_metadata.name: t.topic_metadata.type
+             for t in reader.get_metadata().topics_with_message_count}
 
-    In this build calc_range_many takes WORLD coordinates (x, y, theta in the map
-    frame) and returns ranges in METERS. The world <-> grid conversion happens inside
-    range_libc, so nothing is converted here.
-    """
+    tf_store = TFStore()
+    map_msg = None
+    scan_messages = []
+    while reader.has_next():
+        topic, data, _ = reader.read_next()
+        if topic not in (MAP_TOPIC, TF_TOPIC, TF_STATIC_TOPIC, SCAN_TOPIC):
+            continue
+        msg = deserialize_message(data, get_message(types[topic]))
+        if topic == MAP_TOPIC:
+            map_msg = msg
+        elif topic == SCAN_TOPIC:
+            scan_messages.append(msg)
+        else:
+            tf_store.add(msg, is_static=(topic == TF_STATIC_TOPIC))
 
-    def __init__(self, map_msg, max_range, method="rm", theta_discretization=112.0):
-        self._o_map = range_libc.PyOMap(map_msg)  # keep alive with the method
+    tf_store.finalize()
+    print(f"{LOG} Read {len(scan_messages)} scans")
+    return map_msg, tf_store, scan_messages
+
+
+# ------------------------------------------------------------- expected ranges
+class RayCaster:
+    """range_libc as the particle filter uses it: world-frame poses in, meters out."""
+
+    def __init__(self, map_msg, max_range):
+        self.o_map = range_libc.PyOMap(map_msg)  # must outlive the method
         max_range_px = int(max_range / map_msg.info.resolution)
 
-        if method == "bl":
-            self._method = range_libc.PyBresenhamsLine(self._o_map, max_range_px)
-        elif "cddt" in method:
-            self._method = range_libc.PyCDDTCast(self._o_map, max_range_px, theta_discretization)
-            if method == "pcddt":
-                self._method.prune()
-        elif method == "rm":
-            self._method = range_libc.PyRayMarching(self._o_map, max_range_px)
-        elif method == "rmgpu":
-            self._method = range_libc.PyRayMarchingGPU(self._o_map, max_range_px)
-        elif method == "glt":
-            self._method = range_libc.PyGiantLUTCast(self._o_map, max_range_px, theta_discretization)
-        else:
-            raise ValueError(f"Unknown range method: {method}")
+        self.method = range_libc.PyRayMarching(self.o_map, max_range_px)
 
-    def calc_range_world(self, x, y, thetas):
-        """Ranges in meters for rays from world pose (x, y) at world headings thetas."""
-        queries = np.zeros((len(thetas), 3), dtype=np.float32)
+    def ranges(self, x, y, headings):
+        queries = np.zeros((len(headings), 3), dtype=np.float32)
         queries[:, 0] = x
         queries[:, 1] = y
-        queries[:, 2] = thetas
-        ranges = np.zeros(len(thetas), dtype=np.float32)
-        self._method.calc_range_many(queries, ranges)
-        return ranges.astype(float)
-
-
-def build_range_method(map_msg, max_range):
-    """Build the ray caster once."""
-    return RangeLibcCaster(map_msg, max_range, RANGE_METHOD, THETA_DISCRETIZATION)
+        queries[:, 2] = headings
+        out = np.zeros(len(headings), dtype=np.float32)
+        self.method.calc_range_many(queries, out)
+        return out.astype(float)
 
 
 @dataclass
 class ScanResult:
-    """Everything the debug plots need to know about one processed scan."""
-    stamp_ns: int
-    x: float            # laser pose in the map frame
+    x: float  # laser pose in the map frame
     y: float
     yaw: float
-    angles: np.ndarray  # beam angles in the laser frame (sampled beams only)
+    angles: np.ndarray  # beam angles in the laser frame
     observed: np.ndarray
     expected: np.ndarray
 
 
-def compute_expected_ranges_from_map(
-    scan_msg,
-    range_method,
-    tf_store,
-    map_frame,
-    laser_frame,
-    max_range,
-    beam_stride=1,
-):
+def expected_ranges(scan_msg, caster, tf_store):
     stamp_ns = stamp_to_ns(scan_msg.header.stamp)
-
     laser_to_map = None
-    for laser_name in (scan_msg.header.frame_id, laser_frame):
-        laser_to_map = tf_store.lookup_chain(laser_name, map_frame, stamp_ns)
+    for laser_frame in (scan_msg.header.frame_id, LASER_FRAME):
+        laser_to_map = tf_store.lookup(laser_frame, MAP_FRAME, stamp_ns)
         if laser_to_map is not None:
             break
     if laser_to_map is None:
         return None
 
-    beam_indices = np.arange(0, len(scan_msg.ranges), max(1, int(beam_stride)))
-    if beam_indices.size == 0:
-        return None
+    beams = np.arange(0, len(scan_msg.ranges), SCAN_BEAM_STRIDE)
+    angles = scan_msg.angle_min + beams * scan_msg.angle_increment
+    x, y = laser_to_map[0, 3], laser_to_map[1, 3]
+    yaw = math.atan2(laser_to_map[1, 0], laser_to_map[0, 0])
 
-    yaw = matrix_to_yaw(laser_to_map)
-    angles = scan_msg.angle_min + beam_indices * scan_msg.angle_increment
-
-    # The caster takes the laser pose in the map frame (meters) and returns meters.
-    ranges_m = range_method.calc_range_world(
-        laser_to_map[0, 3], laser_to_map[1, 3], yaw + angles
-    )
-    expected = np.minimum(ranges_m, max_range)
-    observed = np.asarray(scan_msg.ranges, dtype=float)[beam_indices]
-    return ScanResult(
-        stamp_ns=stamp_ns,
-        x=float(laser_to_map[0, 3]),
-        y=float(laser_to_map[1, 3]),
-        yaw=float(yaw),
-        angles=np.asarray(angles, dtype=float),
-        observed=observed,
-        expected=expected.astype(float),
-    )
+    expected = np.minimum(caster.ranges(x, y, yaw + angles), MAX_RANGE)
+    observed = np.asarray(scan_msg.ranges, dtype=float)[beams]
+    return ScanResult(x, y, yaw, angles, observed, expected)
 
 
-# --------------------------------------------------------------------------
-# EM for the beam model (Probabilistic Robotics, Table 6.2)
-# --------------------------------------------------------------------------
-def print_params(p, header):
-    print(header)
-    print(f"  z_hit        = {p['z_hit']:.6f}")
-    print(f"  z_short      = {p['z_short']:.6f}")
-    print(f"  z_max        = {p['z_max']:.6f}")
-    print(f"  z_rand       = {p['z_rand']:.6f}")
-    print(f"  sigma_hit    = {p['sigma_hit']:.6f}")
-    print(f"  lambda_short = {p['lambda_short']:.6f}")
+# ------------------------------------------------------------------------ EM
+def clean(z, z_star):
+    """Map +inf to max range, drop NaNs, clip to [0, MAX_RANGE]."""
+    z = np.where(np.isposinf(z), MAX_RANGE, z)
+    ok = np.isfinite(z) & np.isfinite(z_star)
+    return np.clip(z[ok], 0.0, MAX_RANGE), z_star[ok]
 
 
 def normal_cdf(x):
     return 0.5 * (1.0 + erf(x / np.sqrt(2.0)))
 
 
-def estimate_sensor_model(z, z_star, max_range, init=None, sigma_min=1e-3,
-                          max_iter=MAX_ITERATIONS, tol=1e-8,
-                          print_every=PRINT_EVERY):
-    z = np.asarray(z, dtype=float)
-    z_star = np.asarray(z_star, dtype=float)
+def hit_pdf(z, z_star, sigma):
+    """Gaussian around z_star, truncated to [0, MAX_RANGE]."""
+    pdf = np.exp(-0.5 * ((z - z_star) / sigma) ** 2) / (np.sqrt(2 * np.pi) * sigma)
+    mass = normal_cdf((MAX_RANGE - z_star) / sigma) - normal_cdf(-z_star / sigma)
+    return pdf / np.maximum(mass, EPS)
 
-    z = np.where(np.isposinf(z), max_range, z)
-    ok = np.isfinite(z) & np.isfinite(z_star)
-    z, z_star = np.clip(z[ok], 0.0, max_range), z_star[ok]
+
+def short_pdf(z, z_star, lam):
+    """Exponential on [0, z_star), truncated."""
+    norm = -np.expm1(-lam * z_star)
+    valid = (z < z_star) & (norm > EPS)
+    return np.where(valid, lam * np.exp(-lam * z) / np.maximum(norm, EPS), 0.0)
+
+
+def print_params(p, header):
+    print(header)
+    for name in ("z_hit", "z_short", "z_max", "z_rand", "sigma_hit", "lambda_short"):
+        print(f"  {name:<12} = {p[name]:.6f}")
+
+
+def print_pf_params(p, resolution):
+    """The estimate in the particle filter's units: sigma_hit and lambda_short per pixel."""
+    print("Particle filter parameters:")
+    for name in ("z_hit", "z_short", "z_max", "z_rand"):
+        print(f"  {name:<12} = {p[name]:.6f}")
+    print(f"  sigma_hit    = {p['sigma_hit'] / resolution:.4f}  # pixels")
+    print(f"  lambda_short = {p['lambda_short'] * resolution:.6f}  # 1/pixel")
+    print(f"  max_range    = {MAX_RANGE}")
+
+
+def estimate_sensor_model(z, z_star, sigma_min):
+    """EM for the beam model (Probabilistic Robotics, Table 6.2)."""
     n = len(z)
+    p = dict(z_hit=0.75, z_short=0.1, z_max=0.05, z_rand=0.1, sigma_hit=0.3, lambda_short=1.0)
 
-    p = dict(z_hit=0.9, z_short=0.05, z_max=0.01, z_rand=0.04,
-             sigma_hit=2.2, lambda_short=1.0)
-    if init:
-        p.update(init)
-    p["sigma_hit"] = max(p["sigma_hit"], sigma_min)
-
-    eps = 1e-12
-
-    # Data-only quantities: compute once.
-    is_max = z >= max_range - 1e-6
-    is_short = (z < z_star) & ~is_max
+    is_max = z >= MAX_RANGE - 1e-6
     p_max = is_max.astype(float)
-    p_rand = np.where(is_max, 0.0, 1.0 / max_range)  # max readings are discrete events
+    p_rand = np.where(is_max, 0.0, 1.0 / MAX_RANGE)
 
-    prev_ll = -np.inf
-    iteration = 0
     ll_history = []
-    for iteration in range(1, max_iter + 1):
-        s, lam = p["sigma_hit"], p["lambda_short"]
-
-        # Component densities
-        norm = normal_cdf((max_range - z_star) / s) - normal_cdf(-z_star / s)
-        p_hit = np.exp(-0.5 * ((z - z_star) / s) ** 2) / (np.sqrt(2 * np.pi) * s)
-        p_hit /= np.maximum(norm, eps)
-        p_hit[is_max] = 0.0  # max readings are discrete events
-
-        denom = -np.expm1(-lam * z_star)
-        p_short = np.zeros(n)
-        v = is_short & (denom > eps)
-        p_short[v] = lam * np.exp(-lam * z[v]) / denom[v]
+    prev_ll = -np.inf
+    for iteration in range(1, MAX_ITERATIONS + 1):
+        p_hit = np.where(is_max, 0.0, hit_pdf(z, z_star, p["sigma_hit"]))
+        p_short = short_pdf(z, z_star, p["lambda_short"])
 
         # E-step
         w_hit = p["z_hit"] * p_hit
         w_short = p["z_short"] * p_short
         w_max = p["z_max"] * p_max
         w_rand = p["z_rand"] * p_rand
-        total = np.maximum(w_hit + w_short + w_max + w_rand, eps)
+        total = np.maximum(w_hit + w_short + w_max + w_rand, EPS)
         e_hit, e_short = w_hit / total, w_short / total
         e_max, e_rand = w_max / total, w_rand / total
 
         # M-step
         p["z_hit"], p["z_short"] = e_hit.sum() / n, e_short.sum() / n
         p["z_max"], p["z_rand"] = e_max.sum() / n, e_rand.sum() / n
-        sigma = np.sqrt(np.sum(e_hit * (z - z_star) ** 2) / max(e_hit.sum(), eps))
+        sigma = np.sqrt(np.sum(e_hit * (z - z_star) ** 2) / max(e_hit.sum(), EPS))
         p["sigma_hit"] = max(sigma, sigma_min)
-        p["lambda_short"] = e_short.sum() / max(np.sum(e_short * z), eps)
+        p["lambda_short"] = e_short.sum() / max(np.sum(e_short * z), EPS)
 
         ll = np.sum(np.log(total))
         ll_history.append(ll)
-        converged = abs(ll - prev_ll) < tol * abs(ll)
-
-        if print_every and iteration % print_every == 0:
-            print_params(p, f"{LOG} iteration {iteration}, log-likelihood {ll:.2f}")
-        if converged:
+        print_params(p, f"{LOG} iteration {iteration}, log-likelihood {ll:.2f}")
+        if abs(ll - prev_ll) < 1e-8 * abs(ll):
             break
         prev_ll = ll
 
-    status = "converged" if converged else "hit max_iter"
-    print(f"{LOG} EM {status} after {iteration} iterations (log-likelihood {ll:.2f})")
     return p, ll_history
 
 
-# --------------------------------------------------------------------------
-# Debug plots
-# --------------------------------------------------------------------------
-def flatten_scans(scans, max_range):
-    """Concatenate per-scan results into aligned flat arrays (valid beams only)."""
-    z = np.concatenate([s.observed for s in scans])
-    z_star = np.concatenate([s.expected for s in scans])
-
-    z = np.where(np.isposinf(z), max_range, z)
-    valid = np.isfinite(z) & np.isfinite(z_star)
-    z = np.clip(z[valid], 0.0, max_range)
-    return {
-        "z": z,
-        "z_star": z_star[valid],
-        "is_max": z >= max_range - 1e-6,
-    }
+# --------------------------------------------------------------------- plots
+def print_residual_summary(z, z_star, map_info):
+    residuals = (z - z_star)[z < MAX_RANGE - 1e-6]
+    percentiles = np.percentile(residuals, [5, 25, 50, 75, 95])
+    print(f"{LOG} residual percentiles 5/25/50/75/95 (m): {np.round(percentiles, 3)}")
+    print(f"{LOG} fraction within 10 cm: {np.mean(np.abs(residuals) < 0.1):.3f}")
+    print(f"{LOG} beams at max range: {np.mean(z >= MAX_RANGE - 1e-6):.3f}")
+    print(f"{LOG} map resolution: {map_info.resolution} m/px")
 
 
-def residuals_without_max(d):
-    """Residual z - z* for non-max beams, with the matching mask."""
-    keep = ~d["is_max"]
-    return d["z"][keep] - d["z_star"][keep], keep
-
-
-def finish_figure(fig, title):
-    """Lay the figure out and label its window; plt.show() displays all of them."""
+def show(fig, title):
     fig.tight_layout()
     fig.canvas.manager.set_window_title(title)
 
 
-def print_residual_summary(d, map_msg, max_range):
-    res, _ = residuals_without_max(d)
-    pct = np.percentile(res, [5, 25, 50, 75, 95])
-    print(f"{LOG} --- data check ---")
-    print(f"{LOG} beams: {len(d['z'])}, at max range: {d['is_max'].mean():.3f}")
-    print(f"{LOG} residual percentiles 5/25/50/75/95 (m): {np.round(pct, 3)}")
-    print(f"{LOG} fraction |z - z*| < 0.1 m: {np.mean(np.abs(res) < 0.1):.3f}")
-    print(
-        f"{LOG} MAX_RANGE={max_range}, map origin=({map_msg.info.origin.position.x:.2f}, "
-        f"{map_msg.info.origin.position.y:.2f}), resolution={map_msg.info.resolution}",
-        flush=True,
-    )
-
-
-def plot_scatter_and_residuals(d, max_range):
-    """1 + 2: measured vs expected, and the residual histogram."""
-    rng = np.random.default_rng(0)
-    n = len(d["z"])
-    sel = rng.choice(n, min(20000, n), replace=False)
-    res, _ = residuals_without_max(d)
+def plot_scatter_and_residuals(z, z_star):
+    sample = np.random.default_rng(0).choice(len(z), min(20000, len(z)), replace=False)
+    residuals = (z - z_star)[z < MAX_RANGE - 1e-6]
 
     fig, ax = plt.subplots(1, 2, figsize=(12, 5))
-    ax[0].scatter(d["z_star"][sel], d["z"][sel], s=2, alpha=0.2)
-    ax[0].plot([0, max_range], [0, max_range], "r--", lw=1)
+    ax[0].scatter(z_star[sample], z[sample], s=2, alpha=0.2)
+    ax[0].plot([0, MAX_RANGE], [0, MAX_RANGE], "r--", lw=1)
     ax[0].set(xlabel="expected z* (m)", ylabel="measured z (m)", title="measured vs expected")
-
-    ax[1].hist(res[np.abs(res) < 1.0], bins=200, log=True)
+    ax[1].hist(residuals[np.abs(residuals) < 1.0], bins=200, log=True)
     ax[1].set(xlabel="z - z* (m)", ylabel="count (log)",
               title="residuals, max-range beams excluded (|r| < 1 m)")
-    finish_figure(fig, "01 scatter and residuals")
+    show(fig, "01 scatter and residuals")
 
 
-def plot_scans_on_map(scans, map_msg, max_range, n_scans=4):
-    """3: measured and expected hit points over the occupancy grid."""
+def plot_scans_on_map(scans, map_msg, n_scans=4):
     info = map_msg.info
     grid = np.asarray(map_msg.data, dtype=float).reshape((info.height, info.width))
-    image = np.where(grid < 0, 0.5, 1.0 - grid / 100.0)  # unknown grey, free white, occupied black
-    ox, oy = info.origin.position.x, info.origin.position.y
-    extent = [ox, ox + info.width * info.resolution, oy, oy + info.height * info.resolution]
+    image = np.where(grid < 0, 0.5, 1.0 - grid / 100.0)
+    x0, y0 = info.origin.position.x, info.origin.position.y
+    extent = [x0, x0 + info.width * info.resolution, y0, y0 + info.height * info.resolution]
+    half = min(MAX_RANGE, 15.0)
 
     picks = np.unique(np.linspace(0, len(scans) - 1, n_scans).astype(int))
     fig, axes = plt.subplots(1, len(picks), figsize=(5 * len(picks), 5), squeeze=False)
-    half = min(max_range, 15.0)
-
-    for ax, idx in zip(axes[0], picks):
-        s = scans[idx]
+    for ax, i in zip(axes[0], picks):
+        s = scans[i]
         ax.imshow(image, cmap="gray", vmin=0, vmax=1, origin="lower", extent=extent)
-
-        z = np.where(np.isposinf(s.observed), max_range, s.observed)
-        # Expected first (large marker), measured on top (small marker), so both stay visible.
         for ranges, color, label, size in ((s.expected, "tab:orange", "expected", 22),
-                                           (z, "tab:blue", "measured", 5)):
-            ok = np.isfinite(ranges) & (ranges < max_range - 1e-6)
-            heading = s.yaw + s.angles[ok]
-            ax.scatter(s.x + ranges[ok] * np.cos(heading),
-                       s.y + ranges[ok] * np.sin(heading),
+                                           (s.observed, "tab:blue", "measured", 5)):
+            hit = np.isfinite(ranges) & (ranges < MAX_RANGE - 1e-6)
+            heading = s.yaw + s.angles[hit]
+            ax.scatter(s.x + ranges[hit] * np.cos(heading), s.y + ranges[hit] * np.sin(heading),
                        s=size, c=color, label=label)
-
-        ax.arrow(s.x, s.y, 0.8 * np.cos(s.yaw), 0.8 * np.sin(s.yaw),
-                 color="red", head_width=0.3)
+        ax.arrow(s.x, s.y, 0.8 * np.cos(s.yaw), 0.8 * np.sin(s.yaw), color="red", head_width=0.3)
         ax.set(xlim=(s.x - half, s.x + half), ylim=(s.y - half, s.y + half),
-               title=f"scan {idx}", xlabel="x (m)", ylabel="y (m)")
+               title=f"scan {i}", xlabel="x (m)", ylabel="y (m)")
         ax.set_aspect("equal")
     axes[0][0].legend(loc="upper right", fontsize=8)
-    finish_figure(fig, "03 scans on map")
+    show(fig, "03 scans on map")
 
 
-def continuous_components(z, z_star, p, max_range):
-    """Weighted hit / short / rand densities (the max component is a point mass)."""
-    s, lam = p["sigma_hit"], p["lambda_short"]
-    inside = (z >= 0.0) & (z < max_range)
+def plot_fit_check(z, z_star, p, ll_history):
+    keep = z < MAX_RANGE - 1e-6
+    residuals = (z - z_star)[keep]
+    z_star_sample = np.random.default_rng(0).choice(z_star[keep], min(2000, keep.sum()), replace=False)
 
-    norm = normal_cdf((max_range - z_star) / s) - normal_cdf(-z_star / s)
-    hit = np.exp(-0.5 * ((z - z_star) / s) ** 2) / (np.sqrt(2 * np.pi) * s * np.maximum(norm, 1e-12))
+    # Mixture density of the residual, averaged over the sampled z*. Scaled up because
+    # the histogram leaves out max-range beams.
+    offsets = np.linspace(-1.0, 1.0, 401)
+    zs = z_star_sample[None, :]
+    zz = zs + offsets[:, None]
+    inside = (zz >= 0.0) & (zz < MAX_RANGE)
+    scale = 1.0 / (1.0 - p["z_max"])
+    components = {
+        "hit": p["z_hit"] * hit_pdf(zz, zs, p["sigma_hit"]),
+        "short": p["z_short"] * short_pdf(zz, zs, p["lambda_short"]),
+        "rand": np.full_like(zz, p["z_rand"] / MAX_RANGE),
+    }
+    curves = {name: scale * np.where(inside, c, 0.0).mean(axis=1) for name, c in components.items()}
+    mixture = sum(curves.values())
 
-    denom = -np.expm1(-lam * z_star)
-    short_ok = (z >= 0.0) & (z < z_star) & (denom > 1e-12)
-    short = np.where(short_ok, lam * np.exp(-lam * np.where(short_ok, z, 0.0))
-                     / np.maximum(denom, 1e-12), 0.0)
-
-    rand = np.full_like(z, 1.0 / max_range)
-    return (np.where(inside, p["z_hit"] * hit, 0.0),
-            np.where(inside, p["z_short"] * short, 0.0),
-            np.where(inside, p["z_rand"] * rand, 0.0))
-
-
-def plot_fit_check(d, p, ll_history, max_range):
-    """7: fitted mixture over the residual histogram, plus the EM convergence curve."""
-    res, keep = residuals_without_max(d)
-    z_star_pool = d["z_star"][keep]
-    rng = np.random.default_rng(0)
-    z_star_sample = rng.choice(z_star_pool, min(2000, len(z_star_pool)), replace=False)
-
-    grid = np.linspace(-1.0, 1.0, 401)
-    z = z_star_sample[None, :] + grid[:, None]
-    hit, short, rand = continuous_components(z, z_star_sample[None, :], p, max_range)
-    # Average over the sampled z*, then rescale: the histogram excludes max-range beams.
-    scale = 1.0 / max(1.0 - p["z_max"], 1e-12)
-    curves = {"hit": hit, "short": short, "rand": rand}
-    curves = {k: scale * v.mean(axis=1) for k, v in curves.items()}
+    bins = np.linspace(-1.0, 1.0, 101)
+    counts, _ = np.histogram(residuals, bins=bins)
+    density = counts / (len(residuals) * (bins[1] - bins[0]))
 
     fig, ax = plt.subplots(1, 2, figsize=(12, 5))
-    bins = np.linspace(-1.0, 1.0, 101)
-    counts, _ = np.histogram(res, bins=bins)
-    density = counts / (len(res) * (bins[1] - bins[0]))  # normalised by ALL non-max beams
-    ax[0].bar(0.5 * (bins[:-1] + bins[1:]), density, width=bins[1] - bins[0],
-              alpha=0.4, label="data")
-    ax[0].plot(grid, sum(curves.values()), "r", label="fitted mixture")
+    ax[0].bar(0.5 * (bins[:-1] + bins[1:]), density, width=bins[1] - bins[0], alpha=0.4, label="data")
+    ax[0].plot(offsets, mixture, "r", label="fitted mixture")
     for name, curve in curves.items():
-        ax[0].plot(grid, curve, "--", lw=1, label=name)
+        ax[0].plot(offsets, curve, "--", lw=1, label=name)
     ax[0].set(xlabel="z - z* (m)", ylabel="density (1/m)", yscale="log",
               title="fit vs data (max-range beams excluded)")
-    ax[0].set_ylim(1e-4, 3.0 * max(density.max(), sum(curves.values()).max()))
+    ax[0].set_ylim(1e-4, 3.0 * max(density.max(), mixture.max()))
     ax[0].legend(fontsize=8)
-
     ax[1].plot(np.arange(1, len(ll_history) + 1), ll_history, ".-")
     ax[1].set(xlabel="EM iteration", ylabel="log-likelihood", title="EM convergence")
-    finish_figure(fig, "07 fit check")
+    show(fig, "07 fit check")
 
 
-def run_data_plots(scans, map_msg, max_range):
-    """Plots 01 and 03: shown before EM so they are available even if EM misbehaves."""
-    d = flatten_scans(scans, max_range)
-    print_residual_summary(d, map_msg, max_range)
-    plot_scatter_and_residuals(d, max_range)
-    plot_scans_on_map(scans, map_msg, max_range)
-    print(f"{LOG} Showing plots; close all windows to continue.", flush=True)
-    plt.show()
-    return d
-
-
-# --------------------------------------------------------------------------
-# Main
-# --------------------------------------------------------------------------
-def read_bag(bag_path):
-    bag = BagReader(bag_path)
-    tf_store = TFStore()
-    map_msg = None
-    scan_messages = []
-    counts = defaultdict(int)
-
-    for topic, data in bag.iter_messages():
-        if topic not in (MAP_TOPIC, TF_TOPIC, TF_STATIC_TOPIC, SCAN_TOPIC):
-            continue
-        msg = deserialize_message(data, get_message(bag.topic_types[topic]))
-        counts[topic] += 1
-
-        if topic == MAP_TOPIC:
-            map_msg = msg
-            print(f"{LOG} Received {MAP_TOPIC}", flush=True)
-        elif topic == TF_TOPIC:
-            tf_store.add_tf_message(msg, is_static=False)
-            if counts[topic] % 2000 == 0:
-                print(f"{LOG} Processed {counts[topic]} {TF_TOPIC} messages", flush=True)
-        elif topic == TF_STATIC_TOPIC:
-            tf_store.add_tf_message(msg, is_static=True)
-        else:
-            scan_messages.append(msg)
-            if counts[topic] % 500 == 0:
-                print(f"{LOG} Collected {counts[topic]} {SCAN_TOPIC} messages", flush=True)
-
-    tf_store.finalize()
-    print(
-        f"{LOG} Finished reading bag: {counts[SCAN_TOPIC]} scans, "
-        f"{counts[TF_TOPIC]} tf, {counts[TF_STATIC_TOPIC]} tf_static, "
-        f"{counts[MAP_TOPIC]} maps",
-        flush=True,
-    )
-    return map_msg, tf_store, scan_messages
-
-
-def downsample_scans(scan_messages, max_scans):
-    if max_scans <= 0 or len(scan_messages) <= max_scans:
-        return scan_messages
-    skip = max(0, math.ceil(len(scan_messages) / max_scans) - 1)
-    kept = scan_messages[:: skip + 1][:max_scans]
-    print(f"{LOG} Downsampled to {len(kept)} scans (skip={skip})", flush=True)
-    return kept
-
-
+# ---------------------------------------------------------------------- main
 def main():
-    print(f"{LOG} Opening bag and reading messages...", flush=True)
-    print(
-        f"{LOG} Settings: SCAN_BEAM_STRIDE={SCAN_BEAM_STRIDE}, "
-        f"MAX_SCAN_MESSAGES_TO_USE={MAX_SCAN_MESSAGES_TO_USE}",
-        flush=True,
-    )
-
     map_msg, tf_store, scan_messages = read_bag(BAG_PATH)
     if map_msg is None:
         raise RuntimeError(f"No message was received on {MAP_TOPIC}.")
-    scan_messages = downsample_scans(scan_messages, MAX_SCAN_MESSAGES_TO_USE)
 
-    resolution = map_msg.info.resolution
-    range_method = build_range_method(map_msg, MAX_RANGE)  # build once
+    if 0 < MAX_SCAN_MESSAGES_TO_USE < len(scan_messages):
+        scan_messages = scan_messages[:: math.ceil(len(scan_messages) / MAX_SCAN_MESSAGES_TO_USE)]
 
-    print(f"{LOG} Computing expected ranges for {len(scan_messages)} scans...", flush=True)
-    scans = []
-    for scan_msg in scan_messages:
-        result = compute_expected_ranges_from_map(
-            scan_msg, range_method, tf_store,
-            MAP_FRAME, LASER_FRAME, MAX_RANGE, beam_stride=SCAN_BEAM_STRIDE,
-        )
-        if result is None:
-            continue
-        scans.append(result)
-        if len(scans) % 100 == 0:
-            print(f"{LOG} Built expected ranges for {len(scans)} scans", flush=True)
-
+    caster = RayCaster(map_msg, MAX_RANGE)
+    scans = [s for s in (expected_ranges(m, caster, tf_store) for m in scan_messages) if s]
     if not scans:
-        raise RuntimeError(
-            "No scans could be matched with a map pose. Check the TF frames "
-            "and that the scan stamps fall inside the recorded /tf time range."
-        )
+        raise RuntimeError("No scans could be matched with a map pose. Check the TF frames "
+                           "and that the scan stamps fall inside the recorded /tf time range.")
+    print(f"{LOG} Computed expected ranges for {len(scans)} scans")
 
-    print(
-        f"{LOG} Scan range_min={scan_messages[0].range_min}, range_max={scan_messages[0].range_max}",
-        flush=True,
-    )
-    plot_data = run_data_plots(scans, map_msg, MAX_RANGE) if DEBUG_PLOTS else None
-
-    flat_ranges = np.concatenate([s.observed for s in scans])
-    flat_expected = np.concatenate([s.expected for s in scans])
-    print(
-        f"{LOG} Estimating sensor model from {len(scans)} scans / "
-        f"{len(flat_ranges)} beams (sigma floor {0.5 * resolution:.4f} m)...",
-        flush=True,
-    )
-
-    estimate, ll_history = estimate_sensor_model(
-        flat_ranges,
-        flat_expected,
-        MAX_RANGE,
-        init={"z_hit": 0.75, "z_short": 0.1, "z_max": 0.05, "z_rand": 0.1,
-              "sigma_hit": 0.3, "lambda_short": 1.0},
-        sigma_min=0.5 * resolution,
-    )
-    print_params(estimate, "Final estimated sensor model parameters:")
+    z, z_star = clean(np.concatenate([s.observed for s in scans]),
+                      np.concatenate([s.expected for s in scans]))
+    resolution = map_msg.info.resolution
+    print_residual_summary(z, z_star, map_msg.info)
 
     if DEBUG_PLOTS:
-        plot_fit_check(plot_data, estimate, ll_history, MAX_RANGE)
+        plot_scatter_and_residuals(z, z_star)
+        plot_scans_on_map(scans, map_msg)
+        print(f"{LOG} Close all plot windows to continue.")
+        plt.show()
+
+    estimate, ll_history = estimate_sensor_model(z, z_star, sigma_min=0.5 * resolution)
+    print_params(estimate, "Final estimated sensor model parameters (meters):")
+    print_pf_params(estimate, resolution)
+
+    if DEBUG_PLOTS:
+        plot_fit_check(z, z_star, estimate, ll_history)
         plt.show()
 
 
