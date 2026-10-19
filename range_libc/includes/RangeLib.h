@@ -1014,9 +1014,9 @@ namespace ranges
                 int num_in_chunk = particles_per_iter;
                 if (i == iters - 1)
                     num_in_chunk = num_particles - i * particles_per_iter;
-                rmc->numpy_calc_range_angles(&ins[i * num_in_chunk * 3],
+                rmc->numpy_calc_range_angles(&ins[i * particles_per_iter * 3],
                                              angles,
-                                             &outs[i * num_in_chunk * num_angles],
+                                             &outs[i * particles_per_iter * num_angles],
                                              num_in_chunk,
                                              num_angles);
             }
