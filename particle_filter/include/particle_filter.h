@@ -44,6 +44,16 @@ namespace particle_filter
     typedef std::recursive_mutex RecursiveMutex;
     typedef std::lock_guard<std::recursive_mutex> RecursiveLock;
 
+    struct Pose2D
+    {
+        double x{0.0};
+        double y{0.0};
+        double theta{0.0};
+    };
+
+    // Pose of `to` expressed in the frame of `from`, heading change wrapped to [-pi, pi]
+    Pose2D relativePose(const Pose2D& from, const Pose2D& to);
+
     typedef std::chrono::high_resolution_clock Clock;
     typedef std::chrono::_V2::system_clock::time_point Time;
     typedef std::chrono::duration<double> Duration;
@@ -108,7 +118,8 @@ namespace particle_filter
         void motionModel();
         void sensorModel();
         void applyRoughening();
-        void expectedPose();
+        void expectedPoseMean();
+        void getMaxWeightParticle();
         void publishTfOdom();
         void visualize();
 
@@ -146,8 +157,9 @@ namespace particle_filter
         bool odom_initialized_;
         bool lidar_initialized_;
         rclcpp::Time last_stamp_;
-        std::vector<double> last_pose_;
-        std::vector<double> odometry_data_;
+        Pose2D last_pose_;         // latest odometry pose
+        Pose2D last_update_pose_;  // odometry pose consumed by the previous update
+        Pose2D odometry_data_;     // motion since the previous update, in the robot frame
         double linear_speed;
         double angular_speed;
 
@@ -182,6 +194,7 @@ namespace particle_filter
         double z_rand_;
         double z_hit_;
         double sigma_hit_;
+        double lambda_short_;
 
         // motion model dispersion constant
         double motion_dispersion_x_;
@@ -203,6 +216,8 @@ namespace particle_filter
         double theta_discretization_;
         double squash_factor_;
         double max_range_;
+
+        std::string pose_selection_method_;
 
         // Timing related variables
         double sensor_model_calc_worst_time_;
