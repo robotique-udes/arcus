@@ -22,6 +22,7 @@
 #include <string.h>
 
 #include "RangeLib.h"
+#include "pf_utils.h"
 using namespace ranges;
 
 #define VAR_NO_EVAL_SENSOR_MODEL 0
@@ -33,26 +34,8 @@ using namespace ranges;
 namespace particle_filter
 {
 
-    typedef struct
-    {
-        double x;
-        double y;
-        double theta;
-        double weight;
-    } ParticleState;
-
     typedef std::recursive_mutex RecursiveMutex;
     typedef std::lock_guard<std::recursive_mutex> RecursiveLock;
-
-    struct Pose2D
-    {
-        double x{0.0};
-        double y{0.0};
-        double theta{0.0};
-    };
-
-    // Pose of `to` expressed in the frame of `from`, heading change wrapped to [-pi, pi]
-    Pose2D relativePose(const Pose2D& from, const Pose2D& to);
 
     typedef std::chrono::high_resolution_clock Clock;
     typedef std::chrono::_V2::system_clock::time_point Time;
@@ -157,7 +140,8 @@ namespace particle_filter
         bool odom_initialized_;
         bool lidar_initialized_;
         rclcpp::Time last_stamp_;
-        Pose2D last_pose_;         // latest odometry pose
+        rclcpp::Time scan_stamp_;  // stamp of the scan the latest update used
+        Pose2D last_pose_;        // latest odometry pose
         Pose2D last_update_pose_;  // odometry pose consumed by the previous update
         Pose2D odometry_data_;     // motion since the previous update, in the robot frame
         double linear_speed;
@@ -187,6 +171,12 @@ namespace particle_filter
         // topic parameters
         std::string scan_topic_;
         std::string odometry_topic_;
+
+        // tf parameters
+        std::string map_frame_;
+        std::string odom_frame_;
+        std::string laser_frame_;
+        double transform_tolerance_;  // seconds the published map -> odom is post-dated by
 
         // sensor model constants
         double z_short_;

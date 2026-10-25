@@ -5,6 +5,9 @@ particle_filter:
     odometry_topic: '/odometry/filtered'
     use_sim_time: true
     # tf params
+    map_frame: 'map'
+    odom_frame: 'odom'
+    laser_frame: 'ego_racecar/laser'
     publish_map_to_odom: true
     transform_tolerance: 0.5
     # range data downsampling
