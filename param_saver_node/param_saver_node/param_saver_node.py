@@ -58,14 +58,14 @@ class ParamSaverNode(Node):
         # ==========================================
         # Adjust base_path and workspace_defaults based on the location of the config files
         # This varies whether you are in simulation or on the car
-        self.base_path = '/sim_ws/src/arcus'
+        self.base_path = '/home/arcus/'
 
         self.node_config_path = os.path.join(self.base_path, 'param_saver_node/config/param_saver_node.yaml')
 
         self.workspace_defaults = {
             '/arcus/gap_follow': os.path.join(self.base_path, 'gap_follow/config/gap_follow.yaml'),
             '/arcus/pure_pursuit': os.path.join(self.base_path, 'pure_pursuit/config/pure_pursuit_params.yaml'),
-            '/master_node': os.path.join(self.base_path, 'arcus_master/config/master_node.yaml')
+            '/arcus/master_node': os.path.join(self.base_path, 'arcus_master/config/master_node.yaml')
         }
 
         self.cb_group = ReentrantCallbackGroup()
