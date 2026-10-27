@@ -39,6 +39,14 @@ namespace particle_filter
     // Draws `count` particle indices in proportion to the particles' weights, advancing `generator`
     std::vector<int> drawIndices(const std::vector<ParticleState>& particles, int count, std::mt19937& generator);
 
+    // Draws `count` particle indices by systematic (low-variance) resampling: one random offset, then
+    // evenly spaced points along the cumulative weights. Each particle gets floor(w * count) or
+    // ceil(w * count) copies, in O(N)
+    std::vector<int> systematicIndices(const std::vector<ParticleState>& particles, int count, std::mt19937& generator);
+
+    // Effective sample size 1 / sum(w^2) of normalized weights; 0 if every weight is 0
+    double calculateESS(const std::vector<ParticleState>& particles);
+
 }  // namespace particle_filter
 
 #endif  // PF_UTILS_H

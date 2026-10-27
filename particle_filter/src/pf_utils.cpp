@@ -63,4 +63,41 @@ namespace particle_filter
         return indices;
     }
 
+    std::vector<int> systematicIndices(const std::vector<ParticleState>& particles, int count, std::mt19937& generator)
+    {
+        std::vector<int> indices;
+        if (particles.empty() || count <= 0)
+            return indices;
+        indices.reserve(count);
+
+        // Teeth of a comb `step` apart, shifted by one random offset in [0, step)
+        const double step = 1.0 / count;
+        double target = std::uniform_real_distribution<double>(0.0, step)(generator);
+        // Right edge of the current particle's segment on [0, 1]
+        double cumulative = particles[0].weight;
+        size_t source = 0;
+        for (int i = 0; i < count; i++)
+        {
+            // Move to the segment this tooth lands in; the bound guards against weights summing to slightly under 1
+            while (target > cumulative && source + 1 < particles.size())
+            {
+                source++;
+                cumulative += particles[source].weight;
+            }
+            indices.push_back(static_cast<int>(source));
+            target += step;
+        }
+        return indices;
+    }
+
+    double calculateESS(const std::vector<ParticleState>& particles)
+    {
+        double weight_sum_sq = 0.0;
+        for (const ParticleState& particle : particles)
+        {
+            weight_sum_sq += particle.weight * particle.weight;
+        }
+        return weight_sum_sq > 0.0 ? 1.0 / weight_sum_sq : 0.0;
+    }
+
 }  // namespace particle_filter

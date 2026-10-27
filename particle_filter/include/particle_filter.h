@@ -167,6 +167,7 @@ namespace particle_filter
         std::uniform_real_distribution<double> x_dist_;   // Distribution of x locations in map frame [0, width)
         std::uniform_real_distribution<double> y_dist_;   // Distribution of y locations in map frame [0, height)
         std::uniform_real_distribution<double> th_dist_;  // Distribution of theta in map frame (-pi, pi]
+        double ess_threshold_;  // Threshold for effective sample size (ESS) to trigger resampling
 
         // topic parameters
         std::string scan_topic_;

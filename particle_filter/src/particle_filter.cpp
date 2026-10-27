@@ -54,6 +54,7 @@ namespace particle_filter
         this->declare_parameter("motion_dispersion_x", 0.05);
         this->declare_parameter("motion_dispersion_y", 0.025);
         this->declare_parameter("motion_dispersion_theta", 0.25);
+        this->declare_parameter("ess_threshold", 0.5);
 
         this->get_parameter("scan_topic", scan_topic_);
         this->get_parameter("odometry_topic", odometry_topic_);
@@ -82,6 +83,7 @@ namespace particle_filter
         this->get_parameter("motion_dispersion_y", motion_dispersion_y_);
         this->get_parameter("motion_dispersion_theta", motion_dispersion_theta_);
         this->get_parameter("pose_selection_method", pose_selection_method_);
+        this->get_parameter("ess_threshold", ess_threshold_);
 
         this->declare_parameter("set_initial_pose", false);
         this->declare_parameter("init_pose_x", 0.0);
@@ -308,7 +310,12 @@ namespace particle_filter
         downsampled_laser_ranges_.clear();
         for (size_t i = 0; i < (msg->ranges).size(); i = i + angle_step_)
         {
-            downsampled_laser_ranges_.push_back(msg->ranges[i]);
+            double range = msg->ranges[i];
+            if (!std::isfinite(range) || range < msg->range_min || range > msg->range_max)
+            {
+                range = max_range_;
+            }
+            downsampled_laser_ranges_.push_back(range);
         }
         scan_stamp_ = msg->header.stamp;
 
@@ -336,14 +343,7 @@ namespace particle_filter
 
     void ParticleFilter::applyRoughening()
     {
-        // Calculate effective sample size (ESS) to detect particle degeneracy
-        double weight_sum_sq = 0.0;
-        for (int i = 0; i < max_particles_num_; i++)
-        {
-            weight_sum_sq += particles_[i].weight * particles_[i].weight;
-        }
-        double n_eff = 1.0 / weight_sum_sq;
-
+        double n_eff = calculateESS(particles_);
         // If ESS is high (weights are uniform), sensor data is uninformative
         // Add extra noise to prevent particle collapse in ambiguous scenarios
         double ess_threshold = max_particles_num_ * 0.2;  // 50% of particles
@@ -378,15 +378,11 @@ namespace particle_filter
         // Motion since the previous update, so odometry messages between scans are neither lost nor reused
         odometry_data_ = relativePose(last_update_pose_, last_pose_);
         last_update_pose_ = last_pose_;
+
         // MCL algorithm
-        // Sampling
-        sampling();
-        // Motion model
         motionModel();
-        // Sensor model
         sensorModel();
-        // Apply roughening if sensor information is poor (optional)
-        // applyRoughening();
+        
         if (pose_selection_method_ == "mean")
         {
             expectedPoseMean();
@@ -398,6 +394,12 @@ namespace particle_filter
         else
         {
             throw std::runtime_error("Invalid pose_selection_method value");
+        }
+
+        double n_eff = calculateESS(particles_);
+        if (n_eff < ess_threshold_ * max_particles_num_)
+        {
+            sampling();
         }
 
         // Publish and visualize info only when expected pose is valid
@@ -412,7 +414,7 @@ namespace particle_filter
 
     void ParticleFilter::sampling()
     {
-        std::vector<int> indices = drawIndices(particles_, max_particles_num_, rng_.engine());
+        std::vector<int> indices = systematicIndices(particles_, max_particles_num_, rng_.engine());
 
         std::vector<ParticleState> new_particles_;
         for (auto const idx : indices)
@@ -420,6 +422,10 @@ namespace particle_filter
             new_particles_.push_back(particles_[idx]);
         }
         particles_ = new_particles_;
+        for (ParticleState& particle : particles_)
+        {
+            particle.weight = 1.0 / max_particles_num_;
+        }
     }
 
     void ParticleFilter::motionModel()
@@ -492,7 +498,7 @@ namespace particle_filter
             double weight_sum = 0.0;
             for (int i = 0; i < max_particles_num_; i++)
             {
-                weights_[i] = pow(weights_[i], inv_squash_factor);
+                weights_[i] = particles_[i].weight*pow(weights_[i], inv_squash_factor);
                 weight_sum += weights_[i];
             }
             for (int i = 0; i < max_particles_num_; i++)
