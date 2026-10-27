@@ -108,7 +108,7 @@ namespace particle_filter
 
         // Utils
         std::vector<unsigned int> worldToMap(std::vector<double> position);
-        std::vector<double> mapToWorld(std::vector<unsigned int> idx);
+        std::vector<double> mapToWorld(std::vector<double> idx);
         double getYaw(const geometry_msgs::msg::Quaternion& q);
 
       private:
@@ -169,6 +169,14 @@ namespace particle_filter
         std::uniform_real_distribution<double> th_dist_;  // Distribution of theta in map frame (-pi, pi]
         double ess_threshold_;  // Threshold for effective sample size (ESS) to trigger resampling
 
+        // Global localization
+        double global_squash_factor_;         // squash factor while relocalizing, flatter than squash_factor_
+        double global_converged_spread_m_;    // position spread under which the cloud counts as converged
+        double global_converged_spread_rad_;  // heading spread under which the cloud counts as converged
+        int global_converged_scans_;          // consecutive converged scans before switching to tracking
+        bool relocalizing_{false};            // whether a global localization hasn't converged yet
+        int converged_scans_{0};              // consecutive scans the cloud has been converged for
+
         // topic parameters
         std::string scan_topic_;
         std::string odometry_topic_;
@@ -200,7 +208,9 @@ namespace particle_filter
         // downsampling parameter and other parameters
         int angle_step_;
         int num_downsampled_angles_;
-        int max_particles_num_;
+        int tracking_particles_;  // particle count once localized ("max_particles" parameter)
+        int global_particles_;    // particle count during global localization
+        int buffer_capacity_;     // size of the range_libc arrays: max(global_particles_, tracking_particles_)
         int max_viz_particles_;
         int rangelib_variant_;
         std::string which_range_method_;
