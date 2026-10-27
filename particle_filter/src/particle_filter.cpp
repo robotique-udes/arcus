@@ -299,6 +299,11 @@ namespace particle_filter
             = create_subscription<nav_msgs::msg::OccupancyGrid>("/map",
                                                                                                                                 rclcpp::QoS(rclcpp::KeepLast(10)).transient_local(),
 std::bind(&ParticleFilter::map_cb, this, std::placeholders::_1));
+
+        // Same name and type as nav2 AMCL's service
+        global_localization_srv_ = create_service<std_srvs::srv::Empty>(
+            "reinitialize_global_localization",
+            std::bind(&ParticleFilter::globalLocalization_cb, this, std::placeholders::_1, std::placeholders::_2));
     }
 
     void ParticleFilter::lidar_cb(const sensor_msgs::msg::LaserScan::ConstSharedPtr& msg)
@@ -417,25 +422,46 @@ std::bind(&ParticleFilter::map_cb, this, std::placeholders::_1));
             throw std::runtime_error("Invalid pose_selection_method value");
         }
 
-        double n_eff = calculateESS(particles_);
-        if (n_eff < ess_threshold_ * particles_.size())
+        // During global localization, count the scans in a row the cloud has been tight for
+        if (relocalizing_)
         {
-            sampling();
+            Spread spread = weightedSpread(particles_, weightedMeanPose(particles_));
+            bool converged
+                = spread.position_m <= global_converged_spread_m_ && spread.heading_rad <= global_converged_spread_rad_;
+            converged_scans_ = converged ? converged_scans_ + 1 : 0;
+        }
+
+        if (relocalizing_ && converged_scans_ >= std::max(global_converged_scans_, 1))
+        {
+            relocalizing_ = false;
+            converged_scans_ = 0;
+            // Down to the tracking count right away
+            sampling(tracking_particles_);
+            RCLCPP_INFO(get_logger(),
+                        "Global localization converged at x: %.2f, y: %.2f, theta: %.2f",
+                        expected_pose_.x,
+                        expected_pose_.y,
+                        expected_pose_.theta);
+        }
+        else if (calculateESS(particles_) < ess_threshold_ * particles_.size())
+        {
+            sampling(relocalizing_ ? global_particles_ : tracking_particles_);
         }
 
         // Publish and visualize info only when expected pose is valid
         if (isnan(expected_pose_.x) || isnan(expected_pose_.y) || isnan(expected_pose_.theta))
             return;
 
-        // Publish tf and odom
-        publishTfOdom();
+        // Publish tf and odom only once localized: the mean of an unconverged cloud can be anywhere,
+        // even inside a wall
+        if (!relocalizing_)
+            publishTfOdom();
         // Visualize pose, particles and scan
         visualize();
     }
 
-    void ParticleFilter::sampling()
+    void ParticleFilter::sampling(int count)
     {
-        const int count = (int)particles_.size();
         std::vector<int> indices = systematicIndices(particles_, count, rng_.engine());
 
         std::vector<ParticleState> new_particles_;
@@ -517,7 +543,8 @@ std::bind(&ParticleFilter::map_cb, this, std::placeholders::_1));
                 throw std::runtime_error("Invalid range_method value");
             }
 
-            double inv_squash_factor = 1.0 / squash_factor_;
+            // Flatter weights while relocalizing, so the cloud doesn't lock onto a lookalike spot after one scan
+            double inv_squash_factor = 1.0 / (relocalizing_ ? global_squash_factor_ : squash_factor_);
             double weight_sum = 0.0;
             for (int i = 0; i < num_particles; i++)
             {
@@ -783,6 +810,17 @@ std::bind(&ParticleFilter::map_cb, this, std::placeholders::_1));
         }
 
         return result;
+    }
+
+    void ParticleFilter::globalLocalization_cb(const std::shared_ptr<std_srvs::srv::Empty::Request>,
+                                               std::shared_ptr<std_srvs::srv::Empty::Response>)
+    {
+        if (!map_initialized_)
+        {
+            RCLCPP_WARN(get_logger(), "Ignoring global localization request: no map received yet");
+            return;
+        }
+        initializeGlobalDistribution();
     }
 
     void ParticleFilter::clickedPose_cb(const geometry_msgs::msg::PoseWithCovarianceStamped::SharedPtr msg)

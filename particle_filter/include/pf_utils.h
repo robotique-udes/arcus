@@ -33,6 +33,15 @@ namespace particle_filter
     // Weighted mean of the particles; the heading is the circular mean, so it is correct across +-pi
     Pose2D weightedMeanPose(const std::vector<ParticleState>& particles);
 
+    struct Spread
+    {
+        double position_m{0.0};   // weighted RMS distance of the particles from the mean
+        double heading_rad{0.0};  // circular standard deviation of the headings
+    };
+
+    // How spread out the particles are around `mean` (as returned by weightedMeanPose)
+    Spread weightedSpread(const std::vector<ParticleState>& particles, const Pose2D& mean);
+
     // Whether map cell (x, y) lies inside a width x height grid
     bool cellInBounds(unsigned int x, unsigned int y, unsigned int width, unsigned int height);
 

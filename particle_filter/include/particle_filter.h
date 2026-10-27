@@ -9,6 +9,7 @@
 #include <nav_msgs/msg/occupancy_grid.hpp>
 #include <nav_msgs/msg/odometry.hpp>
 #include <sensor_msgs/msg/laser_scan.hpp>
+#include <std_srvs/srv/empty.hpp>
 #include <tf2/LinearMath/Quaternion.h>
 #include <tf2_geometry_msgs/tf2_geometry_msgs.hpp>
 #include <tf2_ros/buffer.h>
@@ -94,10 +95,12 @@ namespace particle_filter
                            const nav_msgs::msg::Odometry::ConstSharedPtr& odom_msg);
         void clickedPose_cb(const geometry_msgs::msg::PoseWithCovarianceStamped::SharedPtr msg);
         void map_cb(const nav_msgs::msg::OccupancyGrid::SharedPtr msg);
+        void globalLocalization_cb(const std::shared_ptr<std_srvs::srv::Empty::Request> request,
+                                   std::shared_ptr<std_srvs::srv::Empty::Response> response);
 
         // Fucntions for MCL algorithm
         void update();
-        void sampling();
+        void sampling(int count);
         void motionModel();
         void sensorModel();
         void applyRoughening();
@@ -123,6 +126,7 @@ namespace particle_filter
 
         rclcpp::Subscription<geometry_msgs::msg::PoseWithCovarianceStamped>::SharedPtr pose_sub_;
         rclcpp::Subscription<nav_msgs::msg::OccupancyGrid>::SharedPtr map_sub_;
+        rclcpp::Service<std_srvs::srv::Empty>::SharedPtr global_localization_srv_;
 
         std::unique_ptr<tf2_ros::TransformBroadcaster> tf_broadcaster_;
         std::unique_ptr<tf2_ros::TransformListener> tf_listener_;

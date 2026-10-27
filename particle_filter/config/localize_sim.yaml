@@ -45,6 +45,7 @@ particle_filter:
     global_converged_spread_rad: 0.2
     global_converged_scans: 5
 
+    set_initial_pose: false
 map_server:
   ros__parameters:
     # assuming map file is in particle_filter/maps

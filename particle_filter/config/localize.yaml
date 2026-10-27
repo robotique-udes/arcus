@@ -41,11 +41,13 @@ particle_filter:
 
     ess_threshold: 0.5
     # global localization (no initial pose): searched with global_particles, shrinks to max_particles once converged
-    global_particles: 30000
-    global_squash_factor: 4.4
+    global_particles: 80000
+    global_squash_factor: 8.0
     global_converged_spread_m: 0.3
     global_converged_spread_rad: 0.2
     global_converged_scans: 5
+
+    set_initial_pose: false
 
 map_server:
   ros__parameters:

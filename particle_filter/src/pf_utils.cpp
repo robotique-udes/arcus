@@ -40,6 +40,28 @@ namespace particle_filter
         return mean;
     }
 
+    Spread weightedSpread(const std::vector<ParticleState>& particles, const Pose2D& mean)
+    {
+        double squared_sum = 0.0;
+        double sin_sum = 0.0;
+        double cos_sum = 0.0;
+        for (const ParticleState& particle : particles)
+        {
+            double dx = particle.x - mean.x;
+            double dy = particle.y - mean.y;
+            squared_sum += particle.weight * (dx * dx + dy * dy);
+            sin_sum += particle.weight * sin(particle.theta);
+            cos_sum += particle.weight * cos(particle.theta);
+        }
+        // Length of the mean heading vector: 1 when all headings agree, 0 when they cancel out
+        double resultant = std::clamp(std::hypot(sin_sum, cos_sum), 1e-12, 1.0);
+
+        Spread spread;
+        spread.position_m = std::sqrt(squared_sum);
+        spread.heading_rad = std::sqrt(-2.0 * std::log(resultant));
+        return spread;
+    }
+
     bool cellInBounds(unsigned int x, unsigned int y, unsigned int width, unsigned int height)
     {
         return x < width && y < height;
