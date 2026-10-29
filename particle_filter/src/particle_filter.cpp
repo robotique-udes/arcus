@@ -51,9 +51,13 @@ namespace particle_filter
         this->declare_parameter("z_hit", 0.85);
         this->declare_parameter("sigma_hit", 8.0);
         this->declare_parameter("lambda_short", 0.1);
-        this->declare_parameter("motion_dispersion_x", 0.05);
-        this->declare_parameter("motion_dispersion_y", 0.025);
-        this->declare_parameter("motion_dispersion_theta", 0.25);
+        this->declare_parameter("alpha_1", 0.5);
+        this->declare_parameter("alpha_2", 0.015);
+        this->declare_parameter("alpha_3", 1.0);
+        this->declare_parameter("alpha_4", 0.1);
+        this->declare_parameter("lambda_thresh", 0.1);
+        this->declare_parameter("noise_forward_bias", 0.0);
+        this->declare_parameter("standstill_m", 0.005);
         this->declare_parameter("ess_threshold", 0.5);
         this->declare_parameter("global_particles", 30000);
         this->declare_parameter("global_squash_factor", 4.4);
@@ -84,9 +88,13 @@ namespace particle_filter
         this->get_parameter("z_hit", z_hit_);
         this->get_parameter("sigma_hit", sigma_hit_);
         this->get_parameter("lambda_short", lambda_short_);
-        this->get_parameter("motion_dispersion_x", motion_dispersion_x_);
-        this->get_parameter("motion_dispersion_y", motion_dispersion_y_);
-        this->get_parameter("motion_dispersion_theta", motion_dispersion_theta_);
+        this->get_parameter("alpha_1", alpha_1_);
+        this->get_parameter("alpha_2", alpha_2_);
+        this->get_parameter("alpha_3", alpha_3_);
+        this->get_parameter("alpha_4", alpha_4_);
+        this->get_parameter("lambda_thresh", lambda_thresh_);
+        this->get_parameter("noise_forward_bias", noise_forward_bias_);
+        this->get_parameter("standstill_m", standstill_m_);
         this->get_parameter("pose_selection_method", pose_selection_method_);
         this->get_parameter("ess_threshold", ess_threshold_);
         this->get_parameter("global_particles", global_particles_);
@@ -403,10 +411,11 @@ std::bind(&ParticleFilter::map_cb, this, std::placeholders::_1));
         RecursiveLock lock(particles_mtx_);
         // Motion since the previous update, so odometry messages between scans are neither lost nor reused
         odometry_data_ = relativePose(last_update_pose_, last_pose_);
-        last_update_pose_ = last_pose_;
 
         // MCL algorithm
-        motionModel();
+        // Motion below the standstill threshold isn't consumed, so slow motion accumulates until it is applied
+        if (motionModel())
+            last_update_pose_ = last_pose_;
         sensorModel();
         
         if (pose_selection_method_ == "mean")
@@ -476,34 +485,47 @@ std::bind(&ParticleFilter::map_cb, this, std::placeholders::_1));
         }
     }
 
-    void ParticleFilter::motionModel()
+    bool ParticleFilter::motionModel()
     {
-        // Apply noise in local frame, then transform to global frame
-        std::normal_distribution<double> distribution1(0.0, motion_dispersion_x_);
-        std::normal_distribution<double> distribution2(0.0, motion_dispersion_y_);
-        std::normal_distribution<double> distribution3(0.0, motion_dispersion_theta_);
+        // TUM motion model: odometry split into rot1 / trans / rot2, each with noise that scales with the motion
+        // https://github.com/ForzaETH/particle_filter/tree/main
+
+
         std::mt19937& generator = rng_.engine();
+        DiffModel motion = decomposeMotion(odometry_data_, standstill_m_);
 
-        for (size_t i = 0; i < particles_.size(); i++)
+        if (std::fabs(motion.trans) < standstill_m_)
         {
-            // Add noise to odometry in local frame
-            double noisy_odom_x = odometry_data_.x + distribution1(generator);
-            double noisy_odom_y = odometry_data_.y + distribution2(generator);
-            double noisy_odom_theta = odometry_data_.theta + distribution3(generator);
-
-            // Transform noisy local odometry to global frame using particle's
-            // orientation
-            double cosine = cos(particles_[i].theta);
-            double sine = sin(particles_[i].theta);
-
-            double global_dx = cosine * noisy_odom_x - sine * noisy_odom_y;
-            double global_dy = sine * noisy_odom_x + cosine * noisy_odom_y;
-
-            // Update particle pose in global frame
-            particles_[i].x += global_dx;
-            particles_[i].y += global_dy;
-            particles_[i].theta = wrapAngle(particles_[i].theta + noisy_odom_theta);
+            return false;
         }
+        
+        DiffModel spread;
+        
+        const double min_sigma = 1e-9;  // std::normal_distribution needs a stddev > 0
+        const double inv_trans_term = alpha_2_ / std::max(std::fabs(motion.trans), lambda_thresh_);
+        spread.rot1 = std::max(alpha_1_ * std::fabs(motion.rot1) + inv_trans_term, min_sigma);
+        spread.rot2 = std::max(alpha_1_ * std::fabs(motion.rot2) + inv_trans_term, min_sigma);
+        spread.trans = std::max(
+            alpha_3_ * std::fabs(motion.trans) + alpha_4_ * (std::fabs(motion.rot1) + std::fabs(motion.rot2)),
+            min_sigma);
+
+        std::normal_distribution<double> rot1_dist(motion.rot1, spread.rot1);
+        std::normal_distribution<double> rot2_dist(motion.rot2, spread.rot2);
+        std::normal_distribution<double> trans_dist(motion.trans + std::copysign(noise_forward_bias_ * spread.trans, motion.trans), spread.trans);
+
+        double noisy_rot1, noisy_rot2, noisy_trans;
+        for (ParticleState& particle : particles_)
+        {
+            // Each distribution is centred on the motion, so a sample is the full noisy motion
+            noisy_rot1 = rot1_dist(generator);
+            noisy_rot2 = rot2_dist(generator);
+            noisy_trans = trans_dist(generator);
+
+            particle.x += noisy_trans * std::cos(particle.theta + noisy_rot1);
+            particle.y += noisy_trans * std::sin(particle.theta + noisy_rot1);
+            particle.theta = wrapAngle(particle.theta + noisy_rot1 + noisy_rot2);
+        }
+        return true;
     }
 
     void ParticleFilter::sensorModel()

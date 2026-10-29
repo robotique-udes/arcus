@@ -62,6 +62,26 @@ namespace particle_filter
         return spread;
     }
 
+    DiffModel decomposeMotion(const Pose2D& delta, double standstill_m)
+    {
+        DiffModel motion;
+        bool reversing = delta.x < 0.0;
+
+        motion.trans = !reversing ? std::hypot(delta.x, delta.y) : -std::hypot(delta.x, delta.y);
+        if (std::fabs(motion.trans) < standstill_m)
+        {
+            motion.trans = 0.0;
+            motion.rot1 = 0.0;
+        }
+        else 
+        {
+            motion.rot1 = !reversing ? std::atan2(delta.y, delta.x) : std::atan2(-delta.y, -delta.x);
+            motion.rot2 = wrapAngle(delta.theta - motion.rot1);
+        }
+
+        return motion;
+    }
+
     bool cellInBounds(unsigned int x, unsigned int y, unsigned int width, unsigned int height)
     {
         return x < width && y < height;

@@ -42,6 +42,18 @@ namespace particle_filter
     // How spread out the particles are around `mean` (as returned by weightedMeanPose)
     Spread weightedSpread(const std::vector<ParticleState>& particles, const Pose2D& mean);
 
+    struct  DiffModel
+    {
+        double rot1{0.0};   // heading of the direction of travel, relative to the start heading [rad]
+        double trans{0.0};  // distance driven [m]; negative when reversing
+        double rot2{0.0};   // remaining heading change after rot1 [rad]
+    };
+
+    // Splits a robot-frame motion `delta` into rot1 / trans / rot2. When reversing (delta.x < 0), rot1 is
+    // the direction of travel flipped by pi and trans is negative; below `standstill_m` of translation,
+    // everything is 0 and the motion is left to accumulate into a later update
+    DiffModel decomposeMotion(const Pose2D& delta, double standstill_m);
+
     // Whether map cell (x, y) lies inside a width x height grid
     bool cellInBounds(unsigned int x, unsigned int y, unsigned int width, unsigned int height);
 

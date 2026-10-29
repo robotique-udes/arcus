@@ -101,7 +101,8 @@ namespace particle_filter
         // Fucntions for MCL algorithm
         void update();
         void sampling(int count);
-        void motionModel();
+        // Moves the particles by odometry_data_; false if it was below the standstill threshold and wasn't applied
+        bool motionModel();
         void sensorModel();
         void applyRoughening();
         void expectedPoseMean();
@@ -199,10 +200,14 @@ namespace particle_filter
         double sigma_hit_;
         double lambda_short_;
 
-        // motion model dispersion constant
-        double motion_dispersion_x_;
-        double motion_dispersion_y_;
-        double motion_dispersion_theta_;
+        // TUM motion model constants
+        double alpha_1_;        // how rotation affects rotation noise
+        double alpha_2_;        // how (inverse) translation affects rotation noise
+        double alpha_3_;        // how translation affects translation noise
+        double alpha_4_;        // how rotation affects translation noise
+        double lambda_thresh_;  // floor on the translation in the alpha_2 term [m]
+        double noise_forward_bias_;   // shift of the translation noise mean, as a fraction of its std
+        double standstill_m_;       // below this translation, particles aren't moved [m]
 
         // options
         int viz_;

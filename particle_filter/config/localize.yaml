@@ -30,10 +30,14 @@ particle_filter:
     z_hit: 0.75
     sigma_hit: 8.0
     lambda_short: 0.1
-    # motion model dispersion constants
-    motion_dispersion_x: 0.15
-    motion_dispersion_y: 0.025
-    motion_dispersion_theta: 1.4
+    # TUM motion model
+    alpha_1: 0.5
+    alpha_2: 0.015
+    alpha_3: 1.0
+    alpha_4: 0.1
+    lambda_thresh: 0.1
+    noise_forward_bias: 0.5
+    standstill_m: 0.005
     # sensor model variant, variant 2 good for rmgpu, 3 doesn't work for rmgpu
     rangelib_variant: 2
     # pose selection method, 'mean' or 'max'
