@@ -31,6 +31,7 @@ find_package(range_libc REQUIRED)
 
 ament_auto_add_library(${PROJECT_NAME} SHARED
   src/particle_filter.cpp
+  src/pf_utils.cpp
 )
 
 target_link_libraries(${PROJECT_NAME}

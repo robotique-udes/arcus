@@ -22,6 +22,7 @@
 #include <string.h>
 
 #include "RangeLib.h"
+#include "pf_utils.h"
 using namespace ranges;
 
 #define VAR_NO_EVAL_SENSOR_MODEL 0
@@ -32,14 +33,6 @@ using namespace ranges;
 
 namespace particle_filter
 {
-
-    typedef struct
-    {
-        double x;
-        double y;
-        double theta;
-        double weight;
-    } ParticleState;
 
     typedef std::recursive_mutex RecursiveMutex;
     typedef std::lock_guard<std::recursive_mutex> RecursiveLock;
@@ -108,7 +101,8 @@ namespace particle_filter
         void motionModel();
         void sensorModel();
         void applyRoughening();
-        void expectedPose();
+        void expectedPoseMean();
+        void getMaxWeightParticle();
         void publishTfOdom();
         void visualize();
 
@@ -146,8 +140,10 @@ namespace particle_filter
         bool odom_initialized_;
         bool lidar_initialized_;
         rclcpp::Time last_stamp_;
-        std::vector<double> last_pose_;
-        std::vector<double> odometry_data_;
+        rclcpp::Time scan_stamp_;  // stamp of the scan the latest update used
+        Pose2D last_pose_;        // latest odometry pose
+        Pose2D last_update_pose_;  // odometry pose consumed by the previous update
+        Pose2D odometry_data_;     // motion since the previous update, in the robot frame
         double linear_speed;
         double angular_speed;
 
@@ -176,12 +172,19 @@ namespace particle_filter
         std::string scan_topic_;
         std::string odometry_topic_;
 
+        // tf parameters
+        std::string map_frame_;
+        std::string odom_frame_;
+        std::string laser_frame_;
+        double transform_tolerance_;  // seconds the published map -> odom is post-dated by
+
         // sensor model constants
         double z_short_;
         double z_max_;
         double z_rand_;
         double z_hit_;
         double sigma_hit_;
+        double lambda_short_;
 
         // motion model dispersion constant
         double motion_dispersion_x_;
@@ -203,6 +206,8 @@ namespace particle_filter
         double theta_discretization_;
         double squash_factor_;
         double max_range_;
+
+        std::string pose_selection_method_;
 
         // Timing related variables
         double sensor_model_calc_worst_time_;

@@ -4,8 +4,14 @@
 #include <tf2/LinearMath/Quaternion.hpp>
 #include <tf2/time.hpp>
 
+#include <cmath>
+
 namespace particle_filter
 {
+    inline double normal_cdf(double x)
+    {
+        return 0.5 * (1.0 + std::erf(x / std::sqrt(2.0)));
+    }
 
     ParticleFilter::ParticleFilter(const rclcpp::NodeOptions& options):
         Node("particle_filter", options),
@@ -23,10 +29,15 @@ namespace particle_filter
     {
         this->declare_parameter("scan_topic", "/scan");
         this->declare_parameter("odometry_topic", "/odom");
+        this->declare_parameter("map_frame", "map");
+        this->declare_parameter("odom_frame", "odom");
+        this->declare_parameter("laser_frame", "laser");
+        this->declare_parameter("transform_tolerance", 0.1);
         this->declare_parameter("angle_step", 18);
         this->declare_parameter("max_particles", 1000);
         this->declare_parameter("max_viz_particles", 60);
         this->declare_parameter("range_method", "rmgpu");
+        this->declare_parameter("pose_selection_method", "mean");
         this->declare_parameter("theta_discretization", 112.0);
         this->declare_parameter("squash_factor", 2.2);
         this->declare_parameter("max_range", 20.0);
@@ -39,12 +50,17 @@ namespace particle_filter
         this->declare_parameter("z_rand", 0.025);
         this->declare_parameter("z_hit", 0.85);
         this->declare_parameter("sigma_hit", 8.0);
+        this->declare_parameter("lambda_short", 0.1);
         this->declare_parameter("motion_dispersion_x", 0.05);
         this->declare_parameter("motion_dispersion_y", 0.025);
         this->declare_parameter("motion_dispersion_theta", 0.25);
 
         this->get_parameter("scan_topic", scan_topic_);
         this->get_parameter("odometry_topic", odometry_topic_);
+        this->get_parameter("map_frame", map_frame_);
+        this->get_parameter("odom_frame", odom_frame_);
+        this->get_parameter("laser_frame", laser_frame_);
+        this->get_parameter("transform_tolerance", transform_tolerance_);
         this->get_parameter("angle_step", angle_step_);
         this->get_parameter("max_particles", max_particles_num_);
         this->get_parameter("max_viz_particles", max_viz_particles_);
@@ -61,9 +77,11 @@ namespace particle_filter
         this->get_parameter("z_rand", z_rand_);
         this->get_parameter("z_hit", z_hit_);
         this->get_parameter("sigma_hit", sigma_hit_);
+        this->get_parameter("lambda_short", lambda_short_);
         this->get_parameter("motion_dispersion_x", motion_dispersion_x_);
         this->get_parameter("motion_dispersion_y", motion_dispersion_y_);
         this->get_parameter("motion_dispersion_theta", motion_dispersion_theta_);
+        this->get_parameter("pose_selection_method", pose_selection_method_);
 
         this->declare_parameter("set_initial_pose", false);
         this->declare_parameter("init_pose_x", 0.0);
@@ -101,17 +119,26 @@ namespace particle_filter
         // observed range value r
         for (int d = 0; d < table_width; d++)
         {
+            // This beam model is based on Probabilistic Robotics by Thrun, Burgard and Fox, 2005, p.153
+            // We need to normalize p_hit and p_short be cause they are truncated distributions
+            const double p_hit_normalizer = normal_cdf((max_range_px_ - d) / sigma_hit_)
+                                            - normal_cdf(-d / sigma_hit_);
+            const double p_short_normalizer = -std::expm1(-lambda_short_ * d);
             double norm = 0.0;
             for (int r = 0; r < table_width; r++)
             {
                 double prob = 0.0;
                 double z = (double)(r - d);
-                prob += z_hit_ * exp(-(z * z) / (2.0 * sigma_hit_ * sigma_hit_)) / (sigma_hit_ * sqrt(M_PI));
-                if (r < d)
-                    prob += 2.0 * z_short_ * (d - r) / (double)(d);
+                // Add p_hit
+                prob += z_hit_ * exp(-(z * z) / (2.0 * sigma_hit_ * sigma_hit_)) / (sigma_hit_ * sqrt(2 * M_PI) * p_hit_normalizer);
+                if (r < d && p_short_normalizer > 0.0)
+                    // p_short
+                    prob += z_short_ * lambda_short_ * std::exp(-lambda_short_ * r) / p_short_normalizer;
                 if (r == max_range_px_)
+                    // p_max
                     prob += z_max_;
                 if (r < max_range_px_)
+                    // p_rand
                     prob += z_rand_ * 1.0 / double(max_range_px_);
 
                 norm += prob;
@@ -157,7 +184,7 @@ namespace particle_filter
             {
                 idx_x = (int)(global_x_dist_(rng_.engine()));
                 idx_y = (int)(global_y_dist_(rng_.engine()));
-                occupied = (idx_x > loaded_map_->info.width || idx_y > loaded_map_->info.height
+                occupied = (!cellInBounds(idx_x, idx_y, loaded_map_->info.width, loaded_map_->info.height)
                             || loaded_map_->data[idx_y * loaded_map_->info.width + idx_x]);
             }
             std::vector<unsigned int> idx = {idx_x, idx_y};
@@ -204,13 +231,13 @@ namespace particle_filter
                 std::vector<unsigned int> idx = worldToMap(pos);
                 idx_x = idx[0];
                 idx_y = idx[1];
-                occupied = (idx_x > loaded_map_->info.width || idx_y > loaded_map_->info.height
+                occupied = (!cellInBounds(idx_x, idx_y, loaded_map_->info.width, loaded_map_->info.height)
                             || loaded_map_->data[idx_y * loaded_map_->info.width + idx_x]);
             }
 
             ParticleState ps = {dx + pose.position.x,
                                 dy + pose.position.y,
-                                local_th_dist_(rng_.engine()) + getYaw(pose.orientation),
+                                wrapAngle(local_th_dist_(rng_.engine()) + getYaw(pose.orientation)),
                                 1.0 / max_particles_num_};
             particles_.push_back(ps);
         }
@@ -283,6 +310,7 @@ namespace particle_filter
         {
             downsampled_laser_ranges_.push_back(msg->ranges[i]);
         }
+        scan_stamp_ = msg->header.stamp;
 
         // Run the AMCL update on every lidar scan
         update();
@@ -290,31 +318,19 @@ namespace particle_filter
 
     void ParticleFilter::odom_cb(const nav_msgs::msg::Odometry::ConstSharedPtr& msg)
     {
-        if (last_pose_.empty())
+        RecursiveLock lock(particles_mtx_);
+
+        last_pose_.x = msg->pose.pose.position.x;
+        last_pose_.y = msg->pose.pose.position.y;
+        last_pose_.theta = getYaw(msg->pose.pose.orientation);
+        if (!odom_initialized_)
         {
             RCLCPP_INFO(this->get_logger(), "...Received first Odometry message");
-        }
-        else
-        {
-            double dx = msg->pose.pose.position.x - last_pose_[0];
-            double dy = msg->pose.pose.position.y - last_pose_[1];
-            double dtheta = getYaw(msg->pose.pose.orientation) - last_pose_[2];
-            double c = cos(-last_pose_[2]);
-            double s = sin(-last_pose_[2]);
-            double local_delta_x = dx * c - dy * s;
-            double local_delta_y = dx * s + dy * c;
-            odometry_data_.clear();
-            odometry_data_.push_back(local_delta_x);
-            odometry_data_.push_back(local_delta_y);
-            odometry_data_.push_back(dtheta);
+            last_update_pose_ = last_pose_;
             odom_initialized_ = true;
         }
         linear_speed = msg->twist.twist.linear.x;
         angular_speed = msg->twist.twist.angular.z;
-        last_pose_.clear();
-        last_pose_.push_back(msg->pose.pose.position.x);
-        last_pose_.push_back(msg->pose.pose.position.y);
-        last_pose_.push_back(getYaw(msg->pose.pose.orientation));
         last_stamp_ = msg->header.stamp;
     }
 
@@ -339,7 +355,7 @@ namespace particle_filter
             std::normal_distribution<double> rough_x(0.0, 0.1);      // 10cm extra noise
             std::normal_distribution<double> rough_y(0.0, 0.05);     // 5cm lateral noise
             std::normal_distribution<double> rough_theta(0.0, 0.1);  // ~5.7 deg noise
-            std::mt19937 generator = rng_.engine();
+            std::mt19937& generator = rng_.engine();
 
             for (int i = 0; i < max_particles_num_; i++)
             {
@@ -359,6 +375,9 @@ namespace particle_filter
             return;
 
         RecursiveLock lock(particles_mtx_);
+        // Motion since the previous update, so odometry messages between scans are neither lost nor reused
+        odometry_data_ = relativePose(last_update_pose_, last_pose_);
+        last_update_pose_ = last_pose_;
         // MCL algorithm
         // Sampling
         sampling();
@@ -368,8 +387,18 @@ namespace particle_filter
         sensorModel();
         // Apply roughening if sensor information is poor (optional)
         // applyRoughening();
-        // Calculate the average particle
-        expectedPose();
+        if (pose_selection_method_ == "mean")
+        {
+            expectedPoseMean();
+        }
+        else if (pose_selection_method_ == "max")
+        {
+            getMaxWeightParticle();
+        }
+        else
+        {
+            throw std::runtime_error("Invalid pose_selection_method value");
+        }
 
         // Publish and visualize info only when expected pose is valid
         if (isnan(expected_pose_.x) || isnan(expected_pose_.y) || isnan(expected_pose_.theta))
@@ -383,29 +412,7 @@ namespace particle_filter
 
     void ParticleFilter::sampling()
     {
-        std::vector<int> samples;
-        std::vector<double> proba;
-        for (int i = 0; i < max_particles_num_; i++)
-        {
-            samples.push_back(i);
-            proba.push_back(particles_[i].weight);
-        }
-        std::discrete_distribution<int> distribution(proba.begin(), proba.end());
-
-        // ref:
-        // https://stackoverflow.com/questions/42926209/equivalent-function-to-numpy-random-choice-in-c
-        std::vector<decltype(distribution)::result_type> indices;
-        indices.reserve(max_particles_num_);  // reserve to prevent reallocation
-        std::mt19937 generator = rng_.engine();
-        // use a generator lambda to draw random indices based on distribution
-        std::generate_n(back_inserter(indices),
-                        max_particles_num_,
-                        [distribution = std::move(distribution),  // could also capture by reference (&) or
-                                                                  // construct in the capture list
-                         generator]() mutable
-                        {  // mutable required for generator
-                            return distribution(generator);
-                        });
+        std::vector<int> indices = drawIndices(particles_, max_particles_num_, rng_.engine());
 
         std::vector<ParticleState> new_particles_;
         for (auto const idx : indices)
@@ -421,14 +428,14 @@ namespace particle_filter
         std::normal_distribution<double> distribution1(0.0, motion_dispersion_x_);
         std::normal_distribution<double> distribution2(0.0, motion_dispersion_y_);
         std::normal_distribution<double> distribution3(0.0, motion_dispersion_theta_);
-        std::mt19937 generator = rng_.engine();
+        std::mt19937& generator = rng_.engine();
 
         for (int i = 0; i < max_particles_num_; i++)
         {
             // Add noise to odometry in local frame
-            double noisy_odom_x = odometry_data_[0] + distribution1(generator);
-            double noisy_odom_y = odometry_data_[1] + distribution2(generator);
-            double noisy_odom_theta = odometry_data_[2] + distribution3(generator);
+            double noisy_odom_x = odometry_data_.x + distribution1(generator);
+            double noisy_odom_y = odometry_data_.y + distribution2(generator);
+            double noisy_odom_theta = odometry_data_.theta + distribution3(generator);
 
             // Transform noisy local odometry to global frame using particle's
             // orientation
@@ -441,7 +448,7 @@ namespace particle_filter
             // Update particle pose in global frame
             particles_[i].x += global_dx;
             particles_[i].y += global_dy;
-            particles_[i].theta += noisy_odom_theta;
+            particles_[i].theta = wrapAngle(particles_[i].theta + noisy_odom_theta);
         }
     }
 
@@ -501,24 +508,38 @@ namespace particle_filter
         }
     }
 
-    void ParticleFilter::expectedPose()
+    void ParticleFilter::expectedPoseMean()
     {
         // Expected pose for LiDAR
+        Pose2D mean = weightedMeanPose(particles_);
+        expected_pose_.x = mean.x;
+        expected_pose_.y = mean.y;
+        expected_pose_.theta = mean.theta;
+    }
+
+    void ParticleFilter::getMaxWeightParticle()
+    {
         expected_pose_.x = 0;
         expected_pose_.y = 0;
         expected_pose_.theta = 0;
+        double highest_weight_ = 0.0;
+        int highest_weight_idx = 0;
         for (int i = 0; i < max_particles_num_; i++)
         {
-            expected_pose_.x += particles_[i].weight * particles_[i].x;
-            expected_pose_.y += particles_[i].weight * particles_[i].y;
-            expected_pose_.theta += particles_[i].weight * particles_[i].theta;
+            if (particles_[i].weight > highest_weight_)
+            {
+                highest_weight_ = particles_[i].weight;
+                highest_weight_idx = i;
+            }
         }
+        expected_pose_.x = particles_[highest_weight_idx].x;
+        expected_pose_.y = particles_[highest_weight_idx].y;
+        expected_pose_.theta = particles_[highest_weight_idx].theta;
     }
+
 
     void ParticleFilter::publishTfOdom()
     {
-        rclcpp::Time stamp = get_clock()->now();
-
         // Create map -> laser transform
         tf2::Transform map_laser_transform;
         tf2::Quaternion map_laser_quat;
@@ -526,15 +547,25 @@ namespace particle_filter
         map_laser_transform.setRotation(map_laser_quat);
         map_laser_transform.setOrigin(tf2::Vector3(expected_pose_.x, expected_pose_.y, 0.0));
 
-        // Get laser -> odom transform
+        // Get laser -> odom transform at the time of the scan the estimate came from, so the
+        // vehicle's motion since then doesn't end up in map -> odom
         geometry_msgs::msg::TransformStamped laser_to_odom_msg;
         try
         {
-            laser_to_odom_msg = tf_buffer_->lookupTransform("ego_racecar/laser", "odom", tf2::TimePointZero);
+            laser_to_odom_msg = tf_buffer_->lookupTransform(laser_frame_,
+                                                            odom_frame_,
+                                                            scan_stamp_,
+                                                            rclcpp::Duration::from_seconds(0.05));
         }
         catch (const tf2::TransformException& ex)
         {
-            RCLCPP_WARN(get_logger(), "Could not transform laser to odom: %s", ex.what());
+            RCLCPP_WARN_THROTTLE(get_logger(),
+                                 *get_clock(),
+                                 1000,
+                                 "Could not transform %s to %s: %s",
+                                 laser_frame_.c_str(),
+                                 odom_frame_.c_str(),
+                                 ex.what());
             return;
         }
 
@@ -544,10 +575,11 @@ namespace particle_filter
         // Compute map -> odom transform
         tf2::Transform map_odom_transform = map_laser_transform * laser_odom_transform;
 
+        // map -> odom is post-dated (as in AMCL) so it stays valid until the next update
         geometry_msgs::msg::TransformStamped t_map_odom;
-        t_map_odom.header.stamp = stamp;
-        t_map_odom.header.frame_id = "map";
-        t_map_odom.child_frame_id = "odom";
+        t_map_odom.header.stamp = scan_stamp_ + rclcpp::Duration::from_seconds(transform_tolerance_);
+        t_map_odom.header.frame_id = map_frame_;
+        t_map_odom.child_frame_id = odom_frame_;
         t_map_odom.transform = tf2::toMsg(map_odom_transform);
 
         tf_broadcaster_->sendTransform(t_map_odom);
@@ -555,8 +587,8 @@ namespace particle_filter
         if (publish_odom_)
         {
             auto odom = std::make_unique<nav_msgs::msg::Odometry>();
-            odom->header.stamp = stamp;
-            odom->header.frame_id = "map";
+            odom->header.stamp = scan_stamp_;
+            odom->header.frame_id = map_frame_;
             odom->pose.pose.position.x = expected_pose_.x;
             odom->pose.pose.position.y = expected_pose_.y;
             odom->pose.pose.orientation = tf2::toMsg(map_laser_quat);
@@ -580,8 +612,8 @@ namespace particle_filter
             q.setRPY(0, 0, expected_pose_.theta);
 
             auto pose = std::make_unique<geometry_msgs::msg::PoseStamped>();
-            pose->header.stamp = last_stamp_;
-            pose->header.frame_id = "map";
+            pose->header.stamp = scan_stamp_;
+            pose->header.frame_id = map_frame_;
             pose->pose.position.x = expected_pose_.x;
             pose->pose.position.y = expected_pose_.y;
             pose->pose.orientation = tf2::toMsg(q);
@@ -593,7 +625,7 @@ namespace particle_filter
         {
             auto particles_ros = std::make_unique<geometry_msgs::msg::PoseArray>();
             particles_ros->header.stamp = this->now();
-            particles_ros->header.frame_id = "map";
+            particles_ros->header.frame_id = map_frame_;
             particles_ros->poses.resize(max_viz_particles_);
 
             for (int i = 0; i < max_viz_particles_; i++)
@@ -642,9 +674,8 @@ namespace particle_filter
             }
 
             auto scan = std::make_unique<sensor_msgs::msg::LaserScan>();
-            scan->header.stamp = last_stamp_;
-            scan->header.frame_id = "laser";  // for f1tenth_gym, it might be something
-                                              // like "ego_racecar/laser"
+            scan->header.stamp = scan_stamp_;
+            scan->header.frame_id = laser_frame_;
             scan->angle_min = std::min(downsampled_laser_angles_[0], downsampled_laser_angles_[num_downsampled_angles_ - 1]);
             scan->angle_max = std::max(downsampled_laser_angles_[0], downsampled_laser_angles_[num_downsampled_angles_ - 1]);
             scan->angle_increment = abs(downsampled_laser_angles_[1] - downsampled_laser_angles_[0]);

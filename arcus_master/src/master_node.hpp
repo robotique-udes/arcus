@@ -25,8 +25,11 @@ class MasterNode : public rclcpp::Node
     static constexpr const char* DEFAULT_SPEED_LIMIT_TOPIC = "/track_manager/speed_limit";
     static constexpr const char* DEFAULT_FORCE_ALGO_TOPIC = "/track_manager/forced_algo";
     static constexpr const char* DEFAULT_TRAJECTORY_RISK_TOPIC = "/pure_pursuit/trajectory_risk";
+    static constexpr const char* DEFAULT_LOCALIZATION_SCORE_TOPIC = "/costmap_maker/localization_score";
+
 
     double MAX_ACCEPTED_RISK = 0.1f;
+    double MIN_ACCEPTED_LOCALIZATION_SCORE = 0.5f;
 
   public:
     MasterNode();
@@ -83,6 +86,7 @@ class MasterNode : public rclcpp::Node
     std::string _speedLimitTopic = DEFAULT_SPEED_LIMIT_TOPIC;
     std::string _forceAlgoTopic = DEFAULT_FORCE_ALGO_TOPIC;
     std::string _trajectoryRiskTopic = DEFAULT_TRAJECTORY_RISK_TOPIC;
+    std::string _localizationScoreTopic = DEFAULT_LOCALIZATION_SCORE_TOPIC;
     int _sectionOverrideTimeoutMs = 500;
     int _disparityCooldownMs = 500;
     double _forcedMaxSpeed = 0.0;
@@ -95,6 +99,7 @@ class MasterNode : public rclcpp::Node
     bool ppRecoveryEngaged = false;
     bool _deadmanActive = false;
     bool _riskTresholdExceeded = false;
+    bool _locScoreExceeded = false;
 
     void disparityDriveCallback(const ackermann_msgs::msg::AckermannDriveStamped::SharedPtr msg);
     void safetyDriveCallback(const ackermann_msgs::msg::AckermannDriveStamped::SharedPtr msg);
@@ -104,6 +109,8 @@ class MasterNode : public rclcpp::Node
     void speedLimitCallback(const std_msgs::msg::Float64::SharedPtr msg);
     void forceAlgoCallback(const std_msgs::msg::String::SharedPtr msg);
     void trajectoryRiskCallback(const std_msgs::msg::Float32::SharedPtr msg);
+    void localizationScoreCallback(const std_msgs::msg::Float32::SharedPtr msg);
+
 
     rclcpp::Publisher<ackermann_msgs::msg::AckermannDriveStamped>::SharedPtr _drivePublisher;
     rclcpp::Publisher<std_msgs::msg::Bool>::SharedPtr _masterHeartbeatPublisher;
@@ -116,6 +123,7 @@ class MasterNode : public rclcpp::Node
     rclcpp::Subscription<std_msgs::msg::Float64>::SharedPtr _speedLimitSubscriber;
     rclcpp::Subscription<std_msgs::msg::String>::SharedPtr _forceAlgoSubscriber;
     rclcpp::Subscription<std_msgs::msg::Float32>::SharedPtr _trajectoryRiskSubscriber;
+    rclcpp::Subscription<std_msgs::msg::Float32>::SharedPtr _localizationScoreSubscriber;
 
     rclcpp::node_interfaces::OnSetParametersCallbackHandle::SharedPtr _paramCallbackHandle;
 };
