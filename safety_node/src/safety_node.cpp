@@ -65,7 +65,6 @@ void Safety::CB_scan(const sensor_msgs::msg::LaserScan& scanMsg_)
             iTTC = ranges[i] / rangeRate;
         }
 
-
         if (iTTC < _ttcThresholdS)
         {
             _stopFlag = true;
@@ -118,8 +117,8 @@ void Safety::initRosElements(void)
                                                                              {
                                                                                  this->CB_positionSubscriber(msg);
                                                                              });
-    _spammingTimer = this->create_wall_timer(std::chrono::milliseconds(_spam_stop_period_ms),
-                                             std::bind(&Safety::CB_spam_stop, this));
+    _spammingTimer
+        = this->create_wall_timer(std::chrono::milliseconds(_spam_stop_period_ms), std::bind(&Safety::CB_spam_stop, this));
 
     _error_publisher = this->create_publisher<arcus_msgs::msg::ErrorCode>("/node_error_code", 10);
     _timer = this->create_wall_timer(std::chrono::milliseconds(_heartbeat_period_ms), std::bind(&Safety::heartbeat, this));

@@ -287,16 +287,14 @@ bool MasterNode::hasCommand(const ackermann_msgs::msg::AckermannDriveStamped& cm
 
 MasterNode::DriveState MasterNode::determineDriveState() const
 {
-    
-
     const bool controller_ready = _nodeOnline[arcus_msgs::msg::ErrorCode::CONTROLLER]
                                   && hasCommand(driveCommands[arcus_msgs::msg::ErrorCode::CONTROLLER]);
-    const bool safety_ready = _nodeOnline[arcus_msgs::msg::ErrorCode::SAFETY]
-                              && hasCommand(driveCommands[arcus_msgs::msg::ErrorCode::SAFETY]);
+    const bool safety_ready
+        = _nodeOnline[arcus_msgs::msg::ErrorCode::SAFETY] && hasCommand(driveCommands[arcus_msgs::msg::ErrorCode::SAFETY]);
     const bool pp_ready = _nodeOnline[arcus_msgs::msg::ErrorCode::PURE_PURSUIT]
                           && hasCommand(driveCommands[arcus_msgs::msg::ErrorCode::PURE_PURSUIT]);
-    const bool disparity_ready = _nodeOnline[arcus_msgs::msg::ErrorCode::DISPARITY]
-                                 && hasCommand(driveCommands[arcus_msgs::msg::ErrorCode::DISPARITY]);
+    const bool disparity_ready
+        = _nodeOnline[arcus_msgs::msg::ErrorCode::DISPARITY] && hasCommand(driveCommands[arcus_msgs::msg::ErrorCode::DISPARITY]);
 
     const uint64_t now_ns = static_cast<uint64_t>(this->now().nanoseconds());
     const uint64_t override_timeout_ns = static_cast<uint64_t>(_sectionOverrideTimeoutMs) * 1000000ULL;
@@ -407,7 +405,8 @@ void MasterNode::tryPublishDriveCommand()
             selected_cmd = this->driveCommands[arcus_msgs::msg::ErrorCode::SAFETY];
             if (_hasLastNonEmergencySteering)
             {
-                selected_cmd.drive.steering_angle = this->driveCommands[arcus_msgs::msg::ErrorCode::PURE_PURSUIT].drive.steering_angle;
+                selected_cmd.drive.steering_angle
+                    = this->driveCommands[arcus_msgs::msg::ErrorCode::PURE_PURSUIT].drive.steering_angle;
             }
             break;
         }
@@ -495,8 +494,8 @@ void MasterNode::mainLoop()
     _masterHeartbeatPublisher->publish(std_msgs::msg::Bool().set__data(true));
 }
 
-void MasterNode::initParamCallbackHandle(void) {
-        
+void MasterNode::initParamCallbackHandle(void)
+{
     _paramCallbackHandle = this->add_on_set_parameters_callback(
         [this](const std::vector<rclcpp::Parameter>& params)
         {
@@ -518,10 +517,7 @@ void MasterNode::initParamCallbackHandle(void) {
             }
 
             return result;
-        }
-    );
-
+        });
 }
-
 
 #endif  // MASTER_NODE_CPP

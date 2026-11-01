@@ -142,7 +142,6 @@ class PurePursuit : public rclcpp::Node
     double _costmapOriginY = 0.0;
     std::string _costmapFrameId;
     std::mutex _costmapMutex;
-
 };
 
 #endif  // PURE_PURSUIT_HPP

@@ -10,7 +10,7 @@
 
 class MasterNode : public rclcpp::Node
 {
-  static constexpr std::size_t SOURCE_COUNT = 10U;
+    static constexpr std::size_t SOURCE_COUNT = 10U;
 
     static constexpr const char* DEFAULT_DISPARITY_DRIVE_TOPIC = "/disparity/drive";
     static constexpr const char* DEFAULT_CONTROLLER_DRIVE_TOPIC = "/controller/drive";

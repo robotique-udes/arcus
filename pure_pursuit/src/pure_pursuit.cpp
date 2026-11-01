@@ -449,13 +449,12 @@ void PurePursuit::initRosElements(void)
                                                                                  this->CB_positionSubscriber(msg);
                                                                              });
 
-    _costmapSubscriber = this->create_subscription<nav_msgs::msg::OccupancyGrid>(
-        _costmapTopic,
-        rclcpp::SensorDataQoS(),
-        [this](const nav_msgs::msg::OccupancyGrid& msg)
-        {
-            this->CB_costmapSubscriber(msg);
-        });
+    _costmapSubscriber = this->create_subscription<nav_msgs::msg::OccupancyGrid>(_costmapTopic,
+                                                                                 rclcpp::SensorDataQoS(),
+                                                                                 [this](const nav_msgs::msg::OccupancyGrid& msg)
+                                                                                 {
+                                                                                     this->CB_costmapSubscriber(msg);
+                                                                                 });
 
     _driveCmdPublisher = this->create_publisher<ackermann_msgs::msg::AckermannDriveStamped>(_driveCmdTopic, DEFAULT_QOS);
     _targetWaypointPublisher = this->create_publisher<geometry_msgs::msg::PointStamped>(_targetWaypointTopic, DEFAULT_QOS);
@@ -467,8 +466,8 @@ void PurePursuit::initRosElements(void)
     _heartbeatTimer = this->create_wall_timer(std::chrono::milliseconds(50), std::bind(&PurePursuit::heartbeat, this));
 }
 
-void PurePursuit::initParamCallbackHandle(void) {
-        
+void PurePursuit::initParamCallbackHandle(void)
+{
     _paramCallbackHandle = this->add_on_set_parameters_callback(
         [this](const std::vector<rclcpp::Parameter>& params)
         {
@@ -502,13 +501,40 @@ void PurePursuit::initParamCallbackHandle(void) {
                 else if (name == "wheelbase_m")
                     WHEELBASE_M = param.as_double();
 
-                else if (name == "speed_min")       { SPEED_MIN = param.as_double();    needsSpeedRecalc = true; }
-                else if (name == "speed_max")       { SPEED_MAX = param.as_double();    needsSpeedRecalc = true; }
-                else if (name == "a_lat_max")       { A_LAT_MAX = param.as_double();    needsSpeedRecalc = true; }
-                else if (name == "a_accel_max")     { A_ACCEL_MAX = param.as_double();  needsSpeedRecalc = true; }
-                else if (name == "a_brake_max")     { A_BRAKE_MAX = param.as_double();  needsSpeedRecalc = true; }
-                else if (name == "speed_eps")       { SPEED_EPS = param.as_double();    needsSpeedRecalc = true; }
-                else if (name == "debug")           { _debug = param.as_bool(); }
+                else if (name == "speed_min")
+                {
+                    SPEED_MIN = param.as_double();
+                    needsSpeedRecalc = true;
+                }
+                else if (name == "speed_max")
+                {
+                    SPEED_MAX = param.as_double();
+                    needsSpeedRecalc = true;
+                }
+                else if (name == "a_lat_max")
+                {
+                    A_LAT_MAX = param.as_double();
+                    needsSpeedRecalc = true;
+                }
+                else if (name == "a_accel_max")
+                {
+                    A_ACCEL_MAX = param.as_double();
+                    needsSpeedRecalc = true;
+                }
+                else if (name == "a_brake_max")
+                {
+                    A_BRAKE_MAX = param.as_double();
+                    needsSpeedRecalc = true;
+                }
+                else if (name == "speed_eps")
+                {
+                    SPEED_EPS = param.as_double();
+                    needsSpeedRecalc = true;
+                }
+                else if (name == "debug")
+                {
+                    _debug = param.as_bool();
+                }
 
                 RCLCPP_INFO(this->get_logger(), "Parameter updated: %s", name.c_str());
             }
@@ -520,9 +546,7 @@ void PurePursuit::initParamCallbackHandle(void) {
             }
 
             return result;
-        }
-    );
-
+        });
 }
 
 void PurePursuit::heartbeat()
@@ -631,14 +655,13 @@ void PurePursuit::evaluatePointRisk(double x, double y, double cumulativeDistanc
             {
                 double closingSpeed = std::max(std::abs(_currentSpeed), MIN_TTC_SPEED_MS);
                 double ttc = cumulativeDistance / closingSpeed;
-                double weight = std::exp(-ttc/TTC_DECAY_RATE);
+                double weight = std::exp(-ttc / TTC_DECAY_RATE);
                 double weightedRisk = weight * static_cast<double>(cost);
                 riskMax = std::max(riskMax, weightedRisk);
             }
         }
     }
 }
-
 
 double PurePursuit::calculateTrajectoryRisk(double riskLookaheadDistance)
 {
@@ -651,7 +674,9 @@ double PurePursuit::calculateTrajectoryRisk(double riskLookaheadDistance)
 
     if (_costmapFrameId.empty())
     {
-        RCLCPP_WARN_THROTTLE(this->get_logger(), *this->get_clock(), 5000,
+        RCLCPP_WARN_THROTTLE(this->get_logger(),
+                             *this->get_clock(),
+                             5000,
                              "Costmap frame_id is empty; cannot transform risk samples.");
         return 0.0;
     }
@@ -663,16 +688,19 @@ double PurePursuit::calculateTrajectoryRisk(double riskLookaheadDistance)
     }
     catch (const tf2::TransformException& ex)
     {
-        RCLCPP_WARN_THROTTLE(this->get_logger(), *this->get_clock(), 2000,
+        RCLCPP_WARN_THROTTLE(this->get_logger(),
+                             *this->get_clock(),
+                             2000,
                              "TF lookup failed (map -> %s): %s",
-                             _costmapFrameId.c_str(), ex.what());
+                             _costmapFrameId.c_str(),
+                             ex.what());
         return 0.0;
     }
 
     // Clear and populate risk path waypoints only in debug mode
     _riskPathWaypoints.clear();
     geometry_msgs::msg::PoseStamped currentPose;
-    
+
     if (_debug)
     {
         // Add starting position (current vehicle position)
@@ -740,10 +768,7 @@ double PurePursuit::calculateTrajectoryRisk(double riskLookaheadDistance)
             mapPoint.point.z = 0.0;
             tf2::doTransform(mapPoint, costmapPoint, mapToCostmap);
 
-            this->evaluatePointRisk(costmapPoint.point.x,
-                                    costmapPoint.point.y,
-                                    cumulativeDistance,
-                                    riskMax);
+            this->evaluatePointRisk(costmapPoint.point.x, costmapPoint.point.y, cumulativeDistance, riskMax);
         }
 
         if (cumulativeDistance > riskLookaheadDistance)
@@ -762,7 +787,6 @@ double PurePursuit::calculateTrajectoryRisk(double riskLookaheadDistance)
     }
 
     return std::clamp(riskMax, 0.0, 100.0);
-
 }
 
 void PurePursuit::publishRiskPathSegment()

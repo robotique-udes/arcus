@@ -5,7 +5,7 @@ arcus:
       wheel_base: 0.324
       bubble_radius: 0.45
       speed_distance_factor: 1.2
-      max_speed: 5.0
+      max_speed: 10.0
       disparity_threshold: 0.15
       default_qos: 1
       rolling_average_window: 1
