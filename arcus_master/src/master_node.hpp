@@ -30,6 +30,7 @@ class MasterNode : public rclcpp::Node
 
     double MAX_ACCEPTED_RISK = 0.1f;
     double MIN_ACCEPTED_LOCALIZATION_SCORE = 0.5f;
+    int MIN_LOW_LOCALIZATION_SCORES = 5;  // low scores in a row before switching to disparity
 
   public:
     MasterNode();
@@ -99,7 +100,8 @@ class MasterNode : public rclcpp::Node
     bool ppRecoveryEngaged = false;
     bool _deadmanActive = false;
     bool _riskTresholdExceeded = false;
-    bool _locScoreExceeded = false;
+    bool _localizationLost = false;
+    int _lowLocScoreCount = 0;  // low localization scores in a row
 
     void disparityDriveCallback(const ackermann_msgs::msg::AckermannDriveStamped::SharedPtr msg);
     void safetyDriveCallback(const ackermann_msgs::msg::AckermannDriveStamped::SharedPtr msg);

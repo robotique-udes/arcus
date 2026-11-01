@@ -39,6 +39,7 @@ MasterNode::MasterNode():
     _disparityCooldownMs = this->declare_parameter<int>("disparity_cooldown_ms", 500);
     MAX_ACCEPTED_RISK = this->declare_parameter<double>("max_accepted_risk", 0.1);
     MIN_ACCEPTED_LOCALIZATION_SCORE = this->declare_parameter<double>("min_accepted_localization_score", 70.0);
+    MIN_LOW_LOCALIZATION_SCORES = this->declare_parameter<int>("min_low_localization_scores", 5);
 
     if (_sectionOverrideTimeoutMs < 0)
     {
@@ -211,20 +212,33 @@ void MasterNode::localizationScoreCallback(const std_msgs::msg::Float32::SharedP
 
     if (!std::isfinite(msg->data) || msg->data < MIN_ACCEPTED_LOCALIZATION_SCORE)
     {
-        RCLCPP_WARN(this->get_logger(), "Localization score below threshold: %.2f, switching to disparity", msg->data);
-        _locScoreExceeded = true;
+        // A single low score is often an opponent blocking beams, so only switch after several in a row
+        _lowLocScoreCount++;
+        if (_lowLocScoreCount < MIN_LOW_LOCALIZATION_SCORES)
+            return;
+
+        if (!_localizationLost)
+        {
+            RCLCPP_WARN(this->get_logger(),
+                        "Localization score below threshold for %d scores (now %.2f), switching to disparity",
+                        _lowLocScoreCount,
+                        msg->data);
+        }
+        _localizationLost = true;
         _disparityHoldUntilNs = now_ns + static_cast<uint64_t>(_disparityCooldownMs) * 1000000ULL;
         return;
     }
 
-    if (_locScoreExceeded)
+    _lowLocScoreCount = 0;
+
+    if (_localizationLost)
     {
         RCLCPP_INFO(this->get_logger(),
                     "Localization score recovered to %.2f; pure pursuit will resume after hold time expires",
                     msg->data);
     }
 
-    _locScoreExceeded = false;
+    _localizationLost = false;
 }
 
 bool MasterNode::forcedAlgoToState(const std::string& algo, DriveState& state) const
@@ -330,13 +344,13 @@ MasterNode::DriveState MasterNode::determineDriveState() const
                             "Risk threshold exceeded, cannot force pure pursuit. Falling back to safety emergency if available.");
                 return DriveState::SAFETY_EMERGENCY;
             }
-            if (forced_state == DriveState::PURE_PURSUIT && _locScoreExceeded)
+            if (forced_state == DriveState::PURE_PURSUIT && _localizationLost)
             {
                 RCLCPP_WARN(this->get_logger(),
                             "Localization score too low, cannot force pure pursuit. Falling back to safety emergency if available.");
                 return DriveState::SAFETY_EMERGENCY;
             }
-            if (forced_state == DriveState::PURE_PURSUIT && pp_ready && !_riskTresholdExceeded && !_locScoreExceeded && !disparity_hold_active)
+            if (forced_state == DriveState::PURE_PURSUIT && pp_ready && !_riskTresholdExceeded && !_localizationLost && !disparity_hold_active)
             {
                 return DriveState::PURE_PURSUIT;
             }
@@ -365,7 +379,7 @@ MasterNode::DriveState MasterNode::determineDriveState() const
         found = true;
     }
 
-    if (pp_ready && (!found || _priorityPurePursuit < best_priority) && !_riskTresholdExceeded && !_locScoreExceeded && !disparity_hold_active)
+    if (pp_ready && (!found || _priorityPurePursuit < best_priority) && !_riskTresholdExceeded && !_localizationLost && !disparity_hold_active)
     {
         best_priority = _priorityPurePursuit;
         best_state = DriveState::PURE_PURSUIT;
@@ -497,6 +511,8 @@ void MasterNode::initParamCallbackHandle(void) {
                     MAX_ACCEPTED_RISK = param.as_double();
                 if (name == "min_accepted_localization_score")
                     MIN_ACCEPTED_LOCALIZATION_SCORE = param.as_double();
+                if (name == "min_low_localization_scores")
+                    MIN_LOW_LOCALIZATION_SCORES = param.as_int();
 
                 RCLCPP_INFO(this->get_logger(), "Parameter updated: %s", name.c_str());
             }
