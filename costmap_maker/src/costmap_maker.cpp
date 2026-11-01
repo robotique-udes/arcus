@@ -22,7 +22,6 @@ CostmapMaker::CostmapMaker()
 	initializeGrid();
 
 	_costmapPub = create_publisher<nav_msgs::msg::OccupancyGrid>(_costmapTopic, DEFAULT_QOS_DEPTH);
-	_localizationScorePub = create_publisher<std_msgs::msg::Float32>(_localizationScoreTopic, DEFAULT_QOS_DEPTH);
 
 	_scanSub = create_subscription<sensor_msgs::msg::LaserScan>(
 		_scanTopic, rclcpp::SensorDataQoS(),
@@ -83,7 +82,6 @@ void CostmapMaker::updateTimerCallback()
 	double robotX = 0.0;
 	double robotY = 0.0;
 	double robotYaw = 0.0;
-	double localizationScore = 0.0;
 	{
 		std::lock_guard<std::mutex> lock(_dataMutex);
 		if (!_hasScan) {
@@ -111,10 +109,9 @@ void CostmapMaker::updateTimerCallback()
 		  return;
 	  }
 
-	markObstaclesFromScan(scan, globalMapPtr, robotX, robotY, robotYaw, localizationScore);
+	markObstaclesFromScan(scan, globalMapPtr, robotX, robotY, robotYaw);
 	inflateObstacles();
 	publishCostmap();
-	publishLocalizationScore(localizationScore);
 }
 
 void CostmapMaker::declareAndLoadParameters()
@@ -140,8 +137,6 @@ void CostmapMaker::declareAndLoadParameters()
 	declare_parameter<int>("global_obstacle_threshold", _globalObstacleThreshold);
 	declare_parameter<double>("global_obstacle_neighborhood_radius_m", _globalObstacleNeighborhoodRadiusM);
 
-	declare_parameter<double>("localization_decay_factor", _localizationDecayFactor);
-
 	get_parameter("scan_topic", _scanTopic);
 	get_parameter("costmap_topic", _costmapTopic);
 	get_parameter("robot_frame", _lidarFrame);
@@ -162,8 +157,6 @@ void CostmapMaker::declareAndLoadParameters()
 	get_parameter("only_unmapped_obstacles", _onlyUnmappedObstacles);
 	get_parameter("global_obstacle_threshold", _globalObstacleThreshold);
 	get_parameter("global_obstacle_neighborhood_radius_m", _globalObstacleNeighborhoodRadiusM);
-
-	get_parameter("localization_decay_factor", _localizationDecayFactor);
 
 
 	_resolutionM = std::max(_resolutionM, 0.01);
@@ -238,8 +231,7 @@ void CostmapMaker::markObstaclesFromScan(const sensor_msgs::msg::LaserScan& scan
 																				 const nav_msgs::msg::OccupancyGrid* globalMap,
 																				 double robotX,
 																				 double robotY,
-																				 double robotYaw,
-																				 double& localizationScore)
+																				 double robotYaw)
 {
 	if (scan.ranges.empty()) {
 		return;
@@ -248,8 +240,6 @@ void CostmapMaker::markObstaclesFromScan(const sensor_msgs::msg::LaserScan& scan
 	const double cone_half_fov_rad = _coneFovDeg * 0.5 * M_PI / 180.0;
 	const std::size_t bottom_cone_index = std::floor((-cone_half_fov_rad - scan.angle_min) / scan.angle_increment);
 	const std::size_t top_cone_index = std::floor((cone_half_fov_rad - scan.angle_min) / scan.angle_increment);
-	double averageDelta = 0.0;
-	int obstacleCount = 0;
 
 	for (std::size_t i = bottom_cone_index; i <= top_cone_index && i < count; ++i) {
 		const float raw_range = scan.ranges[i];
@@ -264,16 +254,12 @@ void CostmapMaker::markObstaclesFromScan(const sensor_msgs::msg::LaserScan& scan
 		if (!hit_obstacle) {
 			continue;
 		}
-		
-		obstacleCount++;
+
 		const double hit_x = static_cast<double>(raw_range) * std::cos(scan_angle);
 		const double hit_y = static_cast<double>(raw_range) * std::sin(scan_angle);
-		double distanceDelta = 0;
-		  if (!shouldKeepObstacle(hit_x, hit_y, globalMap, robotX, robotY, robotYaw, distanceDelta)) {
-			  averageDelta+=distanceDelta;
+		  if (!shouldKeepObstacle(hit_x, hit_y, globalMap, robotX, robotY, robotYaw)) {
 			  continue;
 		  }
-		averageDelta+=distanceDelta;
 		int hx = 0;
 		int hy = 0;
 		if (localToMap(hit_x, hit_y, hx, hy)) {
@@ -281,9 +267,6 @@ void CostmapMaker::markObstaclesFromScan(const sensor_msgs::msg::LaserScan& scan
 			_obstacleIndices.push_back(toIndex(hx, hy, _widthCells));
 		}
 	}
-	averageDelta /= obstacleCount;
-	localizationScore = 100.0*std::exp(-_localizationDecayFactor*averageDelta);
-	std::clamp(localizationScore, 0.0, 100.0);
 }
 
 	bool CostmapMaker::worldToGlobalMap(const nav_msgs::msg::OccupancyGrid& globalMap,
@@ -311,8 +294,7 @@ void CostmapMaker::markObstaclesFromScan(const sensor_msgs::msg::LaserScan& scan
 					      const nav_msgs::msg::OccupancyGrid* globalMap,
 					      double robotX,
 					      double robotY,
-					      double robotYaw,
-						  double& distanceDelta) const
+					      double robotYaw) const
 	{
 	  if (!_onlyUnmappedObstacles) {
 		  return true;
@@ -342,7 +324,6 @@ void CostmapMaker::markObstaclesFromScan(const sensor_msgs::msg::LaserScan& scan
 	  const int minY = std::max(0, mapY - neighborhoodCells);
 	  const int maxY = std::min(height - 1, mapY + neighborhoodCells);
 
-	  distanceDelta = std::numeric_limits<double>::infinity();
 	  for (int y = minY; y <= maxY; ++y) {
 		  for (int x = minX; x <= maxX; ++x) {
 			  const int index = y * width + x;
@@ -354,18 +335,14 @@ void CostmapMaker::markObstaclesFromScan(const sensor_msgs::msg::LaserScan& scan
 			  if (globalCost >= _globalObstacleThreshold) {
 				  const double dx = static_cast<double>(x - mapX) * resolution;
 				  const double dy = static_cast<double>(y - mapY) * resolution;
-				  const double candidateDelta = std::sqrt(dx * dx + dy * dy);
-				  if (candidateDelta <= _globalObstacleNeighborhoodRadiusM) {
-					  distanceDelta = std::min(distanceDelta, candidateDelta);
+				  // A mapped obstacle close enough explains this hit
+				  if (std::sqrt(dx * dx + dy * dy) <= _globalObstacleNeighborhoodRadiusM) {
+					  return false;
 				  }
 			  }
 		  }
 	  }
 
-	  if (std::isfinite(distanceDelta)) {
-		  return false;
-	  }
-	  distanceDelta = _globalObstacleNeighborhoodRadiusM;
 	  return true;
 	}
 
@@ -432,13 +409,6 @@ void CostmapMaker::publishCostmap()
 	_gridMsg.header.frame_id = _lidarFrame;
 	_gridMsg.data = _costmapData;
 	_costmapPub->publish(_gridMsg);
-}
-
-void CostmapMaker::publishLocalizationScore(double localizationScore)
-{
-	std_msgs::msg::Float32 localizationScoreMsg;
-	localizationScoreMsg.data = static_cast<float>(localizationScore);
-	_localizationScorePub->publish(localizationScoreMsg);
 }
 
 int main(int argc, char** argv)

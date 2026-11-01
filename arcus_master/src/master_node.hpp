@@ -25,7 +25,7 @@ class MasterNode : public rclcpp::Node
     static constexpr const char* DEFAULT_SPEED_LIMIT_TOPIC = "/track_manager/speed_limit";
     static constexpr const char* DEFAULT_FORCE_ALGO_TOPIC = "/track_manager/forced_algo";
     static constexpr const char* DEFAULT_TRAJECTORY_RISK_TOPIC = "/pure_pursuit/trajectory_risk";
-    static constexpr const char* DEFAULT_LOCALIZATION_SCORE_TOPIC = "/costmap_maker/localization_score";
+    static constexpr const char* DEFAULT_LOCALIZATION_SCORE_TOPIC = "/pf/localization_score";
 
 
     double MAX_ACCEPTED_RISK = 0.1f;

@@ -63,6 +63,11 @@ namespace particle_filter
     std::vector<int> boxedBeamIndices(double angle_min, double angle_increment, int num_ranges, int num_beams,
                                       double aspect_ratio);
 
+    // Fraction [0, 1] of beams whose observed range is within `threshold` of the expected (ray-cast) range.
+    // Beams that observed nothing (range >= max_range) carry no information and are left out; 0 if none is left
+    double inlierRatio(const std::vector<double>& observed, const std::vector<double>& expected, double max_range,
+                       double threshold);
+
     // Whether map cell (x, y) lies inside a width x height grid
     bool cellInBounds(unsigned int x, unsigned int y, unsigned int width, unsigned int height);
 

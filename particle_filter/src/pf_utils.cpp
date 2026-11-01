@@ -172,6 +172,23 @@ namespace particle_filter
         return indices;
     }
 
+    double inlierRatio(const std::vector<double>& observed, const std::vector<double>& expected, double max_range,
+                       double threshold)
+    {
+        int returns = 0;
+        int inliers = 0;
+        const size_t count = std::min(observed.size(), expected.size());
+        for (size_t i = 0; i < count; i++)
+        {
+            if (observed[i] >= max_range)
+                continue;
+            returns++;
+            if (std::fabs(observed[i] - expected[i]) <= threshold)
+                inliers++;
+        }
+        return returns > 0 ? (double)inliers / returns : 0.0;
+    }
+
     bool cellInBounds(unsigned int x, unsigned int y, unsigned int width, unsigned int height)
     {
         return x < width && y < height;

@@ -6,7 +6,6 @@
 #include <nav_msgs/msg/occupancy_grid.hpp>
 #include <nav_msgs/msg/odometry.hpp>
 #include <sensor_msgs/msg/laser_scan.hpp>
-#include <std_msgs/msg/float32.hpp>
 
 #include <cstdint>
 #include <mutex>
@@ -27,7 +26,6 @@ private:
     std::string _lidarFrame = "ego_racecar/laser";
     std::string _globalMapTopic = "/map";
     std::string _poseTopic = "/pf/pose/odom";
-    std::string _localizationScoreTopic = "/costmap_maker/localization_score";
 
     double _resolutionM = 0.05;
     double _coneRangeM = 7.0;
@@ -42,8 +40,6 @@ private:
     bool _onlyUnmappedObstacles = true;
     double _globalObstacleNeighborhoodRadiusM = 0.20;
 
-    double _localizationDecayFactor = 1.0;
-
     int8_t _unknownCost = -1;
     int8_t _freeCost = 0;
     int8_t _lethalCost = 100;
@@ -55,7 +51,6 @@ private:
     rclcpp::Subscription<nav_msgs::msg::Odometry>::SharedPtr _poseSub;
 
     rclcpp::Publisher<nav_msgs::msg::OccupancyGrid>::SharedPtr _costmapPub;
-    rclcpp::Publisher<std_msgs::msg::Float32>::SharedPtr _localizationScorePub;
     rclcpp::TimerBase::SharedPtr _updateTimer;
 
     // Shared runtime state from callbacks
@@ -95,8 +90,7 @@ private:
                                const nav_msgs::msg::OccupancyGrid* globalMap,
                                double robotX,
                                double robotY,
-                               double robotYaw,
-                               double& localizationScore);
+                               double robotYaw);
     void inflateObstacles();
     int8_t distanceToCost(double distance_m) const;
     bool worldToGlobalMap(const nav_msgs::msg::OccupancyGrid& globalMap,
@@ -109,10 +103,8 @@ private:
                             const nav_msgs::msg::OccupancyGrid* globalMap,
                             double robotX,
                             double robotY,
-                            double robotYaw,
-                            double& distanceDelta) const;
+                            double robotYaw) const;
     void publishCostmap();
-    void publishLocalizationScore(double localizationScore);
 };
 
 #endif // COSTMAP_MAKER_HPP

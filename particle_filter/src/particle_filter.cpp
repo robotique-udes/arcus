@@ -38,6 +38,7 @@ namespace particle_filter
         this->declare_parameter("boxed_aspect_ratio", 3.5);
         this->declare_parameter("use_map_penalty", true);
         this->declare_parameter("map_penalty", 0.01);
+        this->declare_parameter("inlier_threshold_m", 0.3);
         this->declare_parameter("max_particles", 1000);
         this->declare_parameter("max_viz_particles", 60);
         this->declare_parameter("range_method", "rmgpu");
@@ -79,6 +80,7 @@ namespace particle_filter
         this->get_parameter("boxed_aspect_ratio", boxed_aspect_ratio_);
         this->get_parameter("use_map_penalty", use_map_penalty_);
         this->get_parameter("map_penalty", map_penalty_);
+        this->get_parameter("inlier_threshold_m", inlier_threshold_m_);
         this->get_parameter("max_particles", tracking_particles_);
         this->get_parameter("max_viz_particles", max_viz_particles_);
         this->get_parameter("range_method", which_range_method_);
@@ -298,6 +300,7 @@ namespace particle_filter
         odom_pub_ = create_publisher<nav_msgs::msg::Odometry>("/pf/pose/odom", control_qos);
         particle_pub_ = create_publisher<geometry_msgs::msg::PoseArray>("/pf/viz/particles", 1);
         fake_scan_pub_ = create_publisher<sensor_msgs::msg::LaserScan>("/pf/viz/fake_scan", 1);
+        localization_score_pub_ = create_publisher<std_msgs::msg::Float32>("/pf/localization_score", 10);
 
         // Set up subscribers
         RCLCPP_INFO(this->get_logger(), "%s", odometry_topic_.c_str());
@@ -445,8 +448,19 @@ std::bind(&ParticleFilter::map_cb, this, std::placeholders::_1));
             sampling(relocalizing_ ? global_particles_ : tracking_particles_);
         }
 
+        const bool pose_valid = !(isnan(expected_pose_.x) || isnan(expected_pose_.y) || isnan(expected_pose_.theta));
+        if (pose_valid)
+            castExpectedScan();
+
+        // Percentage of beams that agree with the map at the estimate; an unconverged cloud has no meaningful
+        // estimate, so it scores 0
+        double score = 0.0;
+        if (pose_valid && !relocalizing_)
+            score = 100.0 * inlierRatio(downsampled_laser_ranges_, expected_ranges_, max_range_, inlier_threshold_m_);
+        publishLocalizationScore(score);
+
         // Publish and visualize info only when expected pose is valid
-        if (isnan(expected_pose_.x) || isnan(expected_pose_.y) || isnan(expected_pose_.theta))
+        if (!pose_valid)
             return;
 
         // Publish tf and odom only once localized: the mean of an unconverged cloud can be anywhere,
@@ -697,6 +711,40 @@ std::bind(&ParticleFilter::map_cb, this, std::placeholders::_1));
         }
     }
 
+    void ParticleFilter::castExpectedScan()
+    {
+        for (int i = 0; i < num_downsampled_angles_; i++)
+        {
+            viz_queries_[i * 3 + 0] = expected_pose_.x;
+            viz_queries_[i * 3 + 1] = expected_pose_.y;
+            viz_queries_[i * 3 + 2] = expected_pose_.theta + downsampled_laser_angles_[i];
+        }
+
+        if (which_range_method_ == "rmgpu")
+        {
+            (dynamic_cast<RayMarchingGPU*>(range_method_))
+                ->numpy_calc_range(viz_queries_, viz_ranges_, num_downsampled_angles_);
+        }
+        else if (which_range_method_ == "glt")
+        {
+            (dynamic_cast<GiantLUTCast*>(range_method_))
+                ->numpy_calc_range(viz_queries_, viz_ranges_, num_downsampled_angles_);
+        }
+        else
+        {
+            throw std::runtime_error("Invalid range_method value");
+        }
+
+        expected_ranges_.assign(viz_ranges_, viz_ranges_ + num_downsampled_angles_);
+    }
+
+    void ParticleFilter::publishLocalizationScore(double score)
+    {
+        std_msgs::msg::Float32 msg;
+        msg.data = static_cast<float>(score);
+        localization_score_pub_->publish(msg);
+    }
+
     void ParticleFilter::visualize()
     {
         if (!viz_)
@@ -748,29 +796,12 @@ std::bind(&ParticleFilter::map_cb, this, std::placeholders::_1));
         if (!(isnan(expected_pose_.x) || isnan(expected_pose_.y) || isnan(expected_pose_.theta))
             && fake_scan_pub_->get_subscription_count() > 0)
         {
+            // expected_ranges_ was cast from expected_pose_ in update()
             double max_range = -1e+6;
             for (int i = 0; i < num_downsampled_angles_; i++)
             {
-                viz_queries_[i * 3 + 0] = expected_pose_.x;
-                viz_queries_[i * 3 + 1] = expected_pose_.y;
-                viz_queries_[i * 3 + 2] = expected_pose_.theta + downsampled_laser_angles_[i];
                 if (downsampled_laser_ranges_[i] > max_range)
                     max_range = downsampled_laser_ranges_[i];
-            }
-
-            if (which_range_method_ == "rmgpu")
-            {
-                (dynamic_cast<RayMarchingGPU*>(range_method_))
-                    ->numpy_calc_range(viz_queries_, viz_ranges_, num_downsampled_angles_);
-            }
-            else if (which_range_method_ == "glt")
-            {
-                (dynamic_cast<GiantLUTCast*>(range_method_))
-                    ->numpy_calc_range(viz_queries_, viz_ranges_, num_downsampled_angles_);
-            }
-            else
-            {
-                throw std::runtime_error("Invalid range_method value");
             }
 
             auto scan = std::make_unique<sensor_msgs::msg::LaserScan>();
@@ -785,7 +816,7 @@ std::bind(&ParticleFilter::map_cb, this, std::placeholders::_1));
             scan->ranges.assign(num_ranges_, std::numeric_limits<float>::quiet_NaN());
             for (int i = 0; i < num_downsampled_angles_; i++)
             {
-                scan->ranges[beam_indices_[i]] = viz_ranges_[i];
+                scan->ranges[beam_indices_[i]] = expected_ranges_[i];
             }
             fake_scan_pub_->publish(std::move(scan));
         }

@@ -5,7 +5,6 @@ costmap_maker:
     lidar_frame: "ego_racecar/laser"
     global_map_topic: "/map"
     pose_topic: "/pf/pose/odom"
-    localization_score_topic: "/costmap_maker/localization_score"
 
     # Local costmap geometry
     resolution_m: 0.05                           # Cell size in meters
@@ -28,4 +27,3 @@ costmap_maker:
     global_obstacle_threshold: 50                # Global map occupancy value treated as obstacle
     global_obstacle_neighborhood_radius_m: 0.20  # Match radius in meters for global obstacle lookup
 
-    localization_decay_factor: 5.0               # Exponential decay factor (1/m); score = 100 * exp(-factor * mean mismatch distance)

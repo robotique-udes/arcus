@@ -15,6 +15,8 @@ particle_filter:
     # weight factor for particles in walls, unknown space or off the map
     use_map_penalty: false
     map_penalty: 0.01
+    # localization score (/pf/localization_score, 0-100): % of beams within this range of the map's prediction
+    inlier_threshold_m: 0.3
     max_particles: 2000
     squash_factor: 2.2
     # visualization

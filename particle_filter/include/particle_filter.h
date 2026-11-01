@@ -9,6 +9,7 @@
 #include <nav_msgs/msg/occupancy_grid.hpp>
 #include <nav_msgs/msg/odometry.hpp>
 #include <sensor_msgs/msg/laser_scan.hpp>
+#include <std_msgs/msg/float32.hpp>
 #include <std_srvs/srv/empty.hpp>
 #include <tf2/LinearMath/Quaternion.h>
 #include <tf2_geometry_msgs/tf2_geometry_msgs.hpp>
@@ -108,6 +109,9 @@ namespace particle_filter
         void expectedPoseMean();
         void getMaxWeightParticle();
         void publishTfOdom();
+        // Ray-casts the used beams from expected_pose_ into expected_ranges_
+        void castExpectedScan();
+        void publishLocalizationScore(double score);
         void visualize();
 
         // Utils
@@ -121,6 +125,7 @@ namespace particle_filter
         rclcpp::Publisher<nav_msgs::msg::Odometry>::SharedPtr odom_pub_;
         rclcpp::Publisher<geometry_msgs::msg::PoseArray>::SharedPtr particle_pub_;
         rclcpp::Publisher<sensor_msgs::msg::LaserScan>::SharedPtr fake_scan_pub_;
+        rclcpp::Publisher<std_msgs::msg::Float32>::SharedPtr localization_score_pub_;
 
         rclcpp::Subscription<nav_msgs::msg::Odometry>::SharedPtr odom_sub_;
         rclcpp::Subscription<sensor_msgs::msg::LaserScan>::SharedPtr laser_sub_;
@@ -158,6 +163,7 @@ namespace particle_filter
         std::vector<int> beam_indices_;  // beams of the scan the filter uses, from boxedBeamIndices
         std::vector<double> downsampled_laser_angles_;
         std::vector<double> downsampled_laser_ranges_;
+        std::vector<double> expected_ranges_;  // ranges ray-cast from expected_pose_ along the used beams
 
         // Initial pose
         bool set_initial_pose_;
@@ -221,6 +227,7 @@ namespace particle_filter
         double boxed_aspect_ratio_;  // length / width of the corridor the boxed selection spaces beams along
         bool use_map_penalty_;       // whether particles outside free space are penalized
         double map_penalty_;         // weight factor for particles outside free space
+        double inlier_threshold_m_;  // max |observed - expected| range for a beam to count as an inlier [m]
         int num_downsampled_angles_;
         int tracking_particles_;  // particle count once localized ("max_particles" parameter)
         int global_particles_;    // particle count during global localization
