@@ -5,6 +5,7 @@
 #include <tf2/time.hpp>
 
 #include <cmath>
+#include <limits>
 
 namespace particle_filter
 {
@@ -33,7 +34,10 @@ namespace particle_filter
         this->declare_parameter("odom_frame", "odom");
         this->declare_parameter("laser_frame", "laser");
         this->declare_parameter("transform_tolerance", 0.1);
-        this->declare_parameter("angle_step", 18);
+        this->declare_parameter("boxed_num_beams", 21);
+        this->declare_parameter("boxed_aspect_ratio", 3.5);
+        this->declare_parameter("use_map_penalty", true);
+        this->declare_parameter("map_penalty", 0.01);
         this->declare_parameter("max_particles", 1000);
         this->declare_parameter("max_viz_particles", 60);
         this->declare_parameter("range_method", "rmgpu");
@@ -71,7 +75,10 @@ namespace particle_filter
         this->get_parameter("odom_frame", odom_frame_);
         this->get_parameter("laser_frame", laser_frame_);
         this->get_parameter("transform_tolerance", transform_tolerance_);
-        this->get_parameter("angle_step", angle_step_);
+        this->get_parameter("boxed_num_beams", boxed_num_beams_);
+        this->get_parameter("boxed_aspect_ratio", boxed_aspect_ratio_);
+        this->get_parameter("use_map_penalty", use_map_penalty_);
+        this->get_parameter("map_penalty", map_penalty_);
         this->get_parameter("max_particles", tracking_particles_);
         this->get_parameter("max_viz_particles", max_viz_particles_);
         this->get_parameter("range_method", which_range_method_);
@@ -321,11 +328,15 @@ std::bind(&ParticleFilter::map_cb, this, std::placeholders::_1));
             RCLCPP_INFO(this->get_logger(), "...Received first LiDAR message");
             angle_min_ = msg->angle_min;
             angle_increment_ = msg->angle_increment;
-            for (size_t i = 0; i < (msg->ranges).size(); i = i + angle_step_)
+            num_ranges_ = (int)msg->ranges.size();
+            beam_indices_ =
+                boxedBeamIndices(angle_min_, angle_increment_, num_ranges_, boxed_num_beams_, boxed_aspect_ratio_);
+            for (int i : beam_indices_)
             {
                 downsampled_laser_angles_.push_back(angle_min_ + angle_increment_ * i);
             }
             num_downsampled_angles_ = downsampled_laser_angles_.size();
+            RCLCPP_INFO(this->get_logger(), "Using %d of %d beams", num_downsampled_angles_, num_ranges_);
 
             // allocate memory
             angles_ = new float[num_downsampled_angles_];
@@ -341,7 +352,7 @@ std::bind(&ParticleFilter::map_cb, this, std::placeholders::_1));
         }
 
         downsampled_laser_ranges_.clear();
-        for (size_t i = 0; i < (msg->ranges).size(); i = i + angle_step_)
+        for (int i : beam_indices_)
         {
             double range = msg->ranges[i];
             if (!std::isfinite(range) || range < msg->range_min || range > msg->range_max)
@@ -372,34 +383,6 @@ std::bind(&ParticleFilter::map_cb, this, std::placeholders::_1));
         linear_speed = msg->twist.twist.linear.x;
         angular_speed = msg->twist.twist.angular.z;
         last_stamp_ = msg->header.stamp;
-    }
-
-    void ParticleFilter::applyRoughening()
-    {
-        double n_eff = calculateESS(particles_);
-        // If ESS is high (weights are uniform), sensor data is uninformative
-        // Add extra noise to prevent particle collapse in ambiguous scenarios
-        const int num_particles = (int)particles_.size();
-        double ess_threshold = num_particles * 0.2;  // 50% of particles
-
-        if (n_eff > ess_threshold)
-        {
-            // Weights are very uniform - we're in a low-information scenario (like a
-            // corridor)
-            std::normal_distribution<double> rough_x(0.0, 0.1);      // 10cm extra noise
-            std::normal_distribution<double> rough_y(0.0, 0.05);     // 5cm lateral noise
-            std::normal_distribution<double> rough_theta(0.0, 0.1);  // ~5.7 deg noise
-            std::mt19937& generator = rng_.engine();
-
-            for (int i = 0; i < num_particles; i++)
-            {
-                particles_[i].x += rough_x(generator);
-                particles_[i].y += rough_y(generator);
-                particles_[i].theta += rough_theta(generator);
-            }
-
-            RCLCPP_INFO(this->get_logger(), "Applied roughening - ESS: %.1f / %d", n_eff, num_particles);
-        }
     }
 
     void ParticleFilter::update()
@@ -567,15 +550,48 @@ std::bind(&ParticleFilter::map_cb, this, std::placeholders::_1));
 
             // Flatter weights while relocalizing, so the cloud doesn't lock onto a lookalike spot after one scan
             double inv_squash_factor = 1.0 / (relocalizing_ ? global_squash_factor_ : squash_factor_);
+
+            // World -> map cell, as in worldToMap, but floored so a particle just outside the map isn't put in cell 0
+            const auto& info = loaded_map_->info;
+            const double map_angle = -1.0 * getYaw(info.origin.orientation);
+            const double map_cos = cos(map_angle);
+            const double map_sin = sin(map_angle);
+
             double weight_sum = 0.0;
             for (int i = 0; i < num_particles; i++)
             {
                 weights_[i] = particles_[i].weight*pow(weights_[i], inv_squash_factor);
+
+                // Particles in walls, unknown space or off the map can still match the scan; penalize them
+                if (use_map_penalty_)
+                {
+                    double dx = particles_[i].x - info.origin.position.x;
+                    double dy = particles_[i].y - info.origin.position.y;
+                    double cell_x = std::floor((map_cos * dx - map_sin * dy) / info.resolution);
+                    double cell_y = std::floor((map_sin * dx + map_cos * dy) / info.resolution);
+                    bool in_free_space = cell_x >= 0.0 && cell_y >= 0.0
+                             && cellInBounds((unsigned int)cell_x, (unsigned int)cell_y, info.width, info.height)
+                             && loaded_map_->data[(size_t)cell_y * info.width + (size_t)cell_x] == 0;
+                    if (!in_free_space)
+                        weights_[i] *= map_penalty_;
+                }
+
                 weight_sum += weights_[i];
             }
-            for (int i = 0; i < num_particles; i++)
+
+            if (!(weight_sum > 0.0) || !std::isfinite(weight_sum))
             {
-                particles_[i].weight = weights_[i] / weight_sum;
+                // Every weight underflowed (e.g. the whole cloud in walls): start over from equal weights
+                RCLCPP_WARN(get_logger(), "All particle weights are 0, resetting them to uniform");
+                for (int i = 0; i < num_particles; i++)
+                    particles_[i].weight = 1.0 / num_particles;
+            }
+            else
+            {
+                for (int i = 0; i < num_particles; i++)
+                {
+                    particles_[i].weight = weights_[i] / weight_sum;
+                }
             }
         }
         else
@@ -755,15 +771,16 @@ std::bind(&ParticleFilter::map_cb, this, std::placeholders::_1));
             auto scan = std::make_unique<sensor_msgs::msg::LaserScan>();
             scan->header.stamp = scan_stamp_;
             scan->header.frame_id = laser_frame_;
-            scan->angle_min = std::min(downsampled_laser_angles_[0], downsampled_laser_angles_[num_downsampled_angles_ - 1]);
-            scan->angle_max = std::max(downsampled_laser_angles_[0], downsampled_laser_angles_[num_downsampled_angles_ - 1]);
-            scan->angle_increment = abs(downsampled_laser_angles_[1] - downsampled_laser_angles_[0]);
+            // The used beams aren't evenly spaced, so publish at the full scan's resolution with the unused beams NaN
+            scan->angle_min = angle_min_;
+            scan->angle_max = angle_min_ + angle_increment_ * (num_ranges_ - 1);
+            scan->angle_increment = angle_increment_;
             scan->range_min = 0.0;
             scan->range_max = max_range;
-            scan->ranges.resize(num_downsampled_angles_);
+            scan->ranges.assign(num_ranges_, std::numeric_limits<float>::quiet_NaN());
             for (int i = 0; i < num_downsampled_angles_; i++)
             {
-                scan->ranges[i] = viz_ranges_[i];
+                scan->ranges[beam_indices_[i]] = viz_ranges_[i];
             }
             fake_scan_pub_->publish(std::move(scan));
         }

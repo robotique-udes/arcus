@@ -154,6 +154,8 @@ namespace particle_filter
 
         double angle_min_;
         double angle_increment_;
+        int num_ranges_;                // beams in a full scan
+        std::vector<int> beam_indices_;  // beams of the scan the filter uses, from boxedBeamIndices
         std::vector<double> downsampled_laser_angles_;
         std::vector<double> downsampled_laser_ranges_;
 
@@ -214,8 +216,11 @@ namespace particle_filter
         int fine_timing_;
         int publish_odom_;
 
-        // downsampling parameter and other parameters
-        int angle_step_;
+        // beam selection, map penalty and other parameters
+        int boxed_num_beams_;        // beams picked by the boxed selection
+        double boxed_aspect_ratio_;  // length / width of the corridor the boxed selection spaces beams along
+        bool use_map_penalty_;       // whether particles outside free space are penalized
+        double map_penalty_;         // weight factor for particles outside free space
         int num_downsampled_angles_;
         int tracking_particles_;  // particle count once localized ("max_particles" parameter)
         int global_particles_;    // particle count during global localization

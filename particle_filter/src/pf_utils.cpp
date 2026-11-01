@@ -82,6 +82,96 @@ namespace particle_filter
         return motion;
     }
 
+    namespace
+    {
+        struct Point2D
+        {
+            double x;
+            double y;
+        };
+
+        // Where a beam at `angle` leaves a box with corners (+-aspect_ratio, +-1) centred on the lidar
+        Point2D boxHit(double angle, double aspect_ratio)
+        {
+            double c = std::cos(angle);
+            double s = std::sin(angle);
+
+            // Distance along the beam to the front/back wall and to the side wall; a beam parallel to a wall never
+            // reaches it
+            double to_end_wall = std::fabs(c) > 1e-12 ? aspect_ratio / std::fabs(c) : HUGE_VAL;
+            double to_side_wall = std::fabs(s) > 1e-12 ? 1.0 / std::fabs(s) : HUGE_VAL;
+
+            // The beam leaves through whichever wall it reaches first
+            double t = std::min(to_end_wall, to_side_wall);
+            return Point2D{t * c, t * s};
+        }
+
+        double distance(const Point2D& a, const Point2D& b)
+        {
+            return std::hypot(b.x - a.x, b.y - a.y);
+        }
+    }  // namespace
+
+    std::vector<int> boxedBeamIndices(double angle_min, double angle_increment, int num_ranges, int num_beams,
+                                      double aspect_ratio)
+    {
+        std::vector<int> indices;
+        if (num_ranges <= 0 || num_beams <= 0)
+            return indices;
+
+        // The middle beam points forward and is always used
+        const int middle = num_ranges / 2;
+        const int last = num_ranges - 1;
+        const int per_side = std::min((num_beams - 1) / 2, last - middle);
+        indices.push_back(middle);
+        if (per_side == 0)
+            return indices;
+
+        // Hit points of the beams from the middle to the end of the scan. Only this side is walked; the scan is
+        // symmetric, so the other side is its mirror image
+        std::vector<Point2D> hits;
+        for (int i = middle; i <= last; i++)
+        {
+            hits.push_back(boxHit(angle_min + angle_increment * i, aspect_ratio));
+        }
+
+        // Length of wall this side of the scan covers, and the wall distance between two picked beams
+        double wall_length = 0.0;
+        for (size_t k = 1; k < hits.size(); k++)
+        {
+            wall_length += distance(hits[k - 1], hits[k]);
+        }
+        const double spacing = wall_length / per_side;
+
+        // Walk outward from the middle, picking a beam each time another `spacing` of wall has been covered
+        std::vector<int> side;
+        double covered = 0.0;
+        for (size_t k = 1; k < hits.size() && (int)side.size() < per_side; k++)
+        {
+            covered += distance(hits[k - 1], hits[k]);
+            if (covered >= spacing)
+            {
+                side.push_back(middle + (int)k);
+                covered -= spacing;  // keep the overshoot, so the gaps don't drift
+            }
+        }
+        // Rounding can leave the outermost pick just short of the scan's edge
+        if ((int)side.size() < per_side && (side.empty() || side.back() != last))
+        {
+            side.push_back(last);
+        }
+
+        // Each pick and its mirror image on the other side
+        for (int i : side)
+        {
+            indices.push_back(i);
+            indices.push_back(2 * middle - i);
+        }
+
+        std::sort(indices.begin(), indices.end());
+        return indices;
+    }
+
     bool cellInBounds(unsigned int x, unsigned int y, unsigned int width, unsigned int height)
     {
         return x < width && y < height;

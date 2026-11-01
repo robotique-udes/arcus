@@ -9,8 +9,12 @@ particle_filter:
     laser_frame: 'ego_racecar/laser'
     publish_map_to_odom: true
     transform_tolerance: 0.5
-    # range data downsampling
-    angle_step: 10
+    # boxed beam selection: beams evenly spaced along a corridor's walls, more of them looking down the track
+    boxed_num_beams: 21
+    boxed_aspect_ratio: 3.5
+    # weight factor for particles in walls, unknown space or off the map
+    use_map_penalty: false
+    map_penalty: 0.01
     max_particles: 2000
     squash_factor: 2.2
     # visualization

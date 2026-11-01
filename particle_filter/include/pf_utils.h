@@ -54,6 +54,15 @@ namespace particle_filter
     // everything is 0 and the motion is left to accumulate into a later update
     DiffModel decomposeMotion(const Pose2D& delta, double standstill_m);
 
+    // Indices of `num_beams` beams of a scan, chosen so that their hits on a corridor `aspect_ratio` times longer
+    // than wide (centred on the lidar, along its x axis) are evenly spaced along the corridor's walls. This puts
+    // more beams towards the front, down the track, than evenly spaced angles do. The scan is assumed symmetric,
+    // with its middle beam pointing forward: one side is picked and mirrored onto the other. The middle beam is
+    // always picked, then (num_beams - 1) / 2 per side, so an even num_beams rounds down by one. Sorted ascending.
+    // Boxed lidar scan, Stahl et al. 2019 / SynPF
+    std::vector<int> boxedBeamIndices(double angle_min, double angle_increment, int num_ranges, int num_beams,
+                                      double aspect_ratio);
+
     // Whether map cell (x, y) lies inside a width x height grid
     bool cellInBounds(unsigned int x, unsigned int y, unsigned int width, unsigned int height);
 
