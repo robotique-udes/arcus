@@ -10,54 +10,9 @@ from rcl_interfaces.srv import GetParameters, ListParameters, SetParameters
 from rcl_interfaces.msg import ParameterType, SetParametersResult, Parameter, ParameterValue
 
 class ParamSaverNode(Node):
-    """
-    ParamSaverNode: A centralized ROS 2 node for saving, loading, and switching parameter profiles across multiple nodes.
-
-    Use Cases:
-    ----------
-    1. Parameter Persistence:
-    Retrieves current runtime parameter values from target nodes via ROS 2 parameter services
-    and saves them into structured YAML configuration files.
-
-    2. Dynamic Profile Management:
-    Switch between runtime parameter profiles (e.g., 'default', 'racing', 'testing').
-    If a requested profile directory exists, parameters are loaded into target nodes at runtime.
-    If it does not exist, a new profile directory is created using current parameter states as a baseline.
-
-    3. Profile Discovery:
-    Scans the configuration directory and exports a list of available profile names as a node parameter
-    for external discovery by GUIs or orchestrators.
-
-    CLI Usage Examples:
-    -------------------
-    1. Save Current Parameters:
-    Trigger a parameter dump to save runtime values across all managed nodes to the active profile:
-    
-    $ ros2 service call /arcus/save_parameters std_srvs/srv/Trigger "{}"
-
-    2. Switch Active Profile:
-    Set the active profile name to automatically switch parameter sets across target nodes:
-    
-    $ ros2 param set /arcus/param_saver_node config_name "racing"
-
-    3. Query Active Profile:
-    Retrieve the currently active configuration profile name:
-   
-    $ ros2 param get /arcus/param_saver_node config_name
-
-    4. Query Available Profiles:
-    Retrieve the list of detected configuration profile directories:
-    
-    $ ros2 param get /arcus/param_saver_node available_profiles
-    """
     def __init__(self):
         super().__init__('param_saver_node')
-
-        # ==========================================
-        # FILE PATHS
-        # ==========================================
-        # Adjust base_path and workspace_defaults based on the location of the config files
-        # This varies whether you are in simulation or on the car
+        
         self.base_path = '/home/arcus/'
 
         self.node_config_path = os.path.join(self.base_path, 'param_saver_node/config/param_saver_node.yaml')
