@@ -14,10 +14,10 @@
 
 class CostmapMaker : public rclcpp::Node
 {
-public:
+  public:
     CostmapMaker();
 
-private:
+  private:
     static constexpr std::size_t DEFAULT_QOS_DEPTH = 10;
 
     // Parameters (defaults before parameter load)
@@ -92,11 +92,7 @@ private:
                                double robotYaw);
     void inflateObstacles();
     int8_t distanceToCost(double distance_m) const;
-    bool worldToGlobalMap(const nav_msgs::msg::OccupancyGrid& globalMap,
-                          double worldX,
-                          double worldY,
-                          int& mx,
-                          int& my) const;
+    bool worldToGlobalMap(const nav_msgs::msg::OccupancyGrid& globalMap, double worldX, double worldY, int& mx, int& my) const;
     bool shouldKeepObstacle(double localX,
                             double localY,
                             const nav_msgs::msg::OccupancyGrid* globalMap,
@@ -106,4 +102,4 @@ private:
     void publishCostmap();
 };
 
-#endif // COSTMAP_MAKER_HPP
+#endif  // COSTMAP_MAKER_HPP
