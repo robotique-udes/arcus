@@ -19,23 +19,22 @@ class TrackZoneManager : public rclcpp::Node
 {
   public:
     // Initialize parameters, publishers, CSV-backed zone tables, and odometry subscription.
-    TrackZoneManager()
-    : Node("track_zone_manager")
+    TrackZoneManager():
+        Node("track_zone_manager")
     {
         odom_topic_ = this->declare_parameter<std::string>("odom_topic", "/pf/pose/odom");
         speed_limit_topic_ = this->declare_parameter<std::string>("speed_limit_topic", "/speed_limit");
         force_algo_topic_ = this->declare_parameter<std::string>("force_algo_topic", "/force_algo");
-        speed_zones_csv_path_ = this->declare_parameter<std::string>(
-            "speed_zones_csv_path", "/home/arcus/arcus/resources/speed_zones.csv");
-        algos_csv_path_ = this->declare_parameter<std::string>(
-            "algos_csv_path", "/home/arcus/arcus/resources/algos.csv");
+        speed_zones_csv_path_
+            = this->declare_parameter<std::string>("speed_zones_csv_path", "/home/arcus/arcus/resources/speed_zones.csv");
+        algos_csv_path_ = this->declare_parameter<std::string>("algos_csv_path", "/home/arcus/arcus/resources/algos.csv");
 
         speed_pub_ = this->create_publisher<std_msgs::msg::Float64>(speed_limit_topic_, 10);
         algo_pub_ = this->create_publisher<std_msgs::msg::String>(force_algo_topic_, 10);
 
         loadSpeedZones(speed_zones_csv_path_);
         loadAlgoZones(algos_csv_path_);
-        
+
         const auto odom_qos = rclcpp::QoS(rclcpp::KeepLast(1)).best_effort();
 
         odom_sub_ = this->create_subscription<nav_msgs::msg::Odometry>(
@@ -74,7 +73,7 @@ class TrackZoneManager : public rclcpp::Node
     };
 
     // Remove leading and trailing whitespace from a CSV token.
-    static std::string trim(const std::string & input)
+    static std::string trim(const std::string& input)
     {
         size_t start = 0;
         size_t end = input.size();
@@ -92,7 +91,7 @@ class TrackZoneManager : public rclcpp::Node
     }
 
     // Split one CSV row into comma-separated fields and trim each field.
-    static std::vector<std::string> splitCsvLine(const std::string & line)
+    static std::vector<std::string> splitCsvLine(const std::string& line)
     {
         std::vector<std::string> fields;
         std::stringstream ss(line);
@@ -107,7 +106,7 @@ class TrackZoneManager : public rclcpp::Node
     }
 
     // Ray-casting point-in-polygon test: returns true when point p is inside polygon.
-    static bool pointInPolygon(const Point & p, const std::vector<Point> & polygon)
+    static bool pointInPolygon(const Point& p, const std::vector<Point>& polygon)
     {
         if (polygon.size() < 3)
         {
@@ -119,11 +118,12 @@ class TrackZoneManager : public rclcpp::Node
         // and then increments i (current vertex), so edges wrap as last->0, 0->1, 1->2, ...
         for (size_t i = 0, j = polygon.size() - 1; i < polygon.size(); j = i++)
         {
-            const Point & pi = polygon[i];
-            const Point & pj = polygon[j];
+            const Point& pi = polygon[i];
+            const Point& pj = polygon[j];
 
-            const bool intersects = ((pi.y > p.y) != (pj.y > p.y)) &&
-                (p.x < ((pj.x - pi.x) * (p.y - pi.y) / ((pj.y - pi.y) + std::numeric_limits<double>::epsilon()) + pi.x));
+            const bool intersects
+                = ((pi.y > p.y) != (pj.y > p.y))
+                  && (p.x < ((pj.x - pi.x) * (p.y - pi.y) / ((pj.y - pi.y) + std::numeric_limits<double>::epsilon()) + pi.x));
 
             if (intersects)
             {
@@ -134,7 +134,7 @@ class TrackZoneManager : public rclcpp::Node
     }
 
     // Load speed polygons from CSV and store them ordered by polygon_id and vertex_index.
-    void loadSpeedZones(const std::string & csv_path)
+    void loadSpeedZones(const std::string& csv_path)
     {
         std::ifstream file(csv_path);
         if (!file.is_open())
@@ -178,23 +178,24 @@ class TrackZoneManager : public rclcpp::Node
         }
 
         // Rebuild one SpeedZone per polygon_id from the grouped CSV rows.
-        for (auto & kv : points_by_polygon)
+        for (auto& kv : points_by_polygon)
         {
             int polygon_id = kv.first;
-            std::vector<IndexedPoint> & indexed_points = kv.second;
+            std::vector<IndexedPoint>& indexed_points = kv.second;
             // Vertex order from CSV is not guaranteed in the map, so sort by vertex_index first.
-            std::sort(indexed_points.begin(), indexed_points.end(),
-                [](const IndexedPoint & a, const IndexedPoint & b)
-                {
-                    return a.vertex_index < b.vertex_index;
-                });
+            std::sort(indexed_points.begin(),
+                      indexed_points.end(),
+                      [](const IndexedPoint& a, const IndexedPoint& b)
+                      {
+                          return a.vertex_index < b.vertex_index;
+                      });
 
             SpeedZone zone;
             zone.polygon_id = polygon_id;
             zone.max_speed = speed_by_polygon[polygon_id];
             // Reserve once to avoid repeated allocations while copying points.
             zone.polygon.reserve(indexed_points.size());
-            for (const auto & ip : indexed_points)
+            for (const auto& ip : indexed_points)
             {
                 zone.polygon.push_back(ip.point);
             }
@@ -202,17 +203,18 @@ class TrackZoneManager : public rclcpp::Node
         }
 
         // Keep deterministic matching priority across runs (unordered_map iteration order is arbitrary).
-        std::sort(speed_zones_.begin(), speed_zones_.end(),
-            [](const SpeedZone & a, const SpeedZone & b)
-            {
-                return a.polygon_id < b.polygon_id;
-            });
+        std::sort(speed_zones_.begin(),
+                  speed_zones_.end(),
+                  [](const SpeedZone& a, const SpeedZone& b)
+                  {
+                      return a.polygon_id < b.polygon_id;
+                  });
 
         RCLCPP_INFO(this->get_logger(), "Loaded %zu speed polygons from %s", speed_zones_.size(), csv_path.c_str());
     }
 
     // Load algorithm polygons from CSV and store them ordered by polygon_id and vertex_index.
-    void loadAlgoZones(const std::string & csv_path)
+    void loadAlgoZones(const std::string& csv_path)
     {
         std::ifstream file(csv_path);
         if (!file.is_open())
@@ -255,32 +257,34 @@ class TrackZoneManager : public rclcpp::Node
             algo_by_polygon[polygon_id] = algorithm;
         }
 
-        for (auto & kv : points_by_polygon)
+        for (auto& kv : points_by_polygon)
         {
             int polygon_id = kv.first;
-            std::vector<IndexedPoint> & indexed_points = kv.second;
-            std::sort(indexed_points.begin(), indexed_points.end(),
-                [](const IndexedPoint & a, const IndexedPoint & b)
-                {
-                    return a.vertex_index < b.vertex_index;
-                });
+            std::vector<IndexedPoint>& indexed_points = kv.second;
+            std::sort(indexed_points.begin(),
+                      indexed_points.end(),
+                      [](const IndexedPoint& a, const IndexedPoint& b)
+                      {
+                          return a.vertex_index < b.vertex_index;
+                      });
 
             AlgoZone zone;
             zone.polygon_id = polygon_id;
             zone.algorithm = algo_by_polygon[polygon_id];
             zone.polygon.reserve(indexed_points.size());
-            for (const auto & ip : indexed_points)
+            for (const auto& ip : indexed_points)
             {
                 zone.polygon.push_back(ip.point);
             }
             algo_zones_.push_back(zone);
         }
 
-        std::sort(algo_zones_.begin(), algo_zones_.end(),
-            [](const AlgoZone & a, const AlgoZone & b)
-            {
-                return a.polygon_id < b.polygon_id;
-            });
+        std::sort(algo_zones_.begin(),
+                  algo_zones_.end(),
+                  [](const AlgoZone& a, const AlgoZone& b)
+                  {
+                      return a.polygon_id < b.polygon_id;
+                  });
 
         RCLCPP_INFO(this->get_logger(), "Loaded %zu algo polygons from %s", algo_zones_.size(), csv_path.c_str());
     }
@@ -291,7 +295,7 @@ class TrackZoneManager : public rclcpp::Node
         Point p{msg->pose.pose.position.x, msg->pose.pose.position.y};
 
         bool speed_found = false;
-        for (const auto & zone : speed_zones_)
+        for (const auto& zone : speed_zones_)
         {
             if (pointInPolygon(p, zone.polygon))
             {
@@ -304,7 +308,7 @@ class TrackZoneManager : public rclcpp::Node
         }
 
         bool algo_found = false;
-        for (const auto & zone : algo_zones_)
+        for (const auto& zone : algo_zones_)
         {
             if (pointInPolygon(p, zone.polygon))
             {
@@ -341,7 +345,7 @@ class TrackZoneManager : public rclcpp::Node
     rclcpp::Publisher<std_msgs::msg::String>::SharedPtr algo_pub_;
 };
 
-int main(int argc, char ** argv)
+int main(int argc, char** argv)
 {
     // Standard ROS 2 node lifecycle.
     rclcpp::init(argc, argv);
