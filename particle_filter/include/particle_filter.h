@@ -199,8 +199,8 @@ namespace particle_filter
         double z_max_;
         double z_rand_;
         double z_hit_;
-        double sigma_hit_;
-        double lambda_short_;
+        double sigma_hit_m_;         // std of the hit Gaussian [m]
+        double lambda_short_per_m_;  // decay rate of the short-reading exponential [1/m]
 
         // TUM motion model constants
         double alpha_1_;        // how rotation affects rotation noise

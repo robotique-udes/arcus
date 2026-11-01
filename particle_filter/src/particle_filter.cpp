@@ -53,8 +53,8 @@ namespace particle_filter
         this->declare_parameter("z_max", 0.025);
         this->declare_parameter("z_rand", 0.025);
         this->declare_parameter("z_hit", 0.85);
-        this->declare_parameter("sigma_hit", 8.0);
-        this->declare_parameter("lambda_short", 0.1);
+        this->declare_parameter("sigma_hit_m", 0.24);
+        this->declare_parameter("lambda_short_per_m", 3.33);
         this->declare_parameter("alpha_1", 0.5);
         this->declare_parameter("alpha_2", 0.015);
         this->declare_parameter("alpha_3", 1.0);
@@ -93,8 +93,8 @@ namespace particle_filter
         this->get_parameter("z_max", z_max_);
         this->get_parameter("z_rand", z_rand_);
         this->get_parameter("z_hit", z_hit_);
-        this->get_parameter("sigma_hit", sigma_hit_);
-        this->get_parameter("lambda_short", lambda_short_);
+        this->get_parameter("sigma_hit_m", sigma_hit_m_);
+        this->get_parameter("lambda_short_per_m", lambda_short_per_m_);
         this->get_parameter("alpha_1", alpha_1_);
         this->get_parameter("alpha_2", alpha_2_);
         this->get_parameter("alpha_3", alpha_3_);
@@ -143,25 +143,30 @@ namespace particle_filter
         int table_width = max_range_px_ + 1;
         double* table = new double[table_width * table_width];
 
+        // The table is indexed in map pixels, so convert the SI parameters to pixels
+        const double resolution = loaded_map_->info.resolution;
+        const double sigma_hit = sigma_hit_m_ / resolution;            // [px]
+        const double lambda_short = lambda_short_per_m_ * resolution;  // [1/px]
+
         // Calculate for each possible simulated LiDAR range value d and potiential
         // observed range value r
         for (int d = 0; d < table_width; d++)
         {
             // This beam model is based on Probabilistic Robotics by Thrun, Burgard and Fox, 2005, p.153
             // We need to normalize p_hit and p_short be cause they are truncated distributions
-            const double p_hit_normalizer = normal_cdf((max_range_px_ - d) / sigma_hit_)
-                                            - normal_cdf(-d / sigma_hit_);
-            const double p_short_normalizer = -std::expm1(-lambda_short_ * d);
+            const double p_hit_normalizer = normal_cdf((max_range_px_ - d) / sigma_hit)
+                                            - normal_cdf(-d / sigma_hit);
+            const double p_short_normalizer = -std::expm1(-lambda_short * d);
             double norm = 0.0;
             for (int r = 0; r < table_width; r++)
             {
                 double prob = 0.0;
                 double z = (double)(r - d);
                 // Add p_hit
-                prob += z_hit_ * exp(-(z * z) / (2.0 * sigma_hit_ * sigma_hit_)) / (sigma_hit_ * sqrt(2 * M_PI) * p_hit_normalizer);
+                prob += z_hit_ * exp(-(z * z) / (2.0 * sigma_hit * sigma_hit)) / (sigma_hit * sqrt(2 * M_PI) * p_hit_normalizer);
                 if (r < d && p_short_normalizer > 0.0)
                     // p_short
-                    prob += z_short_ * lambda_short_ * std::exp(-lambda_short_ * r) / p_short_normalizer;
+                    prob += z_short_ * lambda_short * std::exp(-lambda_short * r) / p_short_normalizer;
                 if (r == max_range_px_)
                     // p_max
                     prob += z_max_;

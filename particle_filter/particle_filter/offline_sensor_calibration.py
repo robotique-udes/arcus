@@ -14,7 +14,7 @@ from rosidl_runtime_py.utilities import get_message
 from scipy.spatial.transform import Rotation, Slerp
 from scipy.special import erf
 
-BAG_PATH = "/sim_ws/src/arcus/resources/rosbag2_2026_10_14-00_33_28"
+BAG_PATH = "/sim_ws/src/arcus/resources/rosbag2_2026_10_21-00_52_42"
 SCAN_TOPIC = "/scan"
 MAP_TOPIC = "/map"
 TF_TOPIC = "/tf"
@@ -25,7 +25,7 @@ LASER_FRAME = "ego_racecar/laser"
 MAX_RANGE = 10.0  # use the particle filter's max_range
 THETA_DISCRETIZATION = 112.0  # cddt, pcddt and glt only
 SCAN_BEAM_STRIDE = 4
-MAX_SCAN_MESSAGES_TO_USE = 500  # 0 keeps every scan
+MAX_SCAN_MESSAGES_TO_USE = 1000  # 0 keeps every scan
 MAX_ITERATIONS = 1000
 DEBUG_PLOTS = True
 
@@ -246,14 +246,14 @@ def print_params(p, header):
         print(f"  {name:<12} = {p[name]:.6f}")
 
 
-def print_pf_params(p, resolution):
-    """The estimate in the particle filter's units: sigma_hit and lambda_short per pixel."""
+def print_pf_params(p):
+    """The estimate as particle filter parameters, ready to paste into localize.yaml."""
     print("Particle filter parameters:")
     for name in ("z_hit", "z_short", "z_max", "z_rand"):
-        print(f"  {name:<12} = {p[name]:.6f}")
-    print(f"  sigma_hit    = {p['sigma_hit'] / resolution:.4f}  # pixels")
-    print(f"  lambda_short = {p['lambda_short'] * resolution:.6f}  # 1/pixel")
-    print(f"  max_range    = {MAX_RANGE}")
+        print(f"    {name}: {p[name]:.6f}")
+    print(f"    sigma_hit_m: {p['sigma_hit']:.4f}")
+    print(f"    lambda_short_per_m: {p['lambda_short']:.4f}")
+    print(f"    max_range: {MAX_RANGE}")
 
 
 def estimate_sensor_model(z, z_star, sigma_min):
@@ -420,7 +420,7 @@ def main():
 
     estimate, ll_history = estimate_sensor_model(z, z_star, sigma_min=0.5 * resolution)
     print_params(estimate, "Final estimated sensor model parameters (meters):")
-    print_pf_params(estimate, resolution)
+    print_pf_params(estimate)
 
     if DEBUG_PLOTS:
         plot_fit_check(z, z_star, estimate, ll_history)
