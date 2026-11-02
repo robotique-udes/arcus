@@ -40,7 +40,7 @@ namespace particle_filter
         this->declare_parameter("map_penalty", 0.01);
         this->declare_parameter("inlier_threshold_m", 0.3);
         this->declare_parameter("max_particles", 1000);
-        this->declare_parameter("max_viz_particles", 60);
+        this->declare_parameter("max_viz_particles", 500);
         this->declare_parameter("range_method", "rmgpu");
         this->declare_parameter("pose_selection_method", "mean");
         this->declare_parameter("theta_discretization", 112.0);
@@ -771,20 +771,24 @@ std::bind(&ParticleFilter::map_cb, this, std::placeholders::_1));
         if (particle_pub_->get_subscription_count() > 0)
         {
             auto particles_ros = std::make_unique<geometry_msgs::msg::PoseArray>();
-            particles_ros->header.stamp = this->now();
+            particles_ros->header.stamp = scan_stamp_;
             particles_ros->header.frame_id = map_frame_;
             const int num_viz = std::min(max_viz_particles_, (int)particles_.size());
             particles_ros->poses.resize(num_viz);
 
+            // Drawn by weight, like resampling: the first particles of the array are copies of a few parents
+            // after resampling, and between resamplings near-zero weights would look as likely as the best ones
+            std::vector<int> viz_indices = systematicIndices(particles_, num_viz, rng_.engine());
             for (int i = 0; i < num_viz; i++)
             {
+                const ParticleState& particle = particles_[viz_indices[i]];
                 geometry_msgs::msg::Pose pose_ros;
-                pose_ros.position.x = particles_[i].x;
-                pose_ros.position.y = particles_[i].y;
+                pose_ros.position.x = particle.x;
+                pose_ros.position.y = particle.y;
                 pose_ros.position.z = 0.0;
 
                 tf2::Quaternion q;
-                q.setRPY(0, 0, particles_[i].theta);
+                q.setRPY(0, 0, particle.theta);
                 pose_ros.orientation = tf2::toMsg(q);
 
                 particles_ros->poses[i] = pose_ros;
