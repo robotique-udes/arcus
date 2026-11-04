@@ -311,7 +311,6 @@ MasterNode::DriveState MasterNode::determineDriveState() const
 {
     const bool controller_ready = _nodeOnline[arcus_msgs::msg::ErrorCode::CONTROLLER]
                                   && hasCommand(driveCommands[arcus_msgs::msg::ErrorCode::CONTROLLER]);
-    RCLCPP_INFO(this->get_logger(), "node online: %d", _nodeOnline[arcus_msgs::msg::ErrorCode::CONTROLLER]);
     const bool safety_ready
         = _nodeOnline[arcus_msgs::msg::ErrorCode::SAFETY] && hasCommand(driveCommands[arcus_msgs::msg::ErrorCode::SAFETY]);
     const bool pp_ready = _nodeOnline[arcus_msgs::msg::ErrorCode::PURE_PURSUIT]
