@@ -32,7 +32,7 @@ namespace particle_filter
         this->declare_parameter("odometry_topic", "/odom");
         this->declare_parameter("map_frame", "map");
         this->declare_parameter("odom_frame", "odom");
-        this->declare_parameter("laser_frame", "laser");
+        this->declare_parameter("laser_frame", "ego_racecar/laser");
         this->declare_parameter("transform_tolerance", 0.1);
         this->declare_parameter("boxed_num_beams", 21);
         this->declare_parameter("boxed_aspect_ratio", 3.5);
