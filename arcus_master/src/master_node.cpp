@@ -36,6 +36,7 @@ MasterNode::MasterNode():
     _forceAlgoTopic = this->declare_parameter<std::string>("force_algo_topic", DEFAULT_FORCE_ALGO_TOPIC);
     _trajectoryRiskTopic = this->declare_parameter<std::string>("trajectory_risk_topic", DEFAULT_TRAJECTORY_RISK_TOPIC);
     _sectionOverrideTimeoutMs = this->declare_parameter<int>("section_override_timeout_ms", 500);
+    _nodeOnlineTimeoutMs = this->declare_parameter<int>("node_online_timeout_ms", 1000);
     _disparityCooldownMs = this->declare_parameter<int>("disparity_cooldown_ms", 500);
     MAX_ACCEPTED_RISK = this->declare_parameter<double>("max_accepted_risk", 0.1);
     MIN_ACCEPTED_LOCALIZATION_SCORE = this->declare_parameter<double>("min_accepted_localization_score", 70.0);
@@ -45,6 +46,12 @@ MasterNode::MasterNode():
     {
         RCLCPP_WARN(this->get_logger(), "section_override_timeout_ms must be >= 0, forcing to 0");
         _sectionOverrideTimeoutMs = 0;
+    }
+
+    if (_nodeOnlineTimeoutMs < 0)
+    {
+        RCLCPP_WARN(this->get_logger(), "node_online_timeout_ms must be >= 0, forcing to 0");
+        _nodeOnlineTimeoutMs = 0;
     }
 
     _mainLoopTimer = this->create_wall_timer(std::chrono::milliseconds(20), std::bind(&MasterNode::mainLoop, this));
@@ -145,26 +152,41 @@ void MasterNode::errorCodeCallback(const arcus_msgs::msg::ErrorCode::SharedPtr m
 
 void MasterNode::disparityDriveCallback(const ackermann_msgs::msg::AckermannDriveStamped::SharedPtr msg)
 {
+    this->markSourceOnline(arcus_msgs::msg::ErrorCode::DISPARITY);
     driveCommands[arcus_msgs::msg::ErrorCode::DISPARITY] = *msg;
     this->tryPublishDriveCommand();
 }
 
 void MasterNode::safetyDriveCallback(const ackermann_msgs::msg::AckermannDriveStamped::SharedPtr msg)
 {
+    this->markSourceOnline(arcus_msgs::msg::ErrorCode::SAFETY);
     driveCommands[arcus_msgs::msg::ErrorCode::SAFETY] = *msg;
     this->tryPublishDriveCommand();
 }
 
 void MasterNode::purePursuitDriveCallback(const ackermann_msgs::msg::AckermannDriveStamped::SharedPtr msg)
 {
+    this->markSourceOnline(arcus_msgs::msg::ErrorCode::PURE_PURSUIT);
     driveCommands[arcus_msgs::msg::ErrorCode::PURE_PURSUIT] = *msg;
     this->tryPublishDriveCommand();
 }
 
 void MasterNode::controllerDriveCallback(const ackermann_msgs::msg::AckermannDriveStamped::SharedPtr msg)
 {
+    this->markSourceOnline(arcus_msgs::msg::ErrorCode::CONTROLLER);
     driveCommands[arcus_msgs::msg::ErrorCode::CONTROLLER] = *msg;
     this->tryPublishDriveCommand();
+}
+
+void MasterNode::markSourceOnline(size_t source)
+{
+    if (source >= SOURCE_COUNT)
+    {
+        return;
+    }
+
+    _lastHeartbeatNs[source] = static_cast<uint64_t>(this->now().nanoseconds());
+    _nodeOnline[source] = true;
 }
 
 void MasterNode::deadmanCallback(const std_msgs::msg::Bool::SharedPtr msg)
@@ -269,7 +291,7 @@ bool MasterNode::forcedAlgoToState(const std::string& algo, DriveState& state) c
 void MasterNode::refreshOnlineStatus()
 {
     uint64_t now_ns = this->now().nanoseconds();
-    constexpr uint64_t timeout_ns = 300000000;  // 0.3 second timeout for scheduler/network jitter
+    const uint64_t timeout_ns = static_cast<uint64_t>(_nodeOnlineTimeoutMs) * 1000000ULL;
 
     for (std::size_t i = 0; i < _nodeOnline.size(); ++i)
     {
@@ -289,6 +311,7 @@ MasterNode::DriveState MasterNode::determineDriveState() const
 {
     const bool controller_ready = _nodeOnline[arcus_msgs::msg::ErrorCode::CONTROLLER]
                                   && hasCommand(driveCommands[arcus_msgs::msg::ErrorCode::CONTROLLER]);
+    RCLCPP_INFO(this->get_logger(), "node online: %d", _nodeOnline[arcus_msgs::msg::ErrorCode::CONTROLLER]);
     const bool safety_ready
         = _nodeOnline[arcus_msgs::msg::ErrorCode::SAFETY] && hasCommand(driveCommands[arcus_msgs::msg::ErrorCode::SAFETY]);
     const bool pp_ready = _nodeOnline[arcus_msgs::msg::ErrorCode::PURE_PURSUIT]

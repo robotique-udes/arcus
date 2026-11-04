@@ -56,6 +56,7 @@ class MasterNode : public rclcpp::Node
     DriveState determineDriveState() const;
     bool forcedAlgoToState(const std::string& algo, DriveState& state) const;
     bool hasCommand(const ackermann_msgs::msg::AckermannDriveStamped& cmd) const;
+    void markSourceOnline(size_t source);
     std::array<uint32_t, SOURCE_COUNT> _errorCodeLatch{};  // Latches latest error per source.
     std::array<uint32_t, SOURCE_COUNT> _lastPublishedErrorCode{};
     bool _lastPublishedNoErrors = false;
@@ -89,6 +90,7 @@ class MasterNode : public rclcpp::Node
     std::string _trajectoryRiskTopic = DEFAULT_TRAJECTORY_RISK_TOPIC;
     std::string _localizationScoreTopic = DEFAULT_LOCALIZATION_SCORE_TOPIC;
     int _sectionOverrideTimeoutMs = 500;
+    int _nodeOnlineTimeoutMs = 1000;
     int _disparityCooldownMs = 500;
     double _forcedMaxSpeed = 0.0;
     std::string _forcedAlgo;
