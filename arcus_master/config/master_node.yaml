@@ -20,3 +20,5 @@ arcus:
       section_override_timeout_ms: 500
       disparity_cooldown_ms: 500
       max_accepted_risk: 70.0
+      min_accepted_localization_score: 20.0
+      min_low_localization_scores: 5   # low scores in a row (one per scan) before switching to disparity

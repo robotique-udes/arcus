@@ -49,6 +49,7 @@ class CostmapMaker : public rclcpp::Node
     rclcpp::Subscription<sensor_msgs::msg::LaserScan>::SharedPtr _scanSub;
     rclcpp::Subscription<nav_msgs::msg::OccupancyGrid>::SharedPtr _globalMapSub;
     rclcpp::Subscription<nav_msgs::msg::Odometry>::SharedPtr _poseSub;
+
     rclcpp::Publisher<nav_msgs::msg::OccupancyGrid>::SharedPtr _costmapPub;
     rclcpp::TimerBase::SharedPtr _updateTimer;
 

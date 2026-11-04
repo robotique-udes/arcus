@@ -342,34 +342,26 @@ bool CostmapMaker::shouldKeepObstacle(double localX,
     const int minY = std::max(0, mapY - neighborhoodCells);
     const int maxY = std::min(height - 1, mapY + neighborhoodCells);
 
-    const double radiusSquared = _globalObstacleNeighborhoodRadiusM * _globalObstacleNeighborhoodRadiusM;
-    for (int y = minY; y <= maxY; ++y)
-    {
-        for (int x = minX; x <= maxX; ++x)
-        {
-            if (neighborhoodCells > 0)
-            {
-                const double dx = static_cast<double>(x - mapX) * resolution;
-                const double dy = static_cast<double>(y - mapY) * resolution;
-                if (dx * dx + dy * dy > radiusSquared)
-                {
-                    continue;
-                }
-            }
+	  for (int y = minY; y <= maxY; ++y) {
+		  for (int x = minX; x <= maxX; ++x) {
+			  const int index = y * width + x;
+			  if (index < 0 || index >= static_cast<int>(globalMap->data.size())) {
+				  continue;
+			  }
 
-            const int index = y * width + x;
-            if (index < 0 || index >= static_cast<int>(globalMap->data.size()))
-            {
-                continue;
-            }
-
-            const int8_t globalCost = globalMap->data[static_cast<std::size_t>(index)];
-            if (globalCost >= _globalObstacleThreshold)
-            {
-                return false;
-            }
-        }
-    }
+			  const int8_t globalCost = globalMap->data[static_cast<std::size_t>(index)];
+			  if (globalCost >= _globalObstacleThreshold) 
+              {
+				  const double dx = static_cast<double>(x - mapX) * resolution;
+				  const double dy = static_cast<double>(y - mapY) * resolution;
+				  // A mapped obstacle close enough explains this hit
+				  if (std::sqrt(dx * dx + dy * dy) <= _globalObstacleNeighborhoodRadiusM) 
+                  {
+					  return false;
+				  }
+			  }
+		  }
+	  }
 
     return true;
 }
