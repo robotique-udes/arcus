@@ -18,5 +18,8 @@ arcus:
       speed_limit_topic: /track_manager/speed_limit
       force_algo_topic: /track_manager/forced_algo
       section_override_timeout_ms: 500
+      node_online_timeout_ms: 70
       disparity_cooldown_ms: 500
       max_accepted_risk: 70.0
+      min_accepted_localization_score: 85.0
+      min_low_localization_scores: 5   # low scores in a row (one per scan) before switching to disparity

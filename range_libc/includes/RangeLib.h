@@ -1006,7 +1006,8 @@ namespace ranges
             return;
 #endif
 
-            int particles_per_iter = std::ceil((float)CHUNK_SIZE / (float)num_angles);
+            // floor, not ceil: particles_per_iter * num_angles must fit in the CHUNK_SIZE GPU buffers
+            int particles_per_iter = CHUNK_SIZE / num_angles;
             int iters = std::ceil((float)num_particles / (float)particles_per_iter);
             // must allways do the correct number of angles, can only split on the particles
             for (int i = 0; i < iters; ++i)
@@ -1014,9 +1015,9 @@ namespace ranges
                 int num_in_chunk = particles_per_iter;
                 if (i == iters - 1)
                     num_in_chunk = num_particles - i * particles_per_iter;
-                rmc->numpy_calc_range_angles(&ins[i * num_in_chunk * 3],
+                rmc->numpy_calc_range_angles(&ins[i * particles_per_iter * 3],
                                              angles,
-                                             &outs[i * num_in_chunk * num_angles],
+                                             &outs[i * particles_per_iter * num_angles],
                                              num_in_chunk,
                                              num_angles);
             }
@@ -1055,7 +1056,8 @@ namespace ranges
             return;
 #endif
 
-            int particles_per_iter = std::ceil((float)CHUNK_SIZE / (float)num_angles);
+            // floor, not ceil: particles_per_iter * num_angles must fit in the CHUNK_SIZE GPU buffers
+            int particles_per_iter = CHUNK_SIZE / num_angles;
             int iters = std::ceil((float)num_particles / (float)particles_per_iter);
             // must allways do the correct number of angles, can only split on the particles
             for (int i = 0; i < iters; ++i)
@@ -1063,10 +1065,10 @@ namespace ranges
                 int num_in_chunk = particles_per_iter;
                 if (i == iters - 1)
                     num_in_chunk = num_particles - i * particles_per_iter;
-                rmc->calc_range_repeat_angles_eval_sensor_model(&ins[i * num_in_chunk * 3],
+                rmc->calc_range_repeat_angles_eval_sensor_model(&ins[i * particles_per_iter * 3],
                                                                 angles,
                                                                 obs,
-                                                                &weights[i * num_in_chunk],
+                                                                &weights[i * particles_per_iter],
                                                                 num_in_chunk,
                                                                 num_angles);
             }
