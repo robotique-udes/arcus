@@ -202,6 +202,13 @@ void err_check() {
     	printf("Error: %s\n", cudaGetErrorString(err));
 }
 
+// reports failed copies and asynchronous kernel faults, which otherwise leave stale ranges in outs silently
+void copy_check(cudaError_t err) {
+	if (err == cudaSuccess) err = cudaDeviceSynchronize();
+	if (err != cudaSuccess)
+		printf("CUDA error in range_libc: %s\n", cudaGetErrorString(err));
+}
+
 RayMarchingCUDA::RayMarchingCUDA(std::vector<std::vector<float> > grid, int w, int h, float mr) 
 	: width(w), height(h), max_range(mr) {
 	cudaMalloc((void **)&d_ins, sizeof(float) * CHUNK_SIZE * 3);
@@ -237,7 +244,7 @@ void RayMarchingCUDA::calc_range_many(float *ins, float *outs, int num_casts) {
 	err_check();
 
 	// copy results back to CPU
-	cudaMemcpy(outs,d_outs,sizeof(float)*num_casts,cudaMemcpyDeviceToHost);
+	copy_check(cudaMemcpy(outs,d_outs,sizeof(float)*num_casts,cudaMemcpyDeviceToHost));
 	cudaDeviceSynchronize();
 }
 
@@ -251,7 +258,7 @@ void RayMarchingCUDA::numpy_calc_range(float *ins, float *outs, int num_casts) {
 		num_casts, world_origin_x, world_origin_y, world_scale, inv_world_scale, world_sin_angle, world_cos_angle, rotation_const);
 	err_check();
 	// copy results back to CPU
-	cudaMemcpy(outs,d_outs,sizeof(float)*num_casts,cudaMemcpyDeviceToHost);
+	copy_check(cudaMemcpy(outs,d_outs,sizeof(float)*num_casts,cudaMemcpyDeviceToHost));
 	cudaDeviceSynchronize();
 	#else
 	std::cout << "GPU numpy_calc_range only works with ROS world to grid conversion enabled" << std::endl;
@@ -271,7 +278,7 @@ void RayMarchingCUDA::numpy_calc_range_angles(float * ins, float * angles, float
 		num_particles, num_angles, world_origin_x, world_origin_y, world_scale, inv_world_scale, world_sin_angle, world_cos_angle, rotation_const);
 	err_check();
 	// copy results back to CPU
-	cudaMemcpy(outs,d_outs,sizeof(float)*num_particles*num_angles,cudaMemcpyDeviceToHost);
+	copy_check(cudaMemcpy(outs,d_outs,sizeof(float)*num_particles*num_angles,cudaMemcpyDeviceToHost));
 	cudaDeviceSynchronize();
 	#else
 	std::cout << "GPU numpy_calc_range_angles only works with ROS world to grid conversion enabled" << std::endl;
