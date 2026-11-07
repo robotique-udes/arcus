@@ -20,7 +20,7 @@ particle_filter:
     max_particles: 2000
     squash_factor: 2.2
     # visualization
-    viz: 0
+    viz: 1
     max_viz_particles: 500
     # ray marching method
     range_method: 'rmgpu'
@@ -51,11 +51,11 @@ particle_filter:
 
     ess_threshold: 0.5
     # global localization (no initial pose): searched with global_particles, shrinks to max_particles once converged
-    global_particles: 80000
-    global_squash_factor: 8.0
+    global_particles: 10000
+    global_squash_factor: 10.0
     global_converged_spread_m: 0.3
     global_converged_spread_rad: 0.2
-    global_converged_scans: 5
+    global_converged_scans: 20
 
     set_initial_pose: false
 
