@@ -13,7 +13,7 @@ particle_filter:
     boxed_num_beams: 21
     boxed_aspect_ratio: 3.5
     # weight factor for particles in walls, unknown space or off the map
-    use_map_penalty: false
+    use_map_penalty: true
     map_penalty: 0.01
     # localization score (/pf/localization_score, 0-100): % of beams within this range of the map's prediction
     inlier_threshold_m: 0.3
@@ -30,19 +30,21 @@ particle_filter:
     fine_timing: 0
     publish_odom: 1
     # sensor model constants
-    z_short: 0.01
-    z_max: 0.07
-    z_rand: 0.12
-    z_hit: 0.75
-    sigma_hit_m: 0.24          # was 8 px at 0.03 m/px
-    lambda_short_per_m: 3.33   # was 0.1 / px at 0.03 m/px
+    # mixture weights and lambda_short from EM (offline_sensor_calibration) on a 2026-11-21 disparity run;
+    # sigma_hit widened from the EM's 0.12 m to 0.14 m: 0.10-0.12 occasionally diverged in replay tests
+    z_short: 0.008
+    z_max: 0.003
+    z_rand: 0.049
+    z_hit: 0.94
+    sigma_hit_m: 0.14
+    lambda_short_per_m: 1.13
     # TUM motion model
     alpha_1: 0.5
     alpha_2: 0.015
     alpha_3: 1.0
     alpha_4: 0.1
     lambda_thresh: 0.1
-    noise_forward_bias: 0.5
+    noise_forward_bias: 0.0   # 1.2 pushed the cloud ahead of the car; 0.0 scored ~+1.7 on its own in replay
     standstill_m: 0.005
     # sensor model variant, variant 2 good for rmgpu, 3 doesn't work for rmgpu
     rangelib_variant: 2
@@ -51,7 +53,7 @@ particle_filter:
 
     ess_threshold: 0.5
     # global localization (no initial pose): searched with global_particles, shrinks to max_particles once converged
-    global_particles: 10000
+    global_particles: 30000
     global_squash_factor: 10.0
     global_converged_spread_m: 0.3
     global_converged_spread_rad: 0.2
