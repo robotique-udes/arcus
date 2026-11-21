@@ -1,6 +1,5 @@
 #include "raceline_manager.hpp"
 
-#include <chrono>
 #include <fstream>
 #include <sstream>
 
@@ -34,9 +33,6 @@ void RacelineManager::initRosElements()
     const auto qos = rclcpp::QoS(rclcpp::KeepLast(DEFAULT_QOS)).transient_local();
     raceline_publisher_ =
         this->create_publisher<nav_msgs::msg::Path>(_waypointsTopic, qos);
-    publish_timer_ = this->create_wall_timer(
-        std::chrono::seconds(1),
-        [this]() { publishRaceline(); });
 }
 
 void RacelineManager::loadWaypointsFromCSV()

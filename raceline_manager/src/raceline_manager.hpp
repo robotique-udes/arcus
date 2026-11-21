@@ -24,7 +24,6 @@ private:
     void publishRaceline();
 
     rclcpp::Publisher<nav_msgs::msg::Path>::SharedPtr raceline_publisher_;
-    rclcpp::TimerBase::SharedPtr publish_timer_;
     std::string _waypointsFilePath = DEFAULT_WAYPOINTS_CSV_FILE_NAME;
     std::string _waypointsTopic = DEFAULT_WAYPOINTS_TOPIC;
     nav_msgs::msg::Path raceline_;
