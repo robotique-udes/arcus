@@ -3,6 +3,7 @@
 
 #include "master_node.hpp"
 
+#include <algorithm>
 #include <cmath>
 
 int main(int argc, char** argv)
@@ -38,6 +39,9 @@ MasterNode::MasterNode():
     _sectionOverrideTimeoutMs = this->declare_parameter<int>("section_override_timeout_ms", 500);
     _nodeOnlineTimeoutMs = this->declare_parameter<int>("node_online_timeout_ms", 1000);
     _disparityCooldownMs = this->declare_parameter<int>("disparity_cooldown_ms", 500);
+    _globalLocalizationRetryMs = this->declare_parameter<int>("global_localization_retry_ms", 1500);
+    _globalLocalizationService
+        = this->declare_parameter<std::string>("global_localization_service", DEFAULT_GLOBAL_LOCALIZATION_SERVICE);
     MAX_ACCEPTED_RISK = this->declare_parameter<double>("max_accepted_risk", 0.1);
     MIN_ACCEPTED_LOCALIZATION_SCORE = this->declare_parameter<double>("min_accepted_localization_score", 70.0);
     MIN_LOW_LOCALIZATION_SCORES = this->declare_parameter<int>("min_low_localization_scores", 5);
@@ -111,6 +115,8 @@ MasterNode::MasterNode():
         _localizationScoreTopic,
         10,
         std::bind(&MasterNode::localizationScoreCallback, this, std::placeholders::_1));
+
+    global_localization_client_ = this->create_client<std_srvs::srv::Empty>(_globalLocalizationService);
 
     this->initParamCallbackHandle();
 }
@@ -261,6 +267,36 @@ void MasterNode::localizationScoreCallback(const std_msgs::msg::Float32::SharedP
     }
 
     _localizationLost = false;
+    _lastGlobalLocalizationRequestNs = 0U;
+}
+
+void MasterNode::updateGlobalLocalization()
+{
+    if (!_localizationLost)
+        return;
+
+    // The particle filter publishes a score of 0 until global localization converges, so localization stays
+    // lost until then; re-request if it hasn't converged within the retry period
+    const uint64_t now_ns = static_cast<uint64_t>(this->now().nanoseconds());
+    const uint64_t retry_ns = static_cast<uint64_t>(std::max(_globalLocalizationRetryMs, 0)) * 1000000ULL;
+    if (_lastGlobalLocalizationRequestNs != 0U && now_ns - _lastGlobalLocalizationRequestNs < retry_ns)
+        return;
+
+    if (!global_localization_client_->service_is_ready())
+    {
+        RCLCPP_WARN_THROTTLE(this->get_logger(),
+                             *this->get_clock(),
+                             2000,
+                             "Localization lost but %s is not available",
+                             _globalLocalizationService.c_str());
+        return;
+    }
+
+    RCLCPP_WARN(this->get_logger(),
+                _lastGlobalLocalizationRequestNs == 0U ? "Requesting global localization"
+                                                       : "Global localization did not converge, retrying");
+    global_localization_client_->async_send_request(std::make_shared<std_srvs::srv::Empty::Request>());
+    _lastGlobalLocalizationRequestNs = now_ns;
 }
 
 bool MasterNode::forcedAlgoToState(const std::string& algo, DriveState& state) const
@@ -473,6 +509,7 @@ void MasterNode::tryPublishDriveCommand()
 void MasterNode::mainLoop()
 {
     this->refreshOnlineStatus();
+    this->updateGlobalLocalization();
 
     // Publish error updates only when they change to reduce bus/log spam.
     bool noErrors = true;

@@ -5,6 +5,7 @@
 #include "std_msgs/msg/float64.hpp"
 #include "std_msgs/msg/float32.hpp"
 #include "std_msgs/msg/string.hpp"
+#include "std_srvs/srv/empty.hpp"
 #include <array>
 #include <string>
 
@@ -26,6 +27,7 @@ class MasterNode : public rclcpp::Node
     static constexpr const char* DEFAULT_FORCE_ALGO_TOPIC = "/track_manager/forced_algo";
     static constexpr const char* DEFAULT_TRAJECTORY_RISK_TOPIC = "/pure_pursuit/trajectory_risk";
     static constexpr const char* DEFAULT_LOCALIZATION_SCORE_TOPIC = "/pf/localization_score";
+    static constexpr const char* DEFAULT_GLOBAL_LOCALIZATION_SERVICE = "/reinitialize_global_localization";
 
 
     double MAX_ACCEPTED_RISK = 0.1f;
@@ -48,6 +50,7 @@ class MasterNode : public rclcpp::Node
 
     void mainLoop();
     void refreshOnlineStatus();
+    void updateGlobalLocalization();
     void errorCodeCallback(const arcus_msgs::msg::ErrorCode::SharedPtr msg);
     void tryPublishDriveCommand();
 
@@ -92,6 +95,9 @@ class MasterNode : public rclcpp::Node
     int _sectionOverrideTimeoutMs = 500;
     int _nodeOnlineTimeoutMs = 1000;
     int _disparityCooldownMs = 500;
+    int _globalLocalizationRetryMs = 1500;
+    std::string _globalLocalizationService = DEFAULT_GLOBAL_LOCALIZATION_SERVICE;
+    uint64_t _lastGlobalLocalizationRequestNs = 0U;  // 0 = no request since localization was lost
     double _forcedMaxSpeed = 0.0;
     std::string _forcedAlgo;
     uint64_t _lastSpeedLimitNs = 0U;
@@ -128,6 +134,8 @@ class MasterNode : public rclcpp::Node
     rclcpp::Subscription<std_msgs::msg::String>::SharedPtr _forceAlgoSubscriber;
     rclcpp::Subscription<std_msgs::msg::Float32>::SharedPtr _trajectoryRiskSubscriber;
     rclcpp::Subscription<std_msgs::msg::Float32>::SharedPtr _localizationScoreSubscriber;
+
+    rclcpp::Client<std_srvs::srv::Empty>::SharedPtr global_localization_client_;
 
     rclcpp::node_interfaces::OnSetParametersCallbackHandle::SharedPtr _paramCallbackHandle;
 };

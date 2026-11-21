@@ -11,6 +11,7 @@ set(DEPENDENCY_LIST
   "rclcpp"
   "arcus_msgs"
   "ackermann_msgs"
+  "std_srvs"
   )
 
   set(MSGS
