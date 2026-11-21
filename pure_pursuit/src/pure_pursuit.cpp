@@ -174,6 +174,38 @@ void PurePursuit::CB_costmapSubscriber(const nav_msgs::msg::OccupancyGrid& msg)
     _costmapFrameId = msg.header.frame_id;
 }
 
+void PurePursuit::CB_waypointsSubscriber(const nav_msgs::msg::Path& msg)
+{
+    if (msg.poses.empty())
+    {
+        RCLCPP_WARN(this->get_logger(), "Received empty waypoints topic '%s'", _waypointsTopic.c_str());
+        return;
+    }
+
+    _waypoints.clear();
+    _waypoints.reserve(msg.poses.size());
+
+    for (const auto& pose : msg.poses)
+    {
+        Waypoint pointRead = {pose, 0.0};
+        if (pointRead.point.header.frame_id.empty())
+        {
+            pointRead.point.header.frame_id = "map";
+        }
+        _waypoints.push_back(pointRead);
+    }
+
+    _previousWaypointIndex = 0;
+    _firstTargetWaypointLocked = false;
+    calculateSpeed();
+
+    RCLCPP_INFO(
+        this->get_logger(),
+        "Loaded %zu waypoints from topic '%s'",
+        _waypoints.size(),
+        _waypointsTopic.c_str());
+}
+
 void PurePursuit::CB_publishTargetWaypoint(const geometry_msgs::msg::PoseStamped& msg)
 {
     double x = msg.pose.position.x;
@@ -189,6 +221,7 @@ void PurePursuit::CB_publishTargetWaypoint(const geometry_msgs::msg::PoseStamped
 void PurePursuit::handleRosParam(void)
 {
     this->declare_parameter<std::string>("waypoints_file_path", DEFAULT_WAYPOINTS_CSV_FILE_NAME);
+    this->declare_parameter<std::string>("waypoints_topic", DEFAULT_WAYPOINTS_TOPIC);
     this->declare_parameter<std::string>("position_topic", DEFAULT_POSITION_TOPIC);
     this->declare_parameter<std::string>("drive_command_topic", DEFAULT_DRIVE_CMD_TOPIC);
     this->declare_parameter<std::string>("target_waypoint_topic", TARGET_WAYPOINT_TOPIC);
@@ -217,6 +250,7 @@ void PurePursuit::handleRosParam(void)
     this->declare_parameter("speed_eps", SPEED_EPS);
 
     _waypointsFilePath = this->get_parameter("waypoints_file_path").as_string();
+    _waypointsTopic = this->get_parameter("waypoints_topic").as_string();
     _positionTopic = this->get_parameter("position_topic").as_string();
     _driveCmdTopic = this->get_parameter("drive_command_topic").as_string();
     _targetWaypointTopic = this->get_parameter("target_waypoint_topic").as_string();
@@ -270,6 +304,7 @@ void PurePursuit::handleRosParam(void)
     RCLCPP_INFO(this->get_logger(), "  speed_eps:                      %.2e", SPEED_EPS);
     RCLCPP_INFO(this->get_logger(), "-------------------------------");
     RCLCPP_INFO(this->get_logger(), "Waypoints file path: %s", _waypointsFilePath.c_str());
+    RCLCPP_INFO(this->get_logger(), "Waypoints topic: %s", _waypointsTopic.c_str());
     RCLCPP_INFO(this->get_logger(), "Position topic: %s", _positionTopic.c_str());
     RCLCPP_INFO(this->get_logger(), "Drive command topic: %s", _driveCmdTopic.c_str());
     RCLCPP_INFO(this->get_logger(), "Target waypoint topic: %s", _targetWaypointTopic.c_str());
@@ -435,6 +470,14 @@ void PurePursuit::calculateSpeed(void)
 void PurePursuit::initRosElements(void)
 {
     const auto odom_qos = rclcpp::QoS(rclcpp::KeepLast(DEFAULT_QOS)).best_effort();
+
+    _waypointsSubscriber = this->create_subscription<nav_msgs::msg::Path>(
+        _waypointsTopic,
+        rclcpp::QoS(rclcpp::KeepLast(DEFAULT_QOS)).transient_local(),
+        [this](const nav_msgs::msg::Path& msg)
+        {
+            this->CB_waypointsSubscriber(msg);
+        });
 
     _loopTimer = this->create_wall_timer(std::chrono::milliseconds(static_cast<size_t>(1000 / LOOP_FREQUENCY_HZ)),
                                          [this](void)

@@ -67,6 +67,7 @@ class PurePursuit : public rclcpp::Node
     static constexpr const char* DEFAULT_TRAJECTORY_RISK_TOPIC = "/pure_pursuit/trajectory_risk";
     static constexpr const char* DEFAULT_ERROR_TOPIC = "/node_error_code";
     static constexpr const char* DEFAULT_WAYPOINTS_CSV_FILE_NAME = "/home/arcus/arcus/resources/waypoints/waypoints.csv";
+    static constexpr const char* DEFAULT_WAYPOINTS_TOPIC = "/waypoints";
     static constexpr const char* DEFAULT_RISK_PATH_TOPIC = "/pure_pursuit/risk_path_segment";
 
   public:
@@ -77,6 +78,7 @@ class PurePursuit : public rclcpp::Node
     void CB_publishTargetWaypoint(const geometry_msgs::msg::PoseStamped& msg_);
     void CB_positionSubscriber(const nav_msgs::msg::Odometry& msg_);
     void CB_costmapSubscriber(const nav_msgs::msg::OccupancyGrid& msg_);
+    void CB_waypointsSubscriber(const nav_msgs::msg::Path& msg_);
 
     void handleRosParam(void);
     void loadWaypointsFromCSV(void);
@@ -92,6 +94,7 @@ class PurePursuit : public rclcpp::Node
     void evaluatePointRisk(double x, double y, double cumulativeDistance, double& riskMax);
 
     std::string _waypointsFilePath = DEFAULT_WAYPOINTS_CSV_FILE_NAME;
+    std::string _waypointsTopic = DEFAULT_WAYPOINTS_TOPIC;
     std::string _positionTopic = DEFAULT_POSITION_TOPIC;
     std::string _driveCmdTopic = DEFAULT_DRIVE_CMD_TOPIC;
     std::string _targetWaypointTopic = TARGET_WAYPOINT_TOPIC;
@@ -120,6 +123,7 @@ class PurePursuit : public rclcpp::Node
 
     rclcpp::Subscription<nav_msgs::msg::Odometry>::SharedPtr _positionSubscriber;
     rclcpp::Subscription<nav_msgs::msg::OccupancyGrid>::SharedPtr _costmapSubscriber;
+    rclcpp::Subscription<nav_msgs::msg::Path>::SharedPtr _waypointsSubscriber;
     rclcpp::TimerBase::SharedPtr _loopTimer;
     rclcpp::Publisher<ackermann_msgs::msg::AckermannDriveStamped>::SharedPtr _driveCmdPublisher;
     rclcpp::Publisher<geometry_msgs::msg::PointStamped>::SharedPtr _targetWaypointPublisher;
