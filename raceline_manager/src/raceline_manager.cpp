@@ -1,5 +1,6 @@
 #include "raceline_manager.hpp"
 
+#include <cmath>
 #include <fstream>
 #include <sstream>
 
@@ -33,6 +34,40 @@ void RacelineManager::initRosElements()
     const auto qos = rclcpp::QoS(rclcpp::KeepLast(DEFAULT_QOS)).transient_local();
     raceline_publisher_ =
         this->create_publisher<nav_msgs::msg::Path>(_waypointsTopic, qos);
+    raceline_subscription_ =
+        this->create_subscription<nav_msgs::msg::Path>(
+            _waypointsTopic,
+            qos,
+            [this](const nav_msgs::msg::Path& msg)
+            {
+                waypointsCallback(msg);
+            });
+}
+
+void RacelineManager::waypointsCallback(const nav_msgs::msg::Path& msg)
+{
+    if (msg.poses.empty())
+    {
+        RCLCPP_WARN(this->get_logger(), "Ignoring empty waypoints update");
+        return;
+    }
+
+    for (const auto& pose : msg.poses)
+    {
+        if (!std::isfinite(pose.pose.position.x) ||
+            !std::isfinite(pose.pose.position.y) ||
+            !std::isfinite(pose.pose.position.z))
+        {
+            RCLCPP_WARN(this->get_logger(), "Ignoring waypoints update containing non-finite coordinates");
+            return;
+        }
+    }
+
+    raceline_ = msg;
+    RCLCPP_INFO(
+        this->get_logger(),
+        "Updated raceline with %zu waypoints",
+        raceline_.poses.size());
 }
 
 void RacelineManager::loadWaypointsFromCSV()

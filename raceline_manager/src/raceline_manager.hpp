@@ -22,8 +22,10 @@ private:
     void loadWaypointsFromCSV();
     void initRosElements();
     void publishRaceline();
+    void waypointsCallback(const nav_msgs::msg::Path& msg);
 
     rclcpp::Publisher<nav_msgs::msg::Path>::SharedPtr raceline_publisher_;
+    rclcpp::Subscription<nav_msgs::msg::Path>::SharedPtr raceline_subscription_;
     std::string _waypointsFilePath = DEFAULT_WAYPOINTS_CSV_FILE_NAME;
     std::string _waypointsTopic = DEFAULT_WAYPOINTS_TOPIC;
     nav_msgs::msg::Path raceline_;
