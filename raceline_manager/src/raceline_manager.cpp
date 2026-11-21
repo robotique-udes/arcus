@@ -31,8 +31,7 @@ void RacelineManager::handleRosParam()
 
 void RacelineManager::initRosElements()
 {
-    rclcpp::QoS qos(rclcpp::KeepLast(DEFAULT_QOS));
-    qos.transient_local();
+    const auto qos = rclcpp::QoS(rclcpp::KeepLast(DEFAULT_QOS)).transient_local();
     raceline_publisher_ =
         this->create_publisher<nav_msgs::msg::Path>(_waypointsTopic, qos);
     publish_timer_ = this->create_wall_timer(
