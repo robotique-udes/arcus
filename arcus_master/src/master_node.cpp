@@ -3,6 +3,9 @@
 
 #include "master_node.hpp"
 
+#include <algorithm>
+#include <cmath>
+
 int main(int argc, char** argv)
 {
     rclcpp::init(argc, argv);
@@ -34,13 +37,25 @@ MasterNode::MasterNode():
     _forceAlgoTopic = this->declare_parameter<std::string>("force_algo_topic", DEFAULT_FORCE_ALGO_TOPIC);
     _trajectoryRiskTopic = this->declare_parameter<std::string>("trajectory_risk_topic", DEFAULT_TRAJECTORY_RISK_TOPIC);
     _sectionOverrideTimeoutMs = this->declare_parameter<int>("section_override_timeout_ms", 500);
+    _nodeOnlineTimeoutMs = this->declare_parameter<int>("node_online_timeout_ms", 1000);
     _disparityCooldownMs = this->declare_parameter<int>("disparity_cooldown_ms", 500);
+    _globalLocalizationRetryMs = this->declare_parameter<int>("global_localization_retry_ms", 1500);
+    _globalLocalizationService
+        = this->declare_parameter<std::string>("global_localization_service", DEFAULT_GLOBAL_LOCALIZATION_SERVICE);
     MAX_ACCEPTED_RISK = this->declare_parameter<double>("max_accepted_risk", 0.1);
+    MIN_ACCEPTED_LOCALIZATION_SCORE = this->declare_parameter<double>("min_accepted_localization_score", 70.0);
+    MIN_LOW_LOCALIZATION_SCORES = this->declare_parameter<int>("min_low_localization_scores", 5);
 
     if (_sectionOverrideTimeoutMs < 0)
     {
         RCLCPP_WARN(this->get_logger(), "section_override_timeout_ms must be >= 0, forcing to 0");
         _sectionOverrideTimeoutMs = 0;
+    }
+
+    if (_nodeOnlineTimeoutMs < 0)
+    {
+        RCLCPP_WARN(this->get_logger(), "node_online_timeout_ms must be >= 0, forcing to 0");
+        _nodeOnlineTimeoutMs = 0;
     }
 
     _mainLoopTimer = this->create_wall_timer(std::chrono::milliseconds(20), std::bind(&MasterNode::mainLoop, this));
@@ -95,6 +110,13 @@ MasterNode::MasterNode():
         _trajectoryRiskTopic,
         10,
         std::bind(&MasterNode::trajectoryRiskCallback, this, std::placeholders::_1));
+    
+    _localizationScoreSubscriber = this->create_subscription<std_msgs::msg::Float32>(
+        _localizationScoreTopic,
+        10,
+        std::bind(&MasterNode::localizationScoreCallback, this, std::placeholders::_1));
+
+    global_localization_client_ = this->create_client<std_srvs::srv::Empty>(_globalLocalizationService);
 
     this->initParamCallbackHandle();
 }
@@ -136,26 +158,41 @@ void MasterNode::errorCodeCallback(const arcus_msgs::msg::ErrorCode::SharedPtr m
 
 void MasterNode::disparityDriveCallback(const ackermann_msgs::msg::AckermannDriveStamped::SharedPtr msg)
 {
+    this->markSourceOnline(arcus_msgs::msg::ErrorCode::DISPARITY);
     driveCommands[arcus_msgs::msg::ErrorCode::DISPARITY] = *msg;
     this->tryPublishDriveCommand();
 }
 
 void MasterNode::safetyDriveCallback(const ackermann_msgs::msg::AckermannDriveStamped::SharedPtr msg)
 {
+    this->markSourceOnline(arcus_msgs::msg::ErrorCode::SAFETY);
     driveCommands[arcus_msgs::msg::ErrorCode::SAFETY] = *msg;
     this->tryPublishDriveCommand();
 }
 
 void MasterNode::purePursuitDriveCallback(const ackermann_msgs::msg::AckermannDriveStamped::SharedPtr msg)
 {
+    this->markSourceOnline(arcus_msgs::msg::ErrorCode::PURE_PURSUIT);
     driveCommands[arcus_msgs::msg::ErrorCode::PURE_PURSUIT] = *msg;
     this->tryPublishDriveCommand();
 }
 
 void MasterNode::controllerDriveCallback(const ackermann_msgs::msg::AckermannDriveStamped::SharedPtr msg)
 {
+    this->markSourceOnline(arcus_msgs::msg::ErrorCode::CONTROLLER);
     driveCommands[arcus_msgs::msg::ErrorCode::CONTROLLER] = *msg;
     this->tryPublishDriveCommand();
+}
+
+void MasterNode::markSourceOnline(size_t source)
+{
+    if (source >= SOURCE_COUNT)
+    {
+        return;
+    }
+
+    _lastHeartbeatNs[source] = static_cast<uint64_t>(this->now().nanoseconds());
+    _nodeOnline[source] = true;
 }
 
 void MasterNode::deadmanCallback(const std_msgs::msg::Bool::SharedPtr msg)
@@ -197,6 +234,71 @@ void MasterNode::trajectoryRiskCallback(const std_msgs::msg::Float32::SharedPtr 
     _riskTresholdExceeded = false;
 }
 
+void MasterNode::localizationScoreCallback(const std_msgs::msg::Float32::SharedPtr msg)
+{
+    const uint64_t now_ns = static_cast<uint64_t>(this->now().nanoseconds());
+
+    if (!std::isfinite(msg->data) || msg->data < MIN_ACCEPTED_LOCALIZATION_SCORE)
+    {
+        // A single low score is often an opponent blocking beams, so only switch after several in a row
+        _lowLocScoreCount++;
+        if (_lowLocScoreCount < MIN_LOW_LOCALIZATION_SCORES)
+            return;
+
+        if (!_localizationLost)
+        {
+            RCLCPP_WARN(this->get_logger(),
+                        "Localization score below threshold for %d scores (now %.2f), switching to disparity",
+                        _lowLocScoreCount,
+                        msg->data);
+        }
+        _localizationLost = true;
+        _disparityHoldUntilNs = now_ns + static_cast<uint64_t>(_disparityCooldownMs) * 1000000ULL;
+        return;
+    }
+
+    _lowLocScoreCount = 0;
+
+    if (_localizationLost)
+    {
+        RCLCPP_INFO(this->get_logger(),
+                    "Localization score recovered to %.2f; pure pursuit will resume after hold time expires",
+                    msg->data);
+    }
+
+    _localizationLost = false;
+    _lastGlobalLocalizationRequestNs = 0U;
+}
+
+void MasterNode::updateGlobalLocalization()
+{
+    if (!_localizationLost)
+        return;
+
+    // The particle filter publishes a score of 0 until global localization converges, so localization stays
+    // lost until then; re-request if it hasn't converged within the retry period
+    const uint64_t now_ns = static_cast<uint64_t>(this->now().nanoseconds());
+    const uint64_t retry_ns = static_cast<uint64_t>(std::max(_globalLocalizationRetryMs, 0)) * 1000000ULL;
+    if (_lastGlobalLocalizationRequestNs != 0U && now_ns - _lastGlobalLocalizationRequestNs < retry_ns)
+        return;
+
+    if (!global_localization_client_->service_is_ready())
+    {
+        RCLCPP_WARN_THROTTLE(this->get_logger(),
+                             *this->get_clock(),
+                             2000,
+                             "Localization lost but %s is not available",
+                             _globalLocalizationService.c_str());
+        return;
+    }
+
+    RCLCPP_WARN(this->get_logger(),
+                _lastGlobalLocalizationRequestNs == 0U ? "Requesting global localization"
+                                                       : "Global localization did not converge, retrying");
+    global_localization_client_->async_send_request(std::make_shared<std_srvs::srv::Empty::Request>());
+    _lastGlobalLocalizationRequestNs = now_ns;
+}
+
 bool MasterNode::forcedAlgoToState(const std::string& algo, DriveState& state) const
 {
     if (algo == "controller")
@@ -225,7 +327,7 @@ bool MasterNode::forcedAlgoToState(const std::string& algo, DriveState& state) c
 void MasterNode::refreshOnlineStatus()
 {
     uint64_t now_ns = this->now().nanoseconds();
-    constexpr uint64_t timeout_ns = 300000000;  // 0.3 second timeout for scheduler/network jitter
+    const uint64_t timeout_ns = static_cast<uint64_t>(_nodeOnlineTimeoutMs) * 1000000ULL;
 
     for (std::size_t i = 0; i < _nodeOnline.size(); ++i)
     {
@@ -298,7 +400,13 @@ MasterNode::DriveState MasterNode::determineDriveState() const
                             "Risk threshold exceeded, cannot force pure pursuit. Falling back to safety emergency if available.");
                 return DriveState::SAFETY_EMERGENCY;
             }
-            if (forced_state == DriveState::PURE_PURSUIT && pp_ready && !_riskTresholdExceeded && !disparity_hold_active)
+            if (forced_state == DriveState::PURE_PURSUIT && _localizationLost)
+            {
+                RCLCPP_WARN(this->get_logger(),
+                            "Localization score too low, cannot force pure pursuit. Falling back to safety emergency if available.");
+                return DriveState::SAFETY_EMERGENCY;
+            }
+            if (forced_state == DriveState::PURE_PURSUIT && pp_ready && !_riskTresholdExceeded && !_localizationLost && !disparity_hold_active)
             {
                 return DriveState::PURE_PURSUIT;
             }
@@ -327,7 +435,7 @@ MasterNode::DriveState MasterNode::determineDriveState() const
         found = true;
     }
 
-    if (pp_ready && (!found || _priorityPurePursuit < best_priority) && !_riskTresholdExceeded && !disparity_hold_active)
+    if (pp_ready && (!found || _priorityPurePursuit < best_priority) && !_riskTresholdExceeded && !_localizationLost && !disparity_hold_active)
     {
         best_priority = _priorityPurePursuit;
         best_state = DriveState::PURE_PURSUIT;
@@ -401,6 +509,7 @@ void MasterNode::tryPublishDriveCommand()
 void MasterNode::mainLoop()
 {
     this->refreshOnlineStatus();
+    this->updateGlobalLocalization();
 
     // Publish error updates only when they change to reduce bus/log spam.
     bool noErrors = true;
@@ -458,6 +567,10 @@ void MasterNode::initParamCallbackHandle(void)
 
                 if (name == "max_accepted_risk")
                     MAX_ACCEPTED_RISK = param.as_double();
+                if (name == "min_accepted_localization_score")
+                    MIN_ACCEPTED_LOCALIZATION_SCORE = param.as_double();
+                if (name == "min_low_localization_scores")
+                    MIN_LOW_LOCALIZATION_SCORES = param.as_int();
 
                 RCLCPP_INFO(this->get_logger(), "Parameter updated: %s", name.c_str());
             }

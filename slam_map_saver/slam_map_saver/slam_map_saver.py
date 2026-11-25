@@ -15,7 +15,7 @@ class MapSaverCliNode(Node):
 
     The node does not run continuously — it exists only to provide a ROS 2
     logger and then calls the external map_saver_cli executable to dump the
-    current map (/slam_map) to a timestamped file.
+    current map (/map) to a timestamped file.
     """
     def __init__(self):
         # Initialize the ROS 2 node with a name and log that the node is ready.
@@ -31,7 +31,7 @@ class MapSaverCliNode(Node):
         - Uses datetime to generate a unique filename.
         - Expands a hardcoded path for the maps directory.
         - Creates the directory if missing.
-        - Invokes: ros2 run nav2_map_server map_saver_cli -f <map_file> --ros-args --remap /map:=/slam_map
+        - Invokes: ros2 run nav2_map_server map_saver_cli -f <map_file> --ros-args -p map_subscribe_transient_local:=false
         - Logs success or failure.
         """
         # Timestamp for unique file names: e.g. slam_map_20251028_123456
@@ -46,11 +46,12 @@ class MapSaverCliNode(Node):
 
         self.get_logger().info(f"Saving map to {map_file}...")
         try:
-            # Call the nav2 map_saver_cli via ros2 run. Remap /map to /slam_map so the correct topic is saved.
+            # Call the nav2 map_saver_cli via ros2 run. Subscribe to /map as volatile: the map comes from the
+            # Foxglove bridge, which publishes volatile, and a transient_local subscription is incompatible with it.
             subprocess.run(
                 ["ros2", "run", "nav2_map_server", "map_saver_cli",
                  "-f", map_file,
-                 "--ros-args", "--remap", "/map:=/slam_map"],
+                 "--ros-args", "-p", "map_subscribe_transient_local:=false"],
                 check=True
             )
 
